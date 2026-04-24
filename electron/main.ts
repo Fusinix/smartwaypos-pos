@@ -1,7 +1,7 @@
 /** @format */
 
 import * as bcrypt from "bcryptjs";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import * as path from "path";
 import { getDatabase } from "./database";
 import { licensingManager } from "./licensing";
@@ -174,6 +174,11 @@ async function logAction({
 		]
 	);
 }
+
+// Register protocol before app is ready
+protocol.registerSchemesAsPrivileged([
+	{ scheme: 'app', privileges: { secure: true, standard: true, allowServiceWorkers: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+]);
 
 async function createWindow() {
 	// console.log("Starting table creation...")
@@ -547,12 +552,17 @@ async function createWindow() {
 			mainWindow.loadURL("http://localhost:5173");
 			mainWindow.webContents.openDevTools();
 		} else {
-			// Production path resolution
-			const indexPath = path.join(app.getAppPath(), "dist", "index.html");
-			console.log('Loading production index.html from:', indexPath);
-			mainWindow.loadFile(indexPath).catch(err => {
-				console.error('Failed to load index.html:', err);
-			});
+			// Register and load via custom protocol
+			if (!protocol.isProtocolRegistered('app')) {
+				protocol.handle('app', (request) => {
+					const url = request.url.slice(6); // Remove 'app://'
+					const filePath = path.join(app.getAppPath(), 'dist', url);
+					return Promise.resolve(new Response(
+						fs.readFileSync(filePath)
+					));
+				});
+			}
+			mainWindow.loadURL('app://index.html');
 		}
 
 		// 3. Transition from Splash to Main

@@ -102,6 +102,43 @@ const LOG_ACTIONS = {
     UPDATE_FOOD_CATEGORY: "update_food_category",
     DELETE_FOOD_CATEGORY: "delete_food_category",
 };
+// Customer Display Handler
+electron_1.ipcMain.handle("list-ports", async () => {
+    try {
+        const ports = await serialport_1.SerialPort.list();
+        return ports;
+    }
+    catch (error) {
+        console.error("Error listing ports:", error);
+        return [];
+    }
+});
+electron_1.ipcMain.handle("update-customer-display", async (_, portPath, line1, line2 = "") => {
+    return new Promise((resolve, reject) => {
+        const port = new serialport_1.SerialPort({
+            path: portPath,
+            baudRate: 9600, // Standard for most VFD displays
+            autoOpen: false,
+        });
+        port.open((err) => {
+            if (err) {
+                console.error("Error opening port:", err.message);
+                return reject(err);
+            }
+            // VFD Displays usually need a "Clear" command first (Hex 0x0C)
+            const clearCommand = Buffer.from([0x0C]);
+            // Move cursor to home (Hex 0x0B)
+            const homeCommand = Buffer.from([0x0B]);
+            port.write(clearCommand);
+            port.write(homeCommand);
+            port.write(`${line1.padEnd(20)}\n${line2.padEnd(20)}`);
+            setTimeout(() => {
+                port.close();
+                resolve(true);
+            }, 200);
+        });
+    });
+});
 async function logAction({ db, admin_id, admin_name, admin_role, action, page, context, }) {
     await db.run("INSERT INTO logs (created_at, admin_id, admin_name, admin_role, action, page, context) VALUES (?, ?, ?, ?, ?, ?, ?)", [
         new Date().toISOString(),
@@ -452,10 +489,12 @@ async function createWindow() {
             mainWindow.webContents.openDevTools();
         }
         else {
-            // console.log('Packaged, loading from dist');
-            const indexPath = path.join(__dirname, "../dist/index.html");
+            // Production path resolution
+            const indexPath = path.join(electron_1.app.getAppPath(), "dist", "index.html");
             console.log('Loading production index.html from:', indexPath);
-            mainWindow.loadFile(indexPath);
+            mainWindow.loadFile(indexPath).catch(err => {
+                console.error('Failed to load index.html:', err);
+            });
         }
         // 3. Transition from Splash to Main
         mainWindow.once('ready-to-show', () => {
