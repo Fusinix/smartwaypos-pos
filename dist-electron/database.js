@@ -48,6 +48,8 @@ function getDatabase() {
     db = new better_sqlite3_1.default(dbPath);
     // Enable foreign keys
     db.pragma('foreign_keys = ON');
+    // Save original methods to avoid recursion when wrapping
+    const originalExec = db.exec.bind(db);
     // These helper methods make it compatible with your existing async calls
     db.run = async (sql, params = []) => {
         const info = Array.isArray(params) ? db.prepare(sql).run(...params) : db.prepare(sql).run(params);
@@ -55,6 +57,9 @@ function getDatabase() {
             lastID: info.lastInsertRowid,
             changes: info.changes
         };
+    };
+    db.exec = async (sql) => {
+        return originalExec(sql);
     };
     db.get = async (sql, params = []) => {
         return Array.isArray(params) ? db.prepare(sql).get(...params) : db.prepare(sql).get(params);

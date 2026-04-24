@@ -23,9 +23,6 @@
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.5",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/react-router-dom": "^5.3.3",
-    "@types/serialport": "^8.0.5",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.10.0",
     "class-variance-authority": "^0.7.1",
@@ -55,6 +52,9 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react-swc": "^3.9.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/react-router-dom": "^5.3.3",
+    "@types/serialport": "^8.0.5",
     "@types/better-sqlite3": "^7.6.11",
     "autoprefixer": "^10.4.18",
     "concurrently": "^8.2.2",
@@ -80,7 +80,9 @@
     "icon": "public/images/logo.png",
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!release/**/*",
+      "!node_modules/**/*"
     ],
     "mac": {
       "category": "public.app-category.business",
