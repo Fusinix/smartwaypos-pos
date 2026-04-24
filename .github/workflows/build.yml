@@ -29,6 +29,17 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Install Windows Build Tools (Windows Only)
+        if: matrix.os == 'windows-latest'
+        run: |
+          npm install --global node-gyp
+          npm config set msvs_version 2022
+
+      - name: Rebuild Native Modules
+        run: npx electron-rebuild
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Electron App
         run: npm run electron:build
         env:
