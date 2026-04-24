@@ -213,6 +213,7 @@ async function createWindow() {
 			nodeIntegration: true,
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.js"),
+			webSecurity: false, // Temporarily disable to fix "Not allowed to load local resource"
 		},
 	});
 
@@ -555,7 +556,10 @@ async function createWindow() {
 			mainWindow.loadURL("http://localhost:5173");
 			mainWindow.webContents.openDevTools();
 		} else {
-			await loadURL(mainWindow);
+			const indexPath = path.join(__dirname, "..", "dist", "index.html");
+			mainWindow.loadFile(indexPath).catch(err => {
+				console.error('Failed to load index.html:', err);
+			});
 		}
 
 		// 3. Transition from Splash to Main
