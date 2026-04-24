@@ -27,6 +27,7 @@ export interface POSSettings {
   cashDrawerPort?: string;
   cashDrawerKickCode?: string;
   receiptPrinter?: string;
+  customerDisplayPort?: string;
 }
 
 export interface TableSettings {

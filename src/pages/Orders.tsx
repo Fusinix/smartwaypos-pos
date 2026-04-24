@@ -77,6 +77,20 @@ export const Orders: React.FC = () => {
 		fetchCategories();
 	}, []);
 
+	// Auto-update Customer Display
+	useEffect(() => {
+		const port = settings?.pos?.customerDisplayPort;
+		if (!port) return;
+
+		if (selectedOrder && selectedOrder.status === "open") {
+			const totalStr = `${settings?.general?.defaultCurrency || "GHS"} ${selectedOrderTotal.toFixed(2)}`;
+			window.electron.invoke("update-customer-display", port, "Total Amount:", totalStr);
+		} else {
+			// Show welcome message when no order is active
+			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
+		}
+	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos?.customerDisplayPort]);
+
 	const handleOrderSelect = async (order: Order) => {
 		if (!order.id) return;
 
@@ -208,6 +222,14 @@ export const Orders: React.FC = () => {
 				// Show print confirmation instead of auto-printing
 				setOrderToPrint(updated);
 				setShowPrintConfirm(true);
+
+				// Update Customer Display with Thank You and Change
+				const port = settings?.pos?.customerDisplayPort;
+				if (port) {
+					const change = (updated.amount_tendered || 0) - (updated.amount || 0);
+					const changeStr = change > 0 ? `CHANGE: ${settings?.general?.defaultCurrency || "GHS"} ${change.toFixed(2)}` : "THANK YOU!";
+					window.electron.invoke("update-customer-display", port, "PAYMENT SUCCESS", changeStr);
+				}
 			}
 		} catch (error) {
 			console.error("Failed to close order:", error);

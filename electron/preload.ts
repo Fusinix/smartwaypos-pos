@@ -66,9 +66,11 @@ const validChannels = [
   'force-license-validation',
   'clear-all-data',
   'list-serial-ports',
+  'list-ports',
   'list-printers',
   'trigger-cash-drawer',
   'print-receipt-silent',
+  'update-customer-display',
 ];
 
 // Expose protected methods that allow the renderer process to use
@@ -82,4 +84,4 @@ contextBridge.exposeInMainWorld('electron', {
     console.error(`Unauthorized IPC channel: ${channel}`);
     throw new Error(`Unauthorized IPC channel: ${channel}`);
   },
-}); 
+});

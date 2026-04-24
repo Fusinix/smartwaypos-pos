@@ -99,6 +99,48 @@ const LOG_ACTIONS = {
 	DELETE_FOOD_CATEGORY: "delete_food_category",
 };
 
+// Customer Display Handler
+ipcMain.handle("list-ports", async () => {
+	try {
+		const ports = await SerialPort.list();
+		return ports;
+	} catch (error) {
+		console.error("Error listing ports:", error);
+		return [];
+	}
+});
+
+ipcMain.handle("update-customer-display", async (_, portPath: string, line1: string, line2: string = "") => {
+	return new Promise((resolve, reject) => {
+		const port = new SerialPort({
+			path: portPath,
+			baudRate: 9600, // Standard for most VFD displays
+			autoOpen: false,
+		});
+
+		port.open((err) => {
+			if (err) {
+				console.error("Error opening port:", err.message);
+				return reject(err);
+			}
+
+			// VFD Displays usually need a "Clear" command first (Hex 0x0C)
+			const clearCommand = Buffer.from([0x0C]);
+			// Move cursor to home (Hex 0x0B)
+			const homeCommand = Buffer.from([0x0B]);
+
+			port.write(clearCommand);
+			port.write(homeCommand);
+			port.write(`${line1.padEnd(20)}\n${line2.padEnd(20)}`);
+
+			setTimeout(() => {
+				port.close();
+				resolve(true);
+			}, 200);
+		});
+	});
+});
+
 // Add before logAction:
 interface LogActionParams {
 	db: any;

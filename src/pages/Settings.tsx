@@ -86,6 +86,7 @@ export const Settings: React.FC = () => {
     cashDrawerPort: '',
     cashDrawerKickCode: '0x07',
     receiptPrinter: '',
+    customerDisplayPort: '',
     ...settings?.pos
   });
 
@@ -718,6 +719,59 @@ export const Settings: React.FC = () => {
                 >
                   Refresh Devices
                 </Button>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <h4 className="text-sm font-semibold text-gray-900 mb-4">Customer-Facing Display</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label className="block text-sm font-medium text-gray-700">
+                    Display Port (VFD)
+                  </Label>
+                  <select
+                    value={localPosSettings.customerDisplayPort || ''}
+                    onChange={(e) =>
+                      setLocalPosSettings({
+                        ...localPosSettings,
+                        customerDisplayPort: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
+                  >
+                    <option value="">Select port...</option>
+                    {availablePorts.map((port) => (
+                      <option key={port.path} value={port.path}>
+                        {port.path} {port.friendlyName ? `- ${port.friendlyName}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Connects to the monitor/pole at the back of the POS.</p>
+                </div>
+
+                <div className="flex items-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (!localPosSettings.customerDisplayPort) {
+                        toast.error('Please select a COM port first');
+                        return;
+                      }
+                      try {
+                        await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, 'SMARTWAY POS', 'WELCOME!');
+                        toast.success('Test message sent to display');
+                      } catch (err: any) {
+                        toast.error(`Test failed: ${err.message}`);
+                      }
+                    }}
+                    disabled={!localPosSettings.customerDisplayPort}
+                    className="text-green-600 border-green-200 hover:bg-green-50"
+                  >
+                    Test Customer Display
+                  </Button>
+                </div>
               </div>
             </div>
 
