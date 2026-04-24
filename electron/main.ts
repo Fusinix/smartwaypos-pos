@@ -6,6 +6,9 @@ import * as path from "path";
 import { getDatabase } from "./database";
 import { licensingManager } from "./licensing";
 import * as fs from "fs";
+import serve from "electron-serve";
+
+const loadURL = serve({ directory: "dist" });
 import { SerialPort } from "serialport";
 import { exec } from "child_process";
 
@@ -552,17 +555,7 @@ async function createWindow() {
 			mainWindow.loadURL("http://localhost:5173");
 			mainWindow.webContents.openDevTools();
 		} else {
-			// Register and load via custom protocol
-			if (!protocol.isProtocolRegistered('app')) {
-				protocol.handle('app', (request) => {
-					const url = request.url.slice(6); // Remove 'app://'
-					const filePath = path.join(app.getAppPath(), 'dist', url);
-					return Promise.resolve(new Response(
-						fs.readFileSync(filePath)
-					));
-				});
-			}
-			mainWindow.loadURL('app://index.html');
+			await loadURL(mainWindow);
 		}
 
 		// 3. Transition from Splash to Main
