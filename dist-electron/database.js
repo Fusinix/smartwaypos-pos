@@ -32,23 +32,36 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDatabase = getDatabase;
-const sqlite_1 = require("sqlite");
-const sqlite3 = __importStar(require("sqlite3"));
+const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const path = __importStar(require("path"));
 const electron_1 = require("electron");
 let db = null;
-async function getDatabase() {
+function getDatabase() {
     if (db)
         return db;
     const dbPath = path.join(electron_1.app.getPath('userData'), 'smartwaypos.db');
-    db = await (0, sqlite_1.open)({
-        filename: dbPath,
-        driver: sqlite3.Database
-    });
+    db = new better_sqlite3_1.default(dbPath);
     // Enable foreign keys
-    await db.run('PRAGMA foreign_keys = ON');
+    db.pragma('foreign_keys = ON');
+    // These helper methods make it compatible with your existing async calls
+    db.run = async (sql, params = []) => {
+        const info = Array.isArray(params) ? db.prepare(sql).run(...params) : db.prepare(sql).run(params);
+        return {
+            lastID: info.lastInsertRowid,
+            changes: info.changes
+        };
+    };
+    db.get = async (sql, params = []) => {
+        return Array.isArray(params) ? db.prepare(sql).get(...params) : db.prepare(sql).get(params);
+    };
+    db.all = async (sql, params = []) => {
+        return Array.isArray(params) ? db.prepare(sql).all(...params) : db.prepare(sql).all(params);
+    };
     return db;
 }
 //# sourceMappingURL=database.js.map

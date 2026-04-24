@@ -37,8 +37,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const bcrypt = __importStar(require("bcryptjs"));
 const electron_1 = require("electron");
 const path = __importStar(require("path"));
-const sqlite_1 = require("sqlite");
-const sqlite3 = __importStar(require("sqlite3"));
 const database_1 = require("./database");
 const licensing_1 = require("./licensing");
 const fs = __importStar(require("fs"));
@@ -147,13 +145,8 @@ async function createWindow() {
         },
     });
     // Initialize database
-    const dbPath = path.join(electron_1.app.getPath("userData"), "smartwaypos.db");
-    // console.log('Database path:', dbPath);
     try {
-        db = await (0, sqlite_1.open)({
-            filename: dbPath,
-            driver: sqlite3.Database,
-        });
+        db = (0, database_1.getDatabase)();
         // console.log('Database opened successfully');
         const tables = await db.all("SELECT name FROM sqlite_master WHERE type='table'");
         // console.log('Tables in DB:', tables);
@@ -445,11 +438,13 @@ async function createWindow() {
         const adminUser = await db.get("SELECT * FROM users WHERE username = ?", [
             "admin",
         ]);
-        // console.log('Admin user exists:', !!adminUser);
+        console.log('--- Startup Check ---');
+        console.log('Admin user found in DB:', !!adminUser);
         if (!adminUser) {
+            console.log('Creating default admin user...');
             const hashedPassword = await bcrypt.hash("Lagmin123", 10);
             await db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", ["admin", hashedPassword, "admin"]);
-            // console.log('Default admin user created');
+            console.log('Default admin user created successfully.');
         }
         // Load the index.html file
         if (!electron_1.app.isPackaged) {
@@ -461,8 +456,6 @@ async function createWindow() {
             const indexPath = path.join(__dirname, "../dist/index.html");
             console.log('Loading production index.html from:', indexPath);
             mainWindow.loadFile(indexPath);
-            // TEMPORARY: Open DevTools in production to see the error
-            mainWindow.webContents.openDevTools();
         }
         // 3. Transition from Splash to Main
         mainWindow.once('ready-to-show', () => {

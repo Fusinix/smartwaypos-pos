@@ -3,8 +3,6 @@
 import * as bcrypt from "bcryptjs";
 import { app, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
-import { open } from "sqlite";
-import * as sqlite3 from "sqlite3";
 import { getDatabase } from "./database";
 import { licensingManager } from "./licensing";
 import * as fs from "fs";
@@ -169,14 +167,8 @@ async function createWindow() {
 	});
 
 	// Initialize database
-	const dbPath = path.join(app.getPath("userData"), "smartwaypos.db");
-	// console.log('Database path:', dbPath);
-
 	try {
-		db = await open({
-			filename: dbPath,
-			driver: sqlite3.Database,
-		});
+		db = getDatabase();
 
 		// console.log('Database opened successfully');
 
@@ -495,15 +487,17 @@ async function createWindow() {
 		const adminUser = await db.get("SELECT * FROM users WHERE username = ?", [
 			"admin",
 		]);
-		// console.log('Admin user exists:', !!adminUser);
+		console.log('--- Startup Check ---');
+		console.log('Admin user found in DB:', !!adminUser);
 
 		if (!adminUser) {
+			console.log('Creating default admin user...');
 			const hashedPassword = await bcrypt.hash("Lagmin123", 10);
 			await db.run(
 				"INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
 				["admin", hashedPassword, "admin"]
 			);
-			// console.log('Default admin user created');
+			console.log('Default admin user created successfully.');
 		}
 
 		// Load the index.html file
