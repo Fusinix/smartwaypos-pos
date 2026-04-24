@@ -556,10 +556,35 @@ async function createWindow() {
 			mainWindow.loadURL("http://localhost:5173");
 			mainWindow.webContents.openDevTools();
 		} else {
-			const indexPath = path.join(__dirname, "..", "dist", "index.html");
-			mainWindow.loadFile(indexPath).catch(err => {
-				console.error('Failed to load index.html:', err);
-			});
+			// Google-Recommended Robust Protocol Handler
+			if (!protocol.isProtocolRegistered('app')) {
+				protocol.handle('app', async (request) => {
+					try {
+						// Google's trick: Decode and Normalize the path
+						const url = new URL(request.url);
+						let pathName = decodeURIComponent(url.pathname);
+						
+						// On Windows, the pathname might start with a / that we don't need
+						if (pathName.startsWith('/')) pathName = pathName.slice(1);
+						if (!pathName || pathName === 'index.html') pathName = 'index.html';
+
+						const filePath = path.normalize(path.join(app.getAppPath(), 'dist', pathName));
+						
+						// Verify file exists
+						if (!fs.existsSync(filePath)) {
+							// Fallback to index.html for SPA routing
+							const indexPath = path.normalize(path.join(app.getAppPath(), 'dist', 'index.html'));
+							return new Response(fs.readFileSync(indexPath));
+						}
+
+						return new Response(fs.readFileSync(filePath));
+					} catch (e) {
+						console.error('Protocol error:', e);
+						return new Response('Error loading resource', { status: 500 });
+					}
+				});
+			}
+			mainWindow.loadURL('app://index.html');
 		}
 
 		// 3. Transition from Splash to Main
