@@ -505,10 +505,12 @@ async function createWindow() {
 			mainWindow.loadURL("http://localhost:5173");
 			mainWindow.webContents.openDevTools();
 		} else {
-			// console.log('Packaged, loading from dist');
-			const indexPath = path.join(__dirname, "../dist/index.html");
+			// Production path resolution
+			const indexPath = path.join(app.getAppPath(), "dist", "index.html");
 			console.log('Loading production index.html from:', indexPath);
-			mainWindow.loadFile(indexPath);
+			mainWindow.loadFile(indexPath).catch(err => {
+				console.error('Failed to load index.html:', err);
+			});
 		}
 
 		// 3. Transition from Splash to Main
