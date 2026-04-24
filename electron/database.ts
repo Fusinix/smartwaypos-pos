@@ -14,6 +14,9 @@ export function getDatabase() {
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
   
+  // Save original methods to avoid recursion when wrapping
+  const originalExec = db.exec.bind(db);
+
   // These helper methods make it compatible with your existing async calls
   db.run = async (sql: string, params: any = []) => {
     const info = Array.isArray(params) ? db.prepare(sql).run(...params) : db.prepare(sql).run(params);
@@ -21,6 +24,10 @@ export function getDatabase() {
       lastID: info.lastInsertRowid,
       changes: info.changes
     };
+  };
+
+  db.exec = async (sql: string) => {
+    return originalExec(sql);
   };
   
   db.get = async (sql: string, params: any = []) => {
