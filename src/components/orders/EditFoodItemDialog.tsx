@@ -1,0 +1,288 @@
+/** @format */
+
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useCurrency } from "@/hooks/useCurrency";
+import type { OrderItemDetail } from "@/types";
+
+interface EditFoodItemDialogProps {
+	open: boolean;
+	foodItem: OrderItemDetail;
+	foodExtras: any[];
+	onClose: () => void;
+	onUpdate: (updatedItem: OrderItemDetail) => void;
+}
+
+export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
+	open,
+	foodItem,
+	foodExtras,
+	onClose,
+	onUpdate,
+}) => {
+	const { format: formatCurrency } = useCurrency();
+	const [extraQuantities, setExtraQuantities] = useState<Map<number, number>>(
+		new Map()
+	);
+	const [notes, setNotes] = useState("");
+
+	useEffect(() => {
+		if (open && foodItem) {
+			// Initialize with current extras and their quantities
+			const quantities = new Map<number, number>();
+			foodItem.extras?.forEach((e) => {
+				quantities.set(e.id, e.quantity || 1);
+			});
+			setExtraQuantities(quantities);
+			setNotes(foodItem.notes || "");
+		}
+	}, [open, foodItem]);
+
+	const handleToggleExtra = (extraId: number) => {
+		setExtraQuantities((prev) => {
+			const newMap = new Map(prev);
+			if (newMap.has(extraId)) {
+				newMap.delete(extraId);
+			} else {
+				newMap.set(extraId, 1);
+			}
+			return newMap;
+		});
+	};
+
+	const handleExtraQuantityChange = (extraId: number, quantity: number) => {
+		setExtraQuantities((prev) => {
+			const newMap = new Map(prev);
+			if (quantity <= 0) {
+				newMap.delete(extraId);
+			} else {
+				newMap.set(extraId, Math.max(1, quantity));
+			}
+			return newMap;
+		});
+	};
+
+	const handleUpdate = () => {
+		const updatedItem: OrderItemDetail = {
+			...foodItem,
+			extras: Array.from(extraQuantities.entries()).map(([id, quantity]) => {
+				const extra = foodExtras.find((e) => e.id === id);
+				return {
+					id: id,
+					name: extra?.name || "",
+					price: extra?.price || 0,
+					quantity: quantity,
+				};
+			}),
+			notes: notes || undefined,
+		};
+		onUpdate(updatedItem);
+		onClose();
+	};
+
+	if (!foodItem) return null;
+
+	// Get the food item details - we need to find it from foodItems
+	// For now, we'll use the foodItem data we have
+	const availableExtras = foodExtras.filter((e) => e.status === "active");
+
+	return (
+		<Dialog open={open} onOpenChange={onClose}>
+			<DialogContent className="w-full !max-w-5xl">
+				<DialogHeader>
+					<DialogTitle className="text-xl">
+						{foodItem.food_item_name}
+					</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-6 py-4">
+					{/* Food Item Details */}
+					<div className="space-y-2">
+						<div className="flex items-center justify-between pt-2 border-t">
+							<span className="text-sm font-medium text-gray-700">
+								Base Price:
+							</span>
+							<span className="text-lg font-bold text-gray-900">
+								{formatCurrency(foodItem.price)}
+							</span>
+						</div>
+					</div>
+
+					{/* Extras Section */}
+					{availableExtras.length > 0 ?
+						<div className="space-y-3">
+							<label className="text-sm font-semibold text-gray-900 block">
+								Select Extras (Optional)
+							</label>
+							<div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+								{availableExtras.map((extra) => {
+									const isSelected = extraQuantities.has(extra.id);
+									const quantity = extraQuantities.get(extra.id) || 1;
+									return (
+										<div
+											key={extra.id}
+											className={`flex items-center justify-between p-3 border rounded-lg transition-all ${
+												isSelected ?
+													"bg-primary/10 border-primary"
+												:	"bg-white border-gray-200 hover:border-gray-300"
+											}`}
+										>
+											<div className="flex items-center space-x-3 flex-1">
+												<input
+													type="checkbox"
+													id={`edit-extra-${extra.id}`}
+													checked={isSelected}
+													onChange={(e) => {
+														e.stopPropagation();
+														handleToggleExtra(extra.id);
+													}}
+													className="w-4 h-4 cursor-pointer"
+												/>
+												<label
+													htmlFor={`edit-extra-${extra.id}`}
+													className="text-sm font-medium text-gray-900 cursor-pointer flex-1"
+													onClick={() => handleToggleExtra(extra.id)}
+												>
+													{extra.name}
+												</label>
+											</div>
+											{isSelected && (
+												<div
+													className="flex items-center gap-2 mr-2"
+													onClick={(e) => e.stopPropagation()}
+												>
+													<Button
+														size="icon"
+														variant="outline"
+														className="size-6"
+														onClick={() =>
+															handleExtraQuantityChange(extra.id, quantity - 1)
+														}
+													>
+														-
+													</Button>
+													<Input
+														type="number"
+														min={1}
+														value={quantity}
+														onChange={(e) =>
+															handleExtraQuantityChange(
+																extra.id,
+																Number(e.target.value)
+															)
+														}
+														className="w-12 h-6 text-xs px-1"
+													/>
+													<Button
+														size="icon"
+														variant="outline"
+														className="size-6"
+														onClick={() =>
+															handleExtraQuantityChange(extra.id, quantity + 1)
+														}
+													>
+														+
+													</Button>
+												</div>
+											)}
+											<span className="text-sm font-semibold text-gray-700">
+												+{formatCurrency(extra.price)}
+											</span>
+										</div>
+									);
+								})}
+							</div>
+							{extraQuantities.size > 0 && (
+								<div className="text-xs text-gray-500">
+									{extraQuantities.size} extra
+									{extraQuantities.size > 1 ? "s" : ""} selected
+								</div>
+							)}
+						</div>
+					:	<div className="text-sm text-gray-500 italic text-center py-4 border rounded-lg bg-gray-50">
+							No extras available
+						</div>
+					}
+
+					{/* Notes/Message Section */}
+					<div className="space-y-2">
+						<label className="text-sm font-semibold text-gray-900 block">
+							Special Instructions / Notes (Optional)
+						</label>
+						<Textarea
+							placeholder="e.g., No pepper, Extra spicy, Less salt, Well done..."
+							value={notes}
+							onChange={(e) => setNotes(e.target.value)}
+							rows={3}
+							className="resize-none"
+						/>
+						<p className="text-xs text-gray-500">
+							Add any special requests or notes for this food item
+						</p>
+					</div>
+
+					{/* Total Price Preview */}
+					{extraQuantities.size > 0 && (
+						<div className="pt-3 border-t space-y-1">
+							<div className="flex justify-between text-sm text-gray-600">
+								<span>Base Price:</span>
+								<span>{formatCurrency(foodItem.price)}</span>
+							</div>
+							{Array.from(extraQuantities.entries()).map(
+								([extraId, quantity]) => {
+									const extra = availableExtras.find((e) => e.id === extraId);
+									return extra ?
+											<div
+												key={extraId}
+												className="flex justify-between text-sm text-gray-600"
+											>
+												<span className="text-gray-500">
+													+ {extra.name} {quantity > 1 ? `(×${quantity})` : ""}:
+												</span>
+												<span>{formatCurrency(extra.price * quantity)}</span>
+											</div>
+										:	null;
+								}
+							)}
+							<div className="flex justify-between font-semibold text-base text-gray-900 pt-2 border-t">
+								<span>Total:</span>
+								<span>
+									{formatCurrency(
+										foodItem.price +
+											Array.from(extraQuantities.entries()).reduce(
+												(sum, [id, quantity]) => {
+													const extra = availableExtras.find(
+														(e) => e.id === id
+													);
+													return sum + (extra?.price || 0) * quantity;
+												},
+												0
+											)
+									)}
+								</span>
+							</div>
+						</div>
+					)}
+				</div>
+
+				<DialogFooter>
+					<Button variant="outline" onClick={onClose}>
+						Cancel
+					</Button>
+					<Button onClick={handleUpdate} className="min-w-[120px]">
+						Update Item
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+};
+
