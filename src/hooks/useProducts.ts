@@ -2,13 +2,13 @@ import { useAuth } from '@/context/AuthContext';
 import { showToast } from '@/lib/toast';
 import { useProductStore } from '@/stores/useProductStore';
 import type { NewProduct, Product } from '../types/product';
+import { useCallback } from 'react';
 
 export function useProducts() {
   const { user } = useAuth();
   const store = useProductStore();
 
-  const fetchProducts = async (): Promise<Product[]> => {
-    
+  const fetchProducts = useCallback(async (): Promise<Product[]> => {
     store.setLoading(true);
     store.setError(null);
     try {
@@ -23,7 +23,7 @@ export function useProducts() {
     } finally {
       store.setLoading(false);
     }
-  };
+  }, [user, store]);
 
   const addProduct = async (product: NewProduct): Promise<Product> => {
     store.setLoading(true);

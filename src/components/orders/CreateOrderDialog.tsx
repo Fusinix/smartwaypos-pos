@@ -83,10 +83,10 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 			fetchFoodItems();
 			fetchFoodCategories();
 			getTables();
-			fetchExtras(); // Ensure extras are fresh too
+			fetchExtras();
 			fetchOrders();
 		}
-	}, [open, fetchProducts, fetchCategories, fetchFoodItems, fetchFoodCategories, getTables, fetchExtras, fetchOrders]);
+	}, [open]);
 
 	const filteredProducts = products.filter((p) => {
 		const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());

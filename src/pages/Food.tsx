@@ -113,7 +113,7 @@ export default function Food() {
 		fetchFoodCategories();
 		fetchExtras();
 		fetchFoodStats();
-	}, [searchParams, fetchFoodItems, fetchFoodCategories, fetchExtras]);
+	}, [searchParams]);
 
 	const fetchFoodStats = async () => {
 		try {

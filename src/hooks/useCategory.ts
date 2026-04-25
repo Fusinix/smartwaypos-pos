@@ -2,12 +2,13 @@ import { useAuth } from '@/context/AuthContext';
 import { showToast } from '@/lib/toast';
 import { useCategoryStore } from '@/stores/useCategoryStore';
 import type { Category, NewCategory } from '@/types/category';
+import { useCallback } from 'react';
 
 export function useCategory() {
   const { user } = useAuth();
   const store = useCategoryStore();
 
-  const fetchCategories = async (): Promise<Category[]> => {
+  const fetchCategories = useCallback(async (): Promise<Category[]> => {
     store.setLoading(true);
     store.setError(null);
     try {
@@ -22,7 +23,7 @@ export function useCategory() {
     } finally {
       store.setLoading(false);
     }
-  };
+  }, [user, store]);
 
   const addCategory = async (category: NewCategory ): Promise<Category> => {
     store.setLoading(true);

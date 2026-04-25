@@ -2,12 +2,13 @@ import { useOrderStore } from '@/stores/useOrderStore';
 import { useAuth } from '@/context/AuthContext';
 import { showToast } from '@/lib/toast';
 import type { Order } from '../types';
+import { useCallback } from 'react';
 
 export function useOrders() {
   const { user } = useAuth();
   const store = useOrderStore();
 
-  const fetchOrders = async (): Promise<Order[]> => {
+  const fetchOrders = useCallback(async (): Promise<Order[]> => {
     store.setLoading(true);
     store.setError(null);
     try {
@@ -23,7 +24,7 @@ export function useOrders() {
     } finally {
       store.setLoading(false);
     }
-  };
+  }, [user, store]);
 
   const createOrder = async (order: Omit<Order, 'id'>, ): Promise<Order> => {
     store.setLoading(true);
