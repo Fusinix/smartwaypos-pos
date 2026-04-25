@@ -494,7 +494,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 								style={{ WebkitOverflowScrolling: "touch" }}
 							>
 								{cart.length === 0 ?
-									<div className="flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20 min-h-full">
+									<div className="flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20">
 										<div className="w-20 h-20 mb-4 flex items-center justify-center text-6xl">
 											🛒
 										</div>
@@ -703,10 +703,8 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 										})}
 									</ul>
 								}
-							</div>
-
 							{/* Order finalization */}
-							<div className="px-6 py-5 space-y-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+							<div className={cn("px-6 py-5 space-y-4 border-t border-gray-100 bg-gray-50 flex-shrink-0", cart.length === 0 ? "hidden" : "block")}>
 								<div className="space-y-2">
 									<span className="text-sm font-medium text-gray-700">
 										Order Type:
@@ -901,6 +899,8 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 									</Button>
 								</div>
 							</div>
+							</div>
+
 						</div>
 					</div>
 				</DialogContent>
