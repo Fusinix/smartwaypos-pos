@@ -28,8 +28,9 @@ export const Login: React.FC = () => {
 
 	// Recovery state
 	const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
-	const [recoveryStep, setRecoveryStep] = useState(1); // 1: Verify Key, 2: New Password
+	const [recoveryStep, setRecoveryStep] = useState<1 | 2 | 3>(1); // 1: Verify Key, 2: Waiting for Auth, 3: New Password
 	const [licenseKey, setLicenseKey] = useState("");
+	const [verificationNumber, setVerificationNumber] = useState("");
 	const [newPassword, setNewPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [recoveryError, setRecoveryError] = useState("");
@@ -40,11 +41,38 @@ export const Login: React.FC = () => {
 		if (!isRecoveryOpen) {
 			setRecoveryStep(1);
 			setLicenseKey("");
+			setVerificationNumber("");
 			setNewPassword("");
 			setConfirmPassword("");
 			setRecoveryError("");
 		}
 	}, [isRecoveryOpen]);
+
+	// Polling for Authorization
+	useEffect(() => {
+		let pollInterval: NodeJS.Timeout;
+
+		if (isRecoveryOpen && recoveryStep === 2) {
+			pollInterval = setInterval(async () => {
+				try {
+					const result = await window.electron.invoke("check-reset-status", licenseKey);
+					if (result.status === "approved") {
+						setRecoveryStep(3);
+						toast.success("Identity verified! Please set your new password.");
+					} else if (result.status === "rejected") {
+						setRecoveryStep(1);
+						setRecoveryError("Authorization rejected by admin.");
+					}
+				} catch (err) {
+					console.error("Polling error:", err);
+				}
+			}, 2500); // Poll every 2.5 seconds
+		}
+
+		return () => {
+			if (pollInterval) clearInterval(pollInterval);
+		};
+	}, [isRecoveryOpen, recoveryStep, licenseKey]);
 
 	// Redirect after successful login based on user role
 	useEffect(() => {
@@ -75,10 +103,11 @@ export const Login: React.FC = () => {
 		try {
 			setIsProcessing(true);
 			const result = await window.electron.invoke(
-				"validate-license-key",
+				"request-password-reset",
 				licenseKey
 			);
-			if (result.valid) {
+			if (result.success) {
+				setVerificationNumber(result.verificationNumber);
 				setRecoveryStep(2);
 			} else {
 				setRecoveryError(result.message || "Invalid license key.");
@@ -107,7 +136,7 @@ export const Login: React.FC = () => {
 		try {
 			setIsProcessing(true);
 			const result = await window.electron.invoke(
-				"reset-admin-password",
+				"complete-password-reset",
 				licenseKey,
 				newPassword
 			);
@@ -115,7 +144,6 @@ export const Login: React.FC = () => {
 				`Password for admin "${result.username}" reset successfully!`
 			);
 			setIsRecoveryOpen(false);
-			// Auto-fill username for convenience
 			setUsername(result.username);
 		} catch (err: any) {
 			setRecoveryError(err.message || "Failed to reset password.");
@@ -206,7 +234,9 @@ export const Login: React.FC = () => {
 						<DialogDescription>
 							{recoveryStep === 1 
 								? "Enter your License Key to verify ownership of this system."
-								: "License verified! You can now set a new password for the primary admin account."}
+								: recoveryStep === 2
+								? "Authorization Required. Log in to your Smartway Portal to approve this request."
+								: "Identity verified! You can now set a new password for the primary admin account."}
 						</DialogDescription>
 					</DialogHeader>
 
@@ -244,6 +274,35 @@ export const Login: React.FC = () => {
 								</Button>
 							</DialogFooter>
 						</form>
+					) : recoveryStep === 2 ? (
+						<div className="space-y-6 py-6 text-center">
+							<div className="space-y-2">
+								<p className="text-sm text-muted-foreground">Select the number below in your Portal dashboard:</p>
+								<div className="text-6xl font-bold text-primary tracking-tighter">
+									{verificationNumber}
+								</div>
+							</div>
+							
+							<div className="flex flex-col items-center gap-2">
+								<div className="flex items-center gap-2 text-xs text-muted-foreground">
+									<div className="size-2 rounded-full bg-primary animate-pulse" />
+									Waiting for Admin approval...
+								</div>
+								<p className="text-[10px] text-muted-foreground px-6">
+									Check your phone or computer where you are logged into the Smartway Portal.
+								</p>
+							</div>
+
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => setRecoveryStep(1)}
+								className="mt-4"
+							>
+								Back to License Key
+							</Button>
+						</div>
 					) : (
 						<form onSubmit={handleResetPassword} className="space-y-4 py-4">
 							<div className="space-y-2">
@@ -281,7 +340,7 @@ export const Login: React.FC = () => {
 								<Button
 									type="button"
 									variant="outline"
-									onClick={() => setRecoveryStep(1)}
+									onClick={() => setRecoveryStep(2)}
 								>
 									Back
 								</Button>

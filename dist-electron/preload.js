@@ -74,8 +74,9 @@ const validChannels = [
     'update-customer-display',
     'open-keyboard',
     'close-keyboard',
-    'reset-admin-password',
-    'validate-license-key',
+    'request-password-reset',
+    'check-reset-status',
+    'complete-password-reset',
 ];
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object

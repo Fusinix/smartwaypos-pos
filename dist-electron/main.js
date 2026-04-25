@@ -765,29 +765,82 @@ electron_1.ipcMain.handle("delete-user", async (_, id) => {
         throw error;
     }
 });
-electron_1.ipcMain.handle("validate-license-key", async (_, licenseKey) => {
+electron_1.ipcMain.handle("request-password-reset", async (_, licenseKey) => {
     try {
-        const validation = await licensing_1.licensingManager.validateLicense(licenseKey);
-        return validation;
-    }
-    catch (error) {
-        console.error("License key validation error:", error);
-        return { valid: false, message: error.message };
-    }
-});
-electron_1.ipcMain.handle("reset-admin-password", async (_, licenseKey, newPassword) => {
-    try {
-        // 1. Verify License Key
+        // 1. Verify License Key locally first to save a network call if it's junk
         const validation = await licensing_1.licensingManager.validateLicense(licenseKey);
         if (!validation.valid) {
-            throw new Error("Invalid License Key. Verification failed.");
+            return { success: false, message: validation.message || "Invalid license key." };
         }
-        // 2. Find the primary admin account
+        // 2. Request reset from Portal
+        const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app';
+        const isDev = !electron_1.app.isPackaged || process.env.NODE_ENV === 'development';
+        const baseUrl = isDev ? 'http://localhost:3000' : licenseServerUrl;
+        const response = await fetch(`${baseUrl}/api/pos/reset-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                license_key: licenseKey,
+                device_id: licensing_1.licensingManager.getHardwareId()
+            })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            return { success: false, message: `Portal Error: ${response.status}` };
+        }
+        const result = await response.json();
+        return {
+            success: true,
+            verificationNumber: result.verificationNumber // This is the "08" number
+        };
+    }
+    catch (error) {
+        console.error("Password reset request error:", error);
+        return { success: false, message: "Could not connect to Portal. Please check your internet." };
+    }
+});
+electron_1.ipcMain.handle("check-reset-status", async (_, licenseKey) => {
+    try {
+        const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app';
+        const isDev = !electron_1.app.isPackaged || process.env.NODE_ENV === 'development';
+        const baseUrl = isDev ? 'http://localhost:3000' : licenseServerUrl;
+        const response = await fetch(`${baseUrl}/api/pos/reset-status?license_key=${licenseKey}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok)
+            return { status: "pending" };
+        const result = await response.json();
+        return { status: result.status }; // "pending", "approved", or "rejected"
+    }
+    catch (error) {
+        return { status: "pending" };
+    }
+});
+electron_1.ipcMain.handle("complete-password-reset", async (_, licenseKey, newPassword) => {
+    try {
+        // 1. Final verification with Portal that this is actually approved
+        const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app';
+        const isDev = !electron_1.app.isPackaged || process.env.NODE_ENV === 'development';
+        const baseUrl = isDev ? 'http://localhost:3000' : licenseServerUrl;
+        const response = await fetch(`${baseUrl}/api/pos/reset-complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                license_key: licenseKey,
+                device_id: licensing_1.licensingManager.getHardwareId()
+            })
+        });
+        const result = await response.json();
+        if (!result.authorized) {
+            throw new Error("Unauthorized reset attempt.");
+        }
+        // 2. Find the primary admin account locally
         const adminUser = await db.get("SELECT * FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1");
         if (!adminUser) {
             throw new Error("No admin account found to reset.");
         }
-        // 3. Update the password
+        // 3. Update the password locally
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await db.run("UPDATE users SET password = ? WHERE id = ?", [
             hashedPassword,
@@ -797,16 +850,16 @@ electron_1.ipcMain.handle("reset-admin-password", async (_, licenseKey, newPassw
         await logAction({
             db,
             admin_id: null,
-            admin_name: "SYSTEM_RECOVERY",
+            admin_name: "PORTAL_AUTHORIZED_RECOVERY",
             admin_role: "system",
             action: LOG_ACTIONS.UPDATE_USER,
             page: "login_recovery",
-            context: { user_id: adminUser.id, method: "license_key" },
+            context: { user_id: adminUser.id, method: "portal_authorization" },
         });
         return { success: true, username: adminUser.username };
     }
     catch (error) {
-        console.error("Password reset error:", error);
+        console.error("Password reset completion error:", error);
         throw error;
     }
 });
