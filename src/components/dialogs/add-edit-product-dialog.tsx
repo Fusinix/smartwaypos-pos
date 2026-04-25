@@ -179,13 +179,14 @@ export default function AddEditProductDialog({
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={formData.cost_price || 0}
+                                value={formData.cost_price}
                                 onChange={(e) =>
                                     setFormData((prev) => ({
                                         ...prev,
-                                        cost_price: parseFloat(e.target.value) || 0,
+                                        cost_price: parseFloat(e.target.value),
                                     }))
                                 }
+                                required
                             />
                         </div>
 

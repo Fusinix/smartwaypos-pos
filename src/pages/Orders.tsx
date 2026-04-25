@@ -77,19 +77,6 @@ export const Orders: React.FC = () => {
 		fetchCategories();
 	}, []);
 
-	// Auto-update Customer Display
-	useEffect(() => {
-		const port = settings?.pos?.customerDisplayPort;
-		if (!port) return;
-
-		if (selectedOrder && selectedOrder.status === "open") {
-			const totalStr = `${settings?.general?.defaultCurrency || "GHS"} ${selectedOrderTotal.toFixed(2)}`;
-			window.electron.invoke("update-customer-display", port, "Total Amount:", totalStr);
-		} else {
-			// Show welcome message when no order is active
-			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
-		}
-	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos?.customerDisplayPort]);
 
 	const handleOrderSelect = async (order: Order) => {
 		if (!order.id) return;
@@ -188,6 +175,19 @@ export const Orders: React.FC = () => {
 	const taxRate = selectedOrder.tax || 0;
 		return subtotal * (1 + taxRate / 100);
 	}, [selectedOrder]);
+
+	// Auto-update Customer Display (must be after selectedOrderTotal is defined)
+	useEffect(() => {
+		const port = settings?.pos?.customerDisplayPort;
+		if (!port) return;
+
+		if (selectedOrder && selectedOrder.status === "open") {
+			const totalStr = `${settings?.general?.defaultCurrency || "GHS"} ${selectedOrderTotal.toFixed(2)}`;
+			window.electron.invoke("update-customer-display", port, "Total Amount:", totalStr);
+		} else {
+			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
+		}
+	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos?.customerDisplayPort]);
 
 	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);

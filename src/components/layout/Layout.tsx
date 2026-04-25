@@ -37,6 +37,7 @@ import {
 } from "../ui/dropdown-menu";
 import { useStock } from "../../hooks/useStock";
 import { useOrders } from "../../hooks/useOrders";
+import { useProducts } from "../../hooks/useProducts";
 
 export const Layout: React.FC = () => {
 	const { isAuthenticated, user, logout } = useAuth();
@@ -50,6 +51,8 @@ export const Layout: React.FC = () => {
 		getOutOfStockProducts,
 	} = useStock();
 	const { orders, fetchOrders } = useOrders();
+	const { products, fetchProducts } = useProducts();
+	const hasProducts = products.length > 0;
 	const [language, setLanguage] = useState("en");
 
 	useEffect(() => {
@@ -67,6 +70,7 @@ export const Layout: React.FC = () => {
 						getLowStockProducts(),
 						getOutOfStockProducts(),
 						fetchOrders(),
+						fetchProducts(),
 					]);
 				} catch (error) {
 					console.error("Error loading notifications:", error);
@@ -136,7 +140,10 @@ export const Layout: React.FC = () => {
 		...(isAdmin ?
 			[{ path: "/", icon: LayoutDashboard, label: "Dashboard" }]
 		:	[]),
-		{ path: "/orders", icon: ClipboardList, label: "Orders" },
+		// Only show Orders if products exist
+		...(hasProducts ?
+			[{ path: "/orders", icon: ClipboardList, label: "Orders" }]
+		:	[]),
 		{ path: "/products", icon: Beer, label: "Drinks" },
 		{ path: "/food", icon: Package, label: "Food" },
 		...(isAdmin ?

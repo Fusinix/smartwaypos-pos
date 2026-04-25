@@ -33,6 +33,9 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const bcrypt = __importStar(require("bcryptjs"));
 const electron_1 = require("electron");
@@ -40,6 +43,8 @@ const path = __importStar(require("path"));
 const database_1 = require("./database");
 const licensing_1 = require("./licensing");
 const fs = __importStar(require("fs"));
+const electron_serve_1 = __importDefault(require("electron-serve"));
+const loadURL = (0, electron_serve_1.default)({ directory: "dist" });
 const serialport_1 = require("serialport");
 const child_process_1 = require("child_process");
 let mainWindow = null;
@@ -150,6 +155,10 @@ async function logAction({ db, admin_id, admin_name, admin_role, action, page, c
         context ? JSON.stringify(context) : null,
     ]);
 }
+// Register protocol before app is ready
+electron_1.protocol.registerSchemesAsPrivileged([
+    { scheme: 'app', privileges: { secure: true, standard: true, allowServiceWorkers: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+]);
 async function createWindow() {
     // console.log("Starting table creation...")
     // 1. Create Splash Window
@@ -179,6 +188,7 @@ async function createWindow() {
             nodeIntegration: true,
             contextIsolation: true,
             preload: path.join(__dirname, "preload.js"),
+            webSecurity: false, // Temporarily disable to fix "Not allowed to load local resource"
         },
     });
     // Initialize database
@@ -485,16 +495,44 @@ async function createWindow() {
         }
         // Load the index.html file
         if (!electron_1.app.isPackaged) {
-            mainWindow.loadURL("http://localhost:5173");
+            const devUrl = "http://localhost:5173";
+            mainWindow.loadURL(devUrl).catch(() => {
+                console.log("Vite not ready, retrying...");
+                setTimeout(() => {
+                    mainWindow?.loadURL(devUrl);
+                }, 1000);
+            });
             mainWindow.webContents.openDevTools();
         }
         else {
-            // Production path resolution
-            const indexPath = path.join(electron_1.app.getAppPath(), "dist", "index.html");
-            console.log('Loading production index.html from:', indexPath);
-            mainWindow.loadFile(indexPath).catch(err => {
-                console.error('Failed to load index.html:', err);
-            });
+            // Google-Recommended Robust Protocol Handler
+            if (!electron_1.protocol.isProtocolRegistered('app')) {
+                electron_1.protocol.handle('app', async (request) => {
+                    try {
+                        // Google's trick: Decode and Normalize the path
+                        const url = new URL(request.url);
+                        let pathName = decodeURIComponent(url.pathname);
+                        // On Windows, the pathname might start with a / that we don't need
+                        if (pathName.startsWith('/'))
+                            pathName = pathName.slice(1);
+                        if (!pathName || pathName === 'index.html')
+                            pathName = 'index.html';
+                        const filePath = path.normalize(path.join(electron_1.app.getAppPath(), 'dist', pathName));
+                        // Verify file exists
+                        if (!fs.existsSync(filePath)) {
+                            // Fallback to index.html for SPA routing
+                            const indexPath = path.normalize(path.join(electron_1.app.getAppPath(), 'dist', 'index.html'));
+                            return new Response(fs.readFileSync(indexPath));
+                        }
+                        return new Response(fs.readFileSync(filePath));
+                    }
+                    catch (e) {
+                        console.error('Protocol error:', e);
+                        return new Response('Error loading resource', { status: 500 });
+                    }
+                });
+            }
+            mainWindow.loadURL('app://index.html');
         }
         // 3. Transition from Splash to Main
         mainWindow.once('ready-to-show', () => {
@@ -1011,6 +1049,18 @@ electron_1.ipcMain.handle("delete-category", async (_, id, payload = {}) => {
         console.error("Error deleting category:", error);
         throw error;
     }
+});
+electron_1.ipcMain.handle("open-keyboard", () => {
+    if (process.platform === "win32") {
+        (0, child_process_1.exec)("osk");
+    }
+    return true;
+});
+electron_1.ipcMain.handle("close-keyboard", () => {
+    if (process.platform === "win32") {
+        (0, child_process_1.exec)("taskkill /f /im osk.exe");
+    }
+    return true;
 });
 electron_1.app.whenReady().then(createWindow);
 electron_1.app.on("window-all-closed", () => {

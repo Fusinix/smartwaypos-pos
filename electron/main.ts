@@ -553,7 +553,13 @@ async function createWindow() {
 
 		// Load the index.html file
 		if (!app.isPackaged) {
-			mainWindow.loadURL("http://localhost:5173");
+			const devUrl = "http://localhost:5173";
+			mainWindow.loadURL(devUrl).catch(() => {
+				console.log("Vite not ready, retrying...");
+				setTimeout(() => {
+					mainWindow?.loadURL(devUrl);
+				}, 1000);
+			});
 			mainWindow.webContents.openDevTools();
 		} else {
 			// Google-Recommended Robust Protocol Handler
@@ -1186,6 +1192,20 @@ ipcMain.handle("delete-category", async (_, id, payload = {}) => {
 		console.error("Error deleting category:", error);
 		throw error;
 	}
+});
+
+ipcMain.handle("open-keyboard", () => {
+	if (process.platform === "win32") {
+		exec("osk");
+	}
+	return true;
+});
+
+ipcMain.handle("close-keyboard", () => {
+	if (process.platform === "win32") {
+		exec("taskkill /f /im osk.exe");
+	}
+	return true;
 });
 
 app.whenReady().then(createWindow);

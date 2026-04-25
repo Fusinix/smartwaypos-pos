@@ -1,10 +1,9 @@
-/** @format */
-
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FilterBar } from "../components/dashboard/FilterBar";
 import { RoleBasedDashboard } from "../components/dashboard/RoleBasedDashboard";
 import { RoleWelcomeMessage } from "../components/dashboard/RoleWelcomeMessage";
+import { SetupChecklist } from "../components/dashboard/SetupChecklist";
 import { useDashboard } from "../hooks/useDashboard";
 import { useAnalytics } from "../hooks/useAnalytics";
 import { useAuth } from "../context/AuthContext";
@@ -54,6 +53,41 @@ export const Dashboard: React.FC = () => {
 	} = useAnalytics(filters);
 
 	const permissions = useRolePermissions(user?.role || "cashier");
+
+	// Fetch setup checklist counts
+	const [setupCounts, setSetupCounts] = useState({
+		products: 0,
+		categories: 0,
+		orders: 0,
+		foodItems: 0,
+		hasSettings: false,
+	});
+
+	useEffect(() => {
+		const fetchSetupData = async () => {
+			try {
+				const [products, categories, orders, foodItems, settings] =
+					await Promise.all([
+						window.electron.invoke("get-products"),
+						window.electron.invoke("get-categories"),
+						window.electron.invoke("get-orders"),
+						window.electron.invoke("get-food-items"),
+						window.electron.invoke("get-settings"),
+					]);
+				const settingsObj = settings?.general ? JSON.parse(settings.general) : null;
+				setSetupCounts({
+					products: products?.length || 0,
+					categories: categories?.length || 0,
+					orders: orders?.length || 0,
+					foodItems: foodItems?.length || 0,
+					hasSettings: !!(settingsObj?.businessName || settingsObj?.currency),
+				});
+			} catch (e) {
+				console.error("Setup checklist fetch error:", e);
+			}
+		};
+		fetchSetupData();
+	}, []);
 
 	// Export handler
 	const handleExport = async (format: "csv" | "excel" | "pdf") => {
@@ -144,6 +178,15 @@ export const Dashboard: React.FC = () => {
 
 			{/* Main Content */}
 			<div className="flex-1 px-8 py-6 space-y-6 overflow-y-auto">
+				{/* Setup Checklist — shown until system is fully configured */}
+				<SetupChecklist
+					productCount={setupCounts.products}
+					categoryCount={setupCounts.categories}
+					hasSettings={setupCounts.hasSettings}
+					orderCount={setupCounts.orders}
+					foodItemCount={setupCounts.foodItems}
+				/>
+
 				{/* Error Display */}
 				{(error || analyticsError) && (
 					<div className="bg-red-50 border border-red-200 rounded-md p-4">

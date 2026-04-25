@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext';
 import { Login } from './pages/Login';
 import { useAlertStore } from './stores/useAlertStore';
 import { LicenseCheck } from './components/LicenseCheck';
+import { useOnScreenKeyboard } from './hooks/useOnScreenKeyboard';
 
 // Lazy load pages for better performance
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -19,8 +20,14 @@ const Settings = React.lazy(() => import('./pages/Settings'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
 
+/** Thin wrapper so useOnScreenKeyboard runs inside AuthProvider */
+const KeyboardListener: React.FC = () => {
+  useOnScreenKeyboard();
+  return null;
+};
+
 const App: React.FC = () => {
-  const { isLoading,loadingMessage } = useAlertStore();
+  const { isLoading, loadingMessage } = useAlertStore();
   const [licenseInfo, setLicenseInfo] = useState<any>(null);
 
   const handleLicenseValid = (info: any) => {
@@ -34,6 +41,8 @@ const App: React.FC = () => {
       <LicenseCheck onLicenseValid={handleLicenseValid}>
         <HashRouter>
           <AuthProvider>
+            {/* Must be inside AuthProvider so useSettings/useAuth works */}
+            <KeyboardListener />
             <React.Suspense fallback={<FullPageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />

@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useSettings';
 import { useTables } from '../hooks/useTables';
 import type { GeneralSettings, NewUser, POSSettings, Table, User } from '../types/settings';
+import { Switch } from '@/components/ui/switch';
 
 interface SystemLog {
   id: number;
@@ -772,6 +773,25 @@ export const Settings: React.FC = () => {
                     Test Customer Display
                   </Button>
                 </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <h4 className="text-sm font-semibold text-gray-900 mb-4">On-Screen Keyboard</h4>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Auto-open Keyboard</p>
+                  <p className="text-xs text-gray-500">Automatically open Windows on-screen keyboard when clicking an input field.</p>
+                </div>
+                <Switch
+                  checked={localPosSettings.autoOpenKeyboard || false}
+                  onCheckedChange={(checked) =>
+                    setLocalPosSettings({
+                      ...localPosSettings,
+                      autoOpenKeyboard: checked,
+                    })
+                  }
+                />
               </div>
             </div>
 

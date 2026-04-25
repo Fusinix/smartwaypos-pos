@@ -28,6 +28,7 @@ export interface POSSettings {
   cashDrawerKickCode?: string;
   receiptPrinter?: string;
   customerDisplayPort?: string;
+  autoOpenKeyboard?: boolean;
 }
 
 export interface TableSettings {

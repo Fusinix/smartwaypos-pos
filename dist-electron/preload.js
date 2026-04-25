@@ -72,6 +72,8 @@ const validChannels = [
     'trigger-cash-drawer',
     'print-receipt-silent',
     'update-customer-display',
+    'open-keyboard',
+    'close-keyboard',
 ];
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
