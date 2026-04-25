@@ -96,6 +96,13 @@ export const Settings: React.FC = () => {
   const isManager = userRole === 'manager' || userRole === 'admin';
 
   useEffect(() => {
+    if (settings) {
+      setLocalGeneralSettings((prev) => ({ ...prev, ...settings.general }));
+      setLocalPosSettings((prev) => ({ ...prev, ...settings.pos }));
+    }
+  }, [settings]);
+
+  useEffect(() => {
     if (error) {
       console.error('Settings error:', error);
       setLocalError(error);

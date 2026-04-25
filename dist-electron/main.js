@@ -1097,12 +1097,17 @@ electron_1.ipcMain.handle("delete-category", async (_, id, payload = {}) => {
 });
 electron_1.ipcMain.handle("open-keyboard", () => {
     if (process.platform === "win32") {
-        (0, child_process_1.exec)("osk");
+        // 'start osk' is more robust for triggering the system keyboard
+        (0, child_process_1.exec)("start osk");
+    }
+    else {
+        console.log("Keyboard requested, but platform is not Windows:", process.platform);
     }
     return true;
 });
 electron_1.ipcMain.handle("close-keyboard", () => {
     if (process.platform === "win32") {
+        // Force close the OSK process
         (0, child_process_1.exec)("taskkill /f /im osk.exe");
     }
     return true;

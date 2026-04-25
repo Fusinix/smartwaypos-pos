@@ -12,7 +12,7 @@ export interface Product {
   category: string;
   price: number;
   cost_price?: number;
-  quantity: number;
+  quantity?: number;
   stock: number;
   low_stock_threshold: number;
   status: 'active' | 'inactive';

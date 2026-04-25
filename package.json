@@ -1,7 +1,7 @@
 {
   "name": "smartwaypos",
   "private": true,
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Smartway POS - Desktop Application",
   "author": "EnfusionX",
   "main": "dist-electron/main.js",

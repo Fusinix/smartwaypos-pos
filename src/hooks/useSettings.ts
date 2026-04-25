@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Settings, User, NewUser } from '../types/settings';
 import { useAlertStore } from '../stores/useAlertStore';
 import { useAuth } from '@/context/AuthContext';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 declare global {
   interface Window {
@@ -12,7 +13,7 @@ declare global {
 }
 
 export const useSettings = () => {
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const { settings, setSettings } = useSettingsStore();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,14 +27,10 @@ export const useSettings = () => {
         setError(null);
         setGlobalLoading(true, "Loading settings...");
         
-        // console.log('Fetching settings...');
         const settingsData = await window.electron.invoke('get-settings');
-        // console.log('Settings data:', settingsData);
         setSettings(settingsData);
 
-        // console.log('Fetching users...');
         const usersData = await window.electron.invoke('get-users');
-        // console.log('Users data:', usersData);
         setUsers(usersData);
       } catch (err) {
         console.error('Error initializing settings:', err);
@@ -46,13 +43,16 @@ export const useSettings = () => {
       }
     };
 
-    initializeData();
+    if (!settings) {
+      initializeData();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const updateSettings = async (newSettings: Partial<Settings>) => {
     try {
       setGlobalLoading(true, "Updating settings...");
-      // console.log('Updating settings:', newSettings);
       await window.electron.invoke('update-settings', { ...newSettings, author: adminUser });
       const updatedSettings = await window.electron.invoke('get-settings');
       setSettings(updatedSettings);

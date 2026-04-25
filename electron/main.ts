@@ -1249,13 +1249,17 @@ ipcMain.handle("delete-category", async (_, id, payload = {}) => {
 
 ipcMain.handle("open-keyboard", () => {
 	if (process.platform === "win32") {
-		exec("osk");
+		// 'start osk' is more robust for triggering the system keyboard
+		exec("start osk");
+	} else {
+		console.log("Keyboard requested, but platform is not Windows:", process.platform);
 	}
 	return true;
 });
 
 ipcMain.handle("close-keyboard", () => {
 	if (process.platform === "win32") {
+		// Force close the OSK process
 		exec("taskkill /f /im osk.exe");
 	}
 	return true;
