@@ -13,7 +13,6 @@ import { useOnScreenKeyboard } from './hooks/useOnScreenKeyboard';
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const Products = React.lazy(() => import('./pages/Products'));
 const Food = React.lazy(() => import('./pages/Food'));
-const FoodExtras = React.lazy(() => import('./pages/FoodExtras'));
 const Categories = React.lazy(() => import('./pages/Categories'));
 const Orders = React.lazy(() => import('./pages/Orders'));
 const Settings = React.lazy(() => import('./pages/Settings'));
@@ -51,7 +50,6 @@ const App: React.FC = () => {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/food" element={<Food />} />
-                  <Route path="/food-extras" element={<FoodExtras />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/profile" element={<Profile />} />

@@ -150,9 +150,6 @@ export const Layout: React.FC = () => {
 			[{ path: "/categories", icon: FolderKanban, label: "Categories" }]
 		:	[]),
 		...(isAdmin ?
-			[{ path: "/food-extras", icon: Package, label: "Food Extras" }]
-		:	[]),
-		...(isAdmin ?
 			[{ path: "/settings", icon: Settings, label: "Settings" }]
 		:	[]),
 	];

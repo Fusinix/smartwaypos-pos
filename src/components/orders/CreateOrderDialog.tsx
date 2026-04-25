@@ -311,7 +311,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 						{/* Left: Product/Food selection */}
 						<div className="flex-1 border-r bg-muted/50 flex flex-col min-h-0">
 							{/* Tabs */}
-							<div className="flex border-b py-1">
+							<div className="flex border-b p-4">
 								<Button
 									variant={activeTab === "drinks" ? "default" : "ghost"}
 									onClick={() => setActiveTab("drinks")}
@@ -536,7 +536,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 																<Button
 																	size="icon"
 																	variant="outline"
-																	className="size-8"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() =>
 																		updateCartQty(
 																			item.product.id,
@@ -559,12 +559,12 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 																			Math.max(1, Number(e.target.value))
 																		)
 																	}
-																	className="w-16 h-9"
+																	className="w-20 h-12 text-center flex-1"
 																/>
 																<Button
 																	size="icon"
 																	variant="outline"
-																	className="size-8"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() =>
 																		updateCartQty(
 																			item.product.id,
@@ -579,7 +579,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 																<Button
 																	size="icon"
 																	variant="ghost"
-																	className="size-8"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() =>
 																		removeFromCart(item.product.id, "drink")
 																	}
@@ -649,7 +649,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 																<Button
 																	size="icon"
 																	variant="outline"
-																	className="size-8"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() =>
 																		updateCartQty(
 																			index,
@@ -671,12 +671,12 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 																			Math.max(1, Number(e.target.value))
 																		)
 																	}
-																	className="w-20 h-9"
+																	className="w-20 h-12 text-center flex-1"
 																/>
 																<Button
 																	size="icon"
 																	variant="outline"
-																	className="size-8"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() =>
 																		updateCartQty(
 																			index,
@@ -690,7 +690,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 																<Button
 																	size="icon"
 																	variant="ghost"
-																	className="size-8"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() => removeFromCart(index, "food")}
 																>
 																	<X />
