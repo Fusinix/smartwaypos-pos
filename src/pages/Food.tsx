@@ -81,7 +81,16 @@ export default function Food() {
 	const [categorySearch, setCategorySearch] = useState("");
 
 	// Extras state
-	const { extras: foodExtrasAll, loading: extrasLoading, setError: setExtrasError, fetchExtras, addExtra, updateExtra, deleteExtra } = useFoodExtras();
+	const { 
+		extras: foodExtras, 
+		loading: extrasLoading, 
+		setError: setExtrasError, 
+		fetchExtras, 
+		addExtra, 
+		updateExtra, 
+		deleteExtra 
+	} = useFoodExtras();
+	
 	const [isAddExtraDialogOpen, setIsAddExtraDialogOpen] = useState(false);
 	const [editingExtra, setEditingExtra] = useState<FoodExtra | null>(null);
 	const [extraToDelete, setExtraToDelete] = useState<FoodExtra | null>(null);
@@ -93,21 +102,18 @@ export default function Food() {
 
 	const canManageFood = user?.role === "admin";
 
-	// foodExtras for the AddEditFoodItemDialog (all extras for selection)
-	const { extras: foodExtras } = useFoodExtras();
-
 	useEffect(() => {
 		const tab = searchParams.get("tab");
 		if (tab === "categories") setActiveTab("categories");
-		if (tab === "extras") setActiveTab("extras");
-	}, [searchParams]);
-
-	useEffect(() => {
+		else if (tab === "extras") setActiveTab("extras");
+		else setActiveTab("items");
+		
+		// Refresh everything when the tab or search params change
 		fetchFoodItems();
 		fetchFoodCategories();
 		fetchExtras();
 		fetchFoodStats();
-	}, [fetchFoodItems, fetchFoodCategories, fetchExtras]);
+	}, [searchParams, fetchFoodItems, fetchFoodCategories, fetchExtras]);
 
 	const fetchFoodStats = async () => {
 		try {
@@ -134,8 +140,8 @@ export default function Food() {
 	);
 
 	const activeFoodItems = foodItems.filter((item) => item.status === "active");
-	const filteredExtras = foodExtrasAll.filter((e) => e.name.toLowerCase().includes(extrasSearch.toLowerCase()));
-	const activeExtras = foodExtrasAll.filter((e) => e.status === "active");
+	const filteredExtras = foodExtras.filter((e) => e.name.toLowerCase().includes(extrasSearch.toLowerCase()));
+	const activeExtras = foodExtras.filter((e) => e.status === "active");
 
 	const handleExtraSave = async (extra: NewFoodExtra) => {
 		if (editingExtra) {

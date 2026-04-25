@@ -325,19 +325,19 @@ export const Orders: React.FC = () => {
 					}
 				</style>
 			</head>
-			<body style="font-family: Arial, sans-serif; font-size: 10px; font-weight: 500; line-height: 1.1; width: 72mm; margin: 0; padding: 0; color: #000; background-color: #fff;">
-				${businessLogo ? `<div style="text-align: center; margin-bottom: 5px;"><img src="${businessLogo}" style="max-height: 120px; max-width: 120px; filter: grayscale(1) contrast(1.5);"></div>` : ""}
-				<div style="text-align: center; border-bottom: 0.5px dashed #000; padding: 4px 0; margin-bottom: 6px;">
-					<h1 style="font-size: 14px; margin: 0; font-weight: 700; color: #000;">${businessName}</h1>
-					<div style="font-size: 10px; font-weight: 600;">OFFICIAL RECEIPT</div>
+			<body style="font-family: 'Courier New', Courier, monospace; font-size: 11pt; font-weight: 600; line-height: 1.3; width: 72mm; margin: 0; padding: 0; color: #000; background-color: #fff;">
+				${businessLogo ? `<div style="text-align: center; margin-bottom: 8px;"><img src="${businessLogo}" style="max-height: 150px; max-width: 150px; filter: grayscale(1) contrast(2);"></div>` : ""}
+				<div style="text-align: center; border-bottom: 2pt solid #000; padding: 6px 0; margin-bottom: 10px;">
+					<h1 style="font-size: 18pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
+					<div style="font-size: 11pt; font-weight: 700; margin-top: 4px;">OFFICIAL RECEIPT</div>
 				</div>
 				
-				<div style="margin-bottom: 8px; font-size: 10px;">
-					<div>ID: ${order.order_number ?? order.id ?? "N/A"}</div>
-					<div>DATE: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+				<div style="margin-bottom: 12px; font-size: 11pt; font-weight: 700;">
+					<div style="display: flex; justify-content: space-between;"><span>ORDER:</span><span>#${order.order_number ?? order.id ?? "N/A"}</span></div>
+					<div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
 				</div>
 
-				<div style="border-bottom: 0.5px dashed #000; border-top: 0.5px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+				<div style="border-bottom: 1.5pt dashed #000; border-top: 1.5pt dashed #000; padding: 8px 0; margin-bottom: 10px;">
 					${(order.items || []).map((item: any) => {
 						const name = item.food_item_name || item.product_name || "Item";
 						const price = parseFloat(item.food_price || item.price || 0);
@@ -350,32 +350,38 @@ export const Orders: React.FC = () => {
 						}
 						
 						return `
-							<div style="display: flex; justify-content: space-between; margin: 6px 0; font-weight: 600;">
-								<span>${qty}x ${name}</span>
-								<span>${receiptCurrency} ${safeFormat(itemTotal)}</span>
+							<div style="margin: 8px 0;">
+								<div style="display: flex; justify-content: space-between; font-weight: 700;">
+									<span>${qty}x ${name}</span>
+									<span>${receiptCurrency} ${safeFormat(itemTotal)}</span>
+								</div>
+								${item.notes ? `<div style="font-size: 9pt; font-weight: 400; font-style: italic;">Note: ${item.notes}</div>` : ""}
 							</div>
 						`;
 					}).join("")}
 				</div>
 
-				<div style="font-size: 10px;">
-					<div style="display: flex; justify-content: space-between; margin: 3px 0;"><span>Subtotal:</span><span>${receiptCurrency} ${safeFormat(subtotal)}</span></div>
-					<div style="display: flex; justify-content: space-between; margin: 3px 0;"><span>Tax (${taxRate}%):</span><span>${receiptCurrency} ${safeFormat(taxAmount)}</span></div>
-					<div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; font-size: 15px; font-weight: 700;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
+				<div style="font-size: 11pt; font-weight: 700;">
+					<div style="display: flex; justify-content: space-between; margin: 4px 0;"><span>Subtotal:</span><span>${receiptCurrency} ${safeFormat(subtotal)}</span></div>
+					<div style="display: flex; justify-content: space-between; margin: 4px 0;"><span>Tax (${taxRate}%):</span><span>${receiptCurrency} ${safeFormat(taxAmount)}</span></div>
+					<div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2pt solid #000; font-size: 16pt; font-weight: 800;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
 				</div>
 
-				<div style="margin-top: 12px; border-top: 0.5px dashed #000; padding-top: 8px; font-size: 10px;">
-					<div><strong>PAYMENT:</strong> ${(order.payment_mode || "CASH").toUpperCase()}</div>
+				<div style="margin-top: 15px; border-top: 1.5pt dashed #000; padding-top: 10px; font-size: 11pt; font-weight: 700;">
+					<div style="display: flex; justify-content: space-between;"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
 					${order.amount_tendered && order.amount_tendered > 0 ? `
-						<div style="display:flex; justify-content:space-between"><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
-						<div style="display:flex; justify-content:space-between; font-weight:600;"><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
+						<div style="display:flex; justify-content:space-between; margin-top: 4px;"><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
+						<div style="display:flex; justify-content:space-between; margin-top: 4px; border-top: 1pt solid #000; padding-top: 2px;"><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
 					` : ""}
 				</div>
 
-				<div style="text-align: center; margin-top: 20px; font-size: 9px; border-top: 0.5px dashed #000; padding-top: 8px;">
-					<p style="margin: 3px 0;">Thank you for choosing ${businessName}</p>
-					<p style="margin: 3px 0; font-weight: 400;">Please come again!</p>
+				<div style="text-align: center; margin-top: 25px; font-size: 10pt; border-top: 1.5pt dashed #000; padding-top: 10px;">
+					<p style="margin: 5px 0; font-weight: 700;">Thank you for choosing ${businessName}</p>
+					<p style="margin: 5px 0;">Please come again!</p>
 				</div>
+				
+				<!-- Cutter Tail: Extra space to ensure paper clears the cutter -->
+				<div style="height: 30mm;"></div>
 </body>
 			</html>
 		`;
@@ -412,67 +418,70 @@ export const Orders: React.FC = () => {
 			<head>
 				<style>
 					body {
-						font-family: Arial, sans-serif;
-						font-size: 11px;
-						font-weight: 500;
-						line-height: 1.1;
+						font-family: Arial, Helvetica, sans-serif;
+						font-size: 14pt;
+						font-weight: 800;
+						line-height: 1.2;
 						width: 72mm;
 						margin: 0;
-						padding: 0;
+						padding: 4px;
 						color: #000;
 						background-color: #fff;
 					}
 					.header {
 						text-align: center;
-						border-bottom: 2px solid #000;
-						padding: 4px 0;
-						margin-bottom: 8px;
+						border-bottom: 3pt solid #000;
+						padding: 5px 0;
+						margin-bottom: 10px;
 					}
 					.header h1 {
-						font-size: 16px; 
+						font-size: 22pt; 
 						margin: 0; 
 						font-weight: 900;
 					}
 					.items {
-						border-bottom: 1px solid #000;
-						padding-bottom: 5px;
-						margin-bottom: 5px;
+						border-bottom: 2pt solid #000;
+						padding-bottom: 8px;
+						margin-bottom: 8px;
 					}
 					.item {
-						margin: 8px 0;
-						font-size: 12px;
+						margin: 12px 0;
+						font-size: 16pt;
 					}
 					.item-main {
 						display: flex;
-						font-weight: 800;
-						font-size: 13px;
+						align-items: flex-start;
+						font-weight: 900;
 					}
 					.qty {
-						margin-right: 8px;
+						margin-right: 10px;
 						background-color: #000;
 						color: #fff;
-						padding: 0 4px;
+						padding: 0 6px;
+						border-radius: 2px;
 					}
 					.notes {
 						color: #000;
 						font-weight: 700;
-						margin-top: 2px;
-						padding-left: 15px;
+						margin-top: 4px;
+						padding-left: 20px;
 						font-style: italic;
 						text-transform: uppercase;
+						font-size: 12pt;
 					}
 					.footer {
 						text-align: center;
-						margin-top: 10px;
-						font-weight: bold;
+						margin-top: 15px;
+						font-weight: 900;
+						font-size: 12pt;
 					}
 				</style>
 			</head>
 			<body>
 				<div class="header">
 					<h1>KITCHEN TICKET</h1>
-					<div style="font-size: 11px; font-weight: 700;">ORDER #${orderNum} ${tableNum ? `- TABLE ${tableNum}` : ""}</div>
-					<div style="font-size: 10px;">${time}</div>
+					<div style="font-size: 14pt; font-weight: 900; margin-top: 4px;">ORDER #${orderNum} ${tableNum ? `- TABLE ${tableNum}` : ""}</div>
+					<div style="font-size: 11pt;">${time}</div>
 				</div>
 
 				<div class="items">
@@ -487,11 +496,11 @@ export const Orders: React.FC = () => {
 									<span>${name}</span>
 								</div>
 								${extrasArr.length > 0 ? `
-									<div class="notes" style="font-size: 10px;">
+									<div class="notes">
 										+ ${extrasArr.map((e: any) => e.name).join(", ")}
 									</div>
 								` : ""}
-								${item.notes ? `<div class="notes" style="color: #000; border: 1px solid #000; padding: 2px; margin-top: 2px;">NOTE: ${item.notes}</div>` : ""}
+								${item.notes ? `<div class="notes" style="background-color: #eee; border: 1.5pt solid #000; padding: 4px; margin-top: 6px;">NOTE: ${item.notes}</div>` : ""}
 							</div>
 						`;
 					}).join("")}
@@ -500,6 +509,8 @@ export const Orders: React.FC = () => {
 				<div class="footer">
 					*** END OF TICKET ***
 				</div>
+				
+				<div style="height: 35mm;"></div>
 			</body>
 			</html>
 		`;

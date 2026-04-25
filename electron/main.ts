@@ -1257,14 +1257,14 @@ ipcMain.handle("delete-category", async (_, id, payload = {}) => {
 ipcMain.handle("open-keyboard", () => {
 	console.log("[Main] open-keyboard requested");
 	if (process.platform === "win32") {
-		exec("start osk", (err) => {
-			if (err) {
-				const tabTipPath = "C:\\Program Files\\Common Files\\microsoft shared\\ink\\TabTip.exe";
-				exec(`"${tabTipPath}"`, (err2) => {
-					if (err2) console.error("[Main] Failed to open TabTip:", err2.message);
-				});
-			}
-		});
+		// exec("start osk", (err) => {
+		// 	if (err) {
+		// 		const tabTipPath = "C:\\Program Files\\Common Files\\microsoft shared\\ink\\TabTip.exe";
+		// 		exec(`"${tabTipPath}"`, (err2) => {
+		// 			if (err2) console.error("[Main] Failed to open TabTip:", err2.message);
+		// 		});
+		// 	}
+		// });
 	} 
 // 	else if (process.platform === "darwin") {
 // 		// Get macOS major version to determine correct approach
@@ -1291,23 +1291,23 @@ ipcMain.handle("open-keyboard", () => {
 
 ipcMain.handle("close-keyboard", () => {
 	console.log("[Main] close-keyboard requested");
-	if (process.platform === "win32") {
-		exec("taskkill /f /im osk.exe");
-		exec("taskkill /f /im TabTip.exe");
-	} else if (process.platform === "darwin") {
-		exec("sw_vers -productVersion", (err, stdout) => {
-			const major = parseInt((stdout || "12").split(".")[0]);
+	// if (process.platform === "win32") {
+	// 	exec("taskkill /f /im osk.exe");
+	// 	exec("taskkill /f /im TabTip.exe");
+	// } else if (process.platform === "darwin") {
+	// 	exec("sw_vers -productVersion", (err, stdout) => {
+	// 		const major = parseInt((stdout || "12").split(".")[0]);
 
-			if (major >= 13) {
-				// Same shortcut toggles it off on Ventura+
-				exec(
-					`osascript -e 'tell application "System Events" to key code 96 using {command down, option down}'`
-				);
-			} else {
-				exec("pkill -x KeyboardViewer");
-			}
-		});
-	}
+	// 		if (major >= 13) {
+	// 			// Same shortcut toggles it off on Ventura+
+	// 			exec(
+	// 				`osascript -e 'tell application "System Events" to key code 96 using {command down, option down}'`
+	// 			);
+	// 		} else {
+	// 			exec("pkill -x KeyboardViewer");
+	// 		}
+	// 	});
+	// }
 	return true;
 });
 
@@ -4388,7 +4388,7 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 			let win = new BrowserWindow({
 				show: false,
 				width: 272, // ~72mm at 96dpi
-				height: 1500, // Very tall so no clipping
+				height: 3000, // Increased to 3000 for very long receipts
 				webPreferences: {
 					nodeIntegration: false,
 					contextIsolation: true,
@@ -4411,7 +4411,7 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 					margins: { marginType: "none" },
 					pageSize: {
 						width: 72000, // 72mm
-						height: (contentHeight * 265) + 9000 // Dynamic height + 15mm safety margin
+						height: (contentHeight * 265) + 12000 // Increased safety margin (12mm)
 					}
 				},
 				(success, errorType) => {

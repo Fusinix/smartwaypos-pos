@@ -51,7 +51,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 	const { products, loading: productsLoading, fetchProducts } = useProducts();
 	const { foodItems, foodCategories, fetchFoodItems, fetchFoodCategories } =
 		useFood();
-	const { extras: foodExtras } = useFoodExtras();
+	const { extras: foodExtras, fetchExtras } = useFoodExtras();
 	const { settings } = useSettings();
 	const { categories, fetchCategories } = useCategory();
 	const { format: formatCurrency } = useCurrency();
@@ -77,13 +77,16 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 	const [amountTendered, setAmountTendered] = useState("");
 
 	useEffect(() => {
-		fetchProducts();
-		fetchCategories();
-		fetchFoodItems();
-		fetchFoodCategories();
-		getTables();
-		fetchOrders(); // Fetch orders to check for active table assignments
-	}, []);
+		if (open) {
+			fetchProducts();
+			fetchCategories();
+			fetchFoodItems();
+			fetchFoodCategories();
+			getTables();
+			fetchExtras(); // Ensure extras are fresh too
+			fetchOrders();
+		}
+	}, [open, fetchProducts, fetchCategories, fetchFoodItems, fetchFoodCategories, getTables, fetchExtras, fetchOrders]);
 
 	const filteredProducts = products.filter((p) => {
 		const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());

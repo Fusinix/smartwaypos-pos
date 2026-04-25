@@ -86,9 +86,19 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 
 	if (!foodItem) return null;
 
-	const availableExtras = foodExtras.filter((e) =>
-		foodItem.extras?.some((fe: any) => fe.id === e.id)
-	);
+	console.log("FoodItemSelectionDialog Debug:", {
+		foodItemName: foodItem.name,
+		foodItemExtras: foodItem.extras,
+		globalFoodExtrasCount: foodExtras?.length
+	});
+
+	const availableExtras = foodExtras.filter((e) => {
+		if (!foodItem.extras || !Array.isArray(foodItem.extras)) return false;
+		return foodItem.extras.some((fe: any) => {
+			const feId = fe.id || fe.extra_id || fe;
+			return String(feId) === String(e.id);
+		});
+	});
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
