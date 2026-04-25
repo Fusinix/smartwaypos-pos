@@ -535,7 +535,7 @@ async function createWindow() {
 		}
 
 		// Create default admin user if not exists
-		const adminUser = await db.get("SELECT * FROM users WHERE username = ?", [
+		const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", [
 			"admin",
 		]);
 		console.log('--- Startup Check ---');

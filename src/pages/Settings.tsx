@@ -938,8 +938,6 @@ export const Settings: React.FC = () => {
                         </td>
 
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          {
-                            user.role !== "admin" && <>
                           <Button
                             variant="outline"
                             size="sm"
@@ -948,15 +946,15 @@ export const Settings: React.FC = () => {
                           >
                             Edit
                           </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.id)}
-                          >
-                            Delete
-                          </Button>
-                            </>
-                          }
+                          {user.role !== "admin" && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteUser(user.id)}
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
