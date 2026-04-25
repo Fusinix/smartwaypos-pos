@@ -117,14 +117,11 @@ class LicensingManager {
 
       // Fallback to offline validation
       return this.validateOffline(licenseKey);
-    } catch (error:any) {
-      console.error('License validation error:', error);
-      // For testing, if no license server is configured, try offline validation
-      if (error.message?.includes('No license server configured') || error.message?.includes('ENOTFOUND')) {
-        console.log('No license server available, using offline validation');
-        return this.validateOffline(licenseKey);
-      }
-      return { valid: false, message: 'License validation failed' };
+    } catch (error: any) {
+      console.log('Online validation failed or network error:', error.message);
+      // Fallback to offline validation for any network/connection issues
+      console.log('Attempting offline validation fallback...');
+      return this.validateOffline(licenseKey);
     }
   }
 
@@ -212,7 +209,7 @@ class LicensingManager {
       }
 
       // Verify license key
-      if (savedLicense.licenseKey !== licenseKey) {
+      if (savedLicense.licenseKey.trim().toUpperCase() !== licenseKey.trim().toUpperCase()) {
         console.log('Result: License key mismatch');
         return { valid: false, message: 'Invalid license key' };
       }

@@ -9,12 +9,42 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, X } from "lucide-react";
 
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+
 export const Login: React.FC = () => {
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
 	const { login, isLoading, user, isAuthenticated } = useAuth();
 	const navigate = useNavigate();
+
+	// Recovery state
+	const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
+	const [recoveryStep, setRecoveryStep] = useState(1); // 1: Verify Key, 2: New Password
+	const [licenseKey, setLicenseKey] = useState("");
+	const [newPassword, setNewPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
+	const [recoveryError, setRecoveryError] = useState("");
+	const [isProcessing, setIsProcessing] = useState(false);
+
+	// Reset recovery state when dialog opens/closes
+	useEffect(() => {
+		if (!isRecoveryOpen) {
+			setRecoveryStep(1);
+			setLicenseKey("");
+			setNewPassword("");
+			setConfirmPassword("");
+			setRecoveryError("");
+		}
+	}, [isRecoveryOpen]);
 
 	// Redirect after successful login based on user role
 	useEffect(() => {
@@ -38,6 +68,62 @@ export const Login: React.FC = () => {
 		}
 	};
 
+	const handleVerifyKey = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setRecoveryError("");
+
+		try {
+			setIsProcessing(true);
+			const result = await window.electron.invoke(
+				"validate-license-key",
+				licenseKey
+			);
+			if (result.valid) {
+				setRecoveryStep(2);
+			} else {
+				setRecoveryError(result.message || "Invalid license key.");
+			}
+		} catch (err: any) {
+			setRecoveryError("Communication error. Please try again.");
+		} finally {
+			setIsProcessing(false);
+		}
+	};
+
+	const handleResetPassword = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setRecoveryError("");
+
+		if (newPassword !== confirmPassword) {
+			setRecoveryError("Passwords do not match");
+			return;
+		}
+
+		if (newPassword.length < 6) {
+			setRecoveryError("Password must be at least 6 characters long");
+			return;
+		}
+
+		try {
+			setIsProcessing(true);
+			const result = await window.electron.invoke(
+				"reset-admin-password",
+				licenseKey,
+				newPassword
+			);
+			toast.success(
+				`Password for admin "${result.username}" reset successfully!`
+			);
+			setIsRecoveryOpen(false);
+			// Auto-fill username for convenience
+			setUsername(result.username);
+		} catch (err: any) {
+			setRecoveryError(err.message || "Failed to reset password.");
+		} finally {
+			setIsProcessing(false);
+		}
+	};
+
 	return (
 		<div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8">
 			<form
@@ -50,55 +136,163 @@ export const Login: React.FC = () => {
 						The best offline System for <span className="text-primary">Desktop & Tablet</span> devices
 					</p>
 				</div>
-				<div className="rounded-md shadow-none space-y-2 p-6">
-					<p className="text-sm text-muted-foreground">
-						Sign in to your account
-					</p>
-					<div>
-						<Label htmlFor="username" className="">
-							Username
-						</Label>
-						<Input
-							id="username"
-							name="username"
-							type="text"
-							required
-							className="appearance-none rounded-md relative bg-white/20 block w-full px-3 py-2 border placeholder-muted-foreground text-foreground focus:outline-none focus:border-primary focus:!ring-0 focus:z-10 sm:text-sm"
-							placeholder="Username"
-							value={username}
-							onChange={(e) => setUsername(e.target.value)}
-						/>
+				<div className="rounded-md shadow-none space-y-4 p-6">
+					<div className="space-y-1">
+						<p className="text-sm font-medium text-foreground">
+							Sign in to your account
+						</p>
+						<p className="text-xs text-muted-foreground">
+							Enter your credentials to access the POS
+						</p>
 					</div>
-					<div>
-						<Label htmlFor="password" className="">
-							Password
-						</Label>
-						<Input
-							id="password"
-							name="password"
-							type="password"
-							required
-							className="appearance-none rounded-md relative bg-white/20 block w-full px-3 py-2 !pr-10 border placeholder-muted-foreground text-foreground focus:outline-none focus:border-primary focus:!ring-0 focus:z-10 sm:text-sm"
-							placeholder="Password"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-						/>
+
+					<div className="space-y-4">
+						<div>
+							<Label htmlFor="username">Username</Label>
+							<Input
+								id="username"
+								name="username"
+								type="text"
+								required
+								className="mt-1"
+								placeholder="Username"
+								value={username}
+								onChange={(e) => setUsername(e.target.value)}
+							/>
+						</div>
+						<div>
+							<div className="flex items-center justify-between">
+								<Label htmlFor="password">Password</Label>
+								<button
+									type="button"
+									onClick={() => setIsRecoveryOpen(true)}
+									className="text-xs text-primary hover:underline font-medium"
+								>
+									Forgot password?
+								</button>
+							</div>
+							<Input
+								id="password"
+								name="password"
+								type="password"
+								required
+								className="mt-1"
+								placeholder="Password"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+							/>
+						</div>
 					</div>
+
 					{error && (
-						<div className="text-red-500 text-sm flex items-center gap-2 p-2 py-1 mb-4 rounded-md bg-destructive/10">
+						<div className="text-red-500 text-sm flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
 							<X className="size-4" />
 							{error}
 						</div>
 					)}
 
-					<div className="flex justify-end ">
-						<Button type="submit" disabled={isLoading}>
-							{isLoading ? "Signing in..." : "Sign in"}
-							{!isLoading && <ArrowRight className="size-4" />}
-						</Button>
-					</div>
+					<Button type="submit" className="w-full" disabled={isLoading}>
+						{isLoading ? "Signing in..." : "Sign in"}
+						{!isLoading && <ArrowRight className="ml-2 size-4" />}
+					</Button>
 				</div>
 			</form>
+
+			{/* Recovery Dialog */}
+			<Dialog open={isRecoveryOpen} onOpenChange={setIsRecoveryOpen}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle>Admin Password Recovery</DialogTitle>
+						<DialogDescription>
+							{recoveryStep === 1 
+								? "Enter your License Key to verify ownership of this system."
+								: "License verified! You can now set a new password for the primary admin account."}
+						</DialogDescription>
+					</DialogHeader>
+
+					{recoveryStep === 1 ? (
+						<form onSubmit={handleVerifyKey} className="space-y-4 py-4">
+							<div className="space-y-2">
+								<Label htmlFor="licenseKey">License Key</Label>
+								<Input
+									id="licenseKey"
+									placeholder="SW-XXXX-XXXX-XXXX"
+									value={licenseKey}
+									onChange={(e) => setLicenseKey(e.target.value)}
+									required
+									autoFocus
+								/>
+							</div>
+							
+							{recoveryError && (
+								<div className="text-destructive text-sm bg-destructive/10 p-2 rounded border border-destructive/20 flex items-center gap-2">
+									<X className="size-4" />
+									{recoveryError}
+								</div>
+							)}
+
+							<DialogFooter>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setIsRecoveryOpen(false)}
+								>
+									Cancel
+								</Button>
+								<Button type="submit" disabled={isProcessing}>
+									{isProcessing ? "Verifying..." : "Verify License"}
+								</Button>
+							</DialogFooter>
+						</form>
+					) : (
+						<form onSubmit={handleResetPassword} className="space-y-4 py-4">
+							<div className="space-y-2">
+								<Label htmlFor="newPassword">New Password</Label>
+								<Input
+									id="newPassword"
+									type="password"
+									placeholder="Minimum 6 characters"
+									value={newPassword}
+									onChange={(e) => setNewPassword(e.target.value)}
+									required
+									autoFocus
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="confirmPassword">Confirm New Password</Label>
+								<Input
+									id="confirmPassword"
+									type="password"
+									placeholder="Repeat new password"
+									value={confirmPassword}
+									onChange={(e) => setConfirmPassword(e.target.value)}
+									required
+								/>
+							</div>
+
+							{recoveryError && (
+								<div className="text-destructive text-sm bg-destructive/10 p-2 rounded border border-destructive/20 flex items-center gap-2">
+									<X className="size-4" />
+									{recoveryError}
+								</div>
+							)}
+
+							<DialogFooter>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setRecoveryStep(1)}
+								>
+									Back
+								</Button>
+								<Button type="submit" disabled={isProcessing}>
+									{isProcessing ? "Resetting..." : "Reset Password"}
+								</Button>
+							</DialogFooter>
+						</form>
+					)}
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 };

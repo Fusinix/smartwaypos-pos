@@ -839,6 +839,59 @@ ipcMain.handle("delete-user", async (_, id) => {
 	}
 });
 
+ipcMain.handle("validate-license-key", async (_, licenseKey) => {
+	try {
+		const validation = await licensingManager.validateLicense(licenseKey);
+		return validation;
+	} catch (error: any) {
+		console.error("License key validation error:", error);
+		return { valid: false, message: error.message };
+	}
+});
+
+ipcMain.handle("reset-admin-password", async (_, licenseKey, newPassword) => {
+	try {
+		// 1. Verify License Key
+		const validation = await licensingManager.validateLicense(licenseKey);
+
+		if (!validation.valid) {
+			throw new Error("Invalid License Key. Verification failed.");
+		}
+
+		// 2. Find the primary admin account
+		const adminUser = await db.get(
+			"SELECT * FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1"
+		);
+
+		if (!adminUser) {
+			throw new Error("No admin account found to reset.");
+		}
+
+		// 3. Update the password
+		const hashedPassword = await bcrypt.hash(newPassword, 10);
+		await db.run("UPDATE users SET password = ? WHERE id = ?", [
+			hashedPassword,
+			adminUser.id,
+		]);
+
+		// 4. Log the action
+		await logAction({
+			db,
+			admin_id: null,
+			admin_name: "SYSTEM_RECOVERY",
+			admin_role: "system",
+			action: LOG_ACTIONS.UPDATE_USER,
+			page: "login_recovery",
+			context: { user_id: adminUser.id, method: "license_key" },
+		});
+
+		return { success: true, username: adminUser.username };
+	} catch (error: any) {
+		console.error("Password reset error:", error);
+		throw error;
+	}
+});
+
 // Database backup/restore handlers
 ipcMain.handle("export-database", async (_, exportType = "all") => {
 	try {

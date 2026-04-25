@@ -73,6 +73,8 @@ const validChannels = [
   'update-customer-display',
   'open-keyboard',
   'close-keyboard',
+  'reset-admin-password',
+  'validate-license-key',
 ];
 
 // Expose protected methods that allow the renderer process to use
