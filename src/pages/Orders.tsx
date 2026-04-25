@@ -14,7 +14,7 @@ import { useCategory } from "@/hooks/useCategory";
 import { useOrders } from "@/hooks/useOrders";
 import { useSettings } from "@/hooks/useSettings";
 import { useCurrency } from "@/hooks/useCurrency";
-import { cn } from "@/lib/utils";
+import { cn, parseJSONString } from "@/lib/utils";
 import type { Order } from "@/types";
 import { Share2 } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
@@ -178,16 +178,17 @@ export const Orders: React.FC = () => {
 
 	// Auto-update Customer Display (must be after selectedOrderTotal is defined)
 	useEffect(() => {
-		const port = settings?.pos?.customerDisplayPort;
+		const posSettings = parseJSONString(settings?.pos as any);
+		const port = posSettings?.customerDisplayPort;
 		if (!port) return;
 
-		if (selectedOrder && selectedOrder.status === "open") {
-			const totalStr = `${settings?.general?.defaultCurrency || "GHS"} ${selectedOrderTotal.toFixed(2)}`;
-			window.electron.invoke("update-customer-display", port, "Total Amount:", totalStr);
+		if (selectedOrder) {
+			const totalStr = selectedOrderTotal.toFixed(2);
+			window.electron.invoke("update-customer-display", port, totalStr, "");
 		} else {
 			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
 		}
-	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos?.customerDisplayPort]);
+	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos, settings?.general?.defaultCurrency]);
 
 	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
@@ -223,12 +224,13 @@ export const Orders: React.FC = () => {
 				setOrderToPrint(updated);
 				setShowPrintConfirm(true);
 
-				// Update Customer Display with Thank You and Change
-				const port = settings?.pos?.customerDisplayPort;
+				// Update Customer Display with Change amount only
+				const posSettings = parseJSONString(settings?.pos as any);
+				const port = posSettings?.customerDisplayPort;
 				if (port) {
 					const change = (updated.amount_tendered || 0) - (updated.amount || 0);
-					const changeStr = change > 0 ? `CHANGE: ${settings?.general?.defaultCurrency || "GHS"} ${change.toFixed(2)}` : "THANK YOU!";
-					window.electron.invoke("update-customer-display", port, "PAYMENT SUCCESS", changeStr);
+					const changeStr = change > 0 ? change.toFixed(2) : "0.00";
+					window.electron.invoke("update-customer-display", port, changeStr, "");
 				}
 			}
 		} catch (error) {

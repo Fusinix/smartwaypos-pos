@@ -217,6 +217,19 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 		);
 	};
 
+	// Update Customer Display in real-time
+	useEffect(() => {
+		const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
+		if (!port || !open) return;
+
+		if (cart.length > 0) {
+			const totalStr = total.toFixed(2);
+			window.electron.invoke("update-customer-display", port, totalStr, "");
+		} else {
+			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
+		}
+	}, [total, cart.length, open, settings?.pos, settings?.general?.defaultCurrency]);
+
 	// Add a ref to clear cart and close dialog
 	useEffect(() => {
 		if (!open) {
