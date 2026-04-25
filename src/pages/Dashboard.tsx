@@ -74,7 +74,7 @@ export const Dashboard: React.FC = () => {
 						window.electron.invoke("get-food-items"),
 						window.electron.invoke("get-settings"),
 					]);
-				const settingsObj = settings?.general ? JSON.parse(settings.general) : null;
+				const settingsObj = settings?.general || null;
 				setSetupCounts({
 					products: products?.length || 0,
 					categories: categories?.length || 0,

@@ -592,9 +592,16 @@ electron_1.ipcMain.handle("login", async (_, username, password) => {
 electron_1.ipcMain.handle("get-settings", async () => {
     try {
         // console.log('Getting settings...');
-        const settings = await db.get("SELECT * FROM settings");
-        // console.log('Settings retrieved:', settings);
-        return settings || {};
+        const settings = await db.get("SELECT * FROM settings ORDER BY id DESC LIMIT 1");
+        if (settings) {
+            return {
+                id: settings.id,
+                general: settings.general ? JSON.parse(settings.general) : {},
+                pos: settings.pos ? JSON.parse(settings.pos) : {},
+                theme: settings.theme ? JSON.parse(settings.theme) : {},
+            };
+        }
+        return { general: {}, pos: {}, theme: {} };
     }
     catch (error) {
         console.error("Error getting settings:", error);
@@ -1096,19 +1103,58 @@ electron_1.ipcMain.handle("delete-category", async (_, id, payload = {}) => {
     }
 });
 electron_1.ipcMain.handle("open-keyboard", () => {
+    console.log("[Main] open-keyboard requested");
     if (process.platform === "win32") {
-        // 'start osk' is more robust for triggering the system keyboard
-        (0, child_process_1.exec)("start osk");
+        (0, child_process_1.exec)("start osk", (err) => {
+            if (err) {
+                const tabTipPath = "C:\\Program Files\\Common Files\\microsoft shared\\ink\\TabTip.exe";
+                (0, child_process_1.exec)(`"${tabTipPath}"`, (err2) => {
+                    if (err2)
+                        console.error("[Main] Failed to open TabTip:", err2.message);
+                });
+            }
+        });
     }
-    else {
-        console.log("Keyboard requested, but platform is not Windows:", process.platform);
+    else if (process.platform === "darwin") {
+        // Get macOS major version to determine correct approach
+        (0, child_process_1.exec)("sw_vers -productVersion", (err, stdout) => {
+            const major = parseInt((stdout || "12").split(".")[0]);
+            if (major >= 13) {
+                (0, child_process_1.exec)("open 'x-apple.systempreferences:com.apple.preference.universalaccess?Keyboard'");
+            }
+            else {
+                // macOS 12 and below — KeyboardViewer process approach
+                const script = 'tell application "System Events" to set visible of process "KeyboardViewer" to true';
+                (0, child_process_1.exec)(`osascript -e '${script}'`, (err2) => {
+                    if (err2) {
+                        (0, child_process_1.exec)("open -b com.apple.KeyboardViewer", (err3) => {
+                            if (err3)
+                                console.error("[Main] macOS Keyboard error:", err3.message);
+                        });
+                    }
+                });
+            }
+        });
     }
     return true;
 });
 electron_1.ipcMain.handle("close-keyboard", () => {
+    console.log("[Main] close-keyboard requested");
     if (process.platform === "win32") {
-        // Force close the OSK process
         (0, child_process_1.exec)("taskkill /f /im osk.exe");
+        (0, child_process_1.exec)("taskkill /f /im TabTip.exe");
+    }
+    else if (process.platform === "darwin") {
+        (0, child_process_1.exec)("sw_vers -productVersion", (err, stdout) => {
+            const major = parseInt((stdout || "12").split(".")[0]);
+            if (major >= 13) {
+                // Same shortcut toggles it off on Ventura+
+                (0, child_process_1.exec)(`osascript -e 'tell application "System Events" to key code 96 using {command down, option down}'`);
+            }
+            else {
+                (0, child_process_1.exec)("pkill -x KeyboardViewer");
+            }
+        });
     }
     return true;
 });

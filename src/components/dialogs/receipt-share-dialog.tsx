@@ -38,18 +38,8 @@ export const ReceiptShareDialog: React.FC<ReceiptShareDialogProps> = ({
 	const [businessName, setBusinessName] = useState("SmartWay Pos");
 
 	useEffect(() => {
-		if (settings?.general) {
-			try {
-				const generalSettings =
-					typeof settings.general === "string" ?
-						JSON.parse(settings.general)
-					:	settings.general;
-				if (generalSettings?.businessName) {
-					setBusinessName(generalSettings.businessName);
-				}
-			} catch {
-				// Use default if parsing fails
-			}
+		if (settings?.general?.businessName) {
+			setBusinessName(settings.general.businessName);
 		}
 	}, [settings]);
 

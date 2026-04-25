@@ -8,6 +8,7 @@ import { Login } from './pages/Login';
 import { useAlertStore } from './stores/useAlertStore';
 import { LicenseCheck } from './components/LicenseCheck';
 import { useOnScreenKeyboard } from './hooks/useOnScreenKeyboard';
+import { useSettings } from './hooks/useSettings';
 
 // Lazy load pages for better performance
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -21,7 +22,10 @@ const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
 
 /** Thin wrapper so useOnScreenKeyboard runs inside AuthProvider */
 const KeyboardListener: React.FC = () => {
+  const { settings } = useSettings();
   useOnScreenKeyboard();
+  
+  if (!settings) return null;
   return null;
 };
 

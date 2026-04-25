@@ -7,19 +7,8 @@ import { formatCurrency, getCurrencySymbol } from '@/lib/utils';
  */
 export const useCurrency = () => {
   const { settings } = useSettings();
-  
   const currency = useMemo(() => {
-    if (settings?.general) {
-      try {
-        const generalSettings = typeof settings.general === 'string' 
-          ? JSON.parse(settings.general) 
-          : settings.general;
-        return generalSettings.defaultCurrency || 'GHS';
-      } catch {
-        return 'GHS';
-      }
-    }
-    return 'GHS';
+    return settings?.general?.defaultCurrency || 'GHS';
   }, [settings]);
 
   const format = (value: number) => formatCurrency(value, currency);

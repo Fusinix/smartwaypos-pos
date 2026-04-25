@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSettings } from './useSettings';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 /**
  * Global hook that listens for focus events on all input fields
@@ -7,7 +7,7 @@ import { useSettings } from './useSettings';
  * Mount this once in App.tsx.
  */
 export function useOnScreenKeyboard() {
-  const { settings } = useSettings();
+  const settings = useSettingsStore((state) => state.settings);
   const autoOpenKeyboard = settings?.pos?.autoOpenKeyboard ?? false;
 
   useEffect(() => {
@@ -25,8 +25,13 @@ export function useOnScreenKeyboard() {
 
     const handleTrigger = (e: Event) => {
       if (!autoOpenKeyboard) return;
+      
       const target = e.target as HTMLElement;
-      if (isTextInput(target)) {
+      const isInput = isTextInput(target);
+      
+      // Log the event for debugging, but only if it's potentially an input
+      if (isInput) {
+        console.log(`[Keyboard] Triggered by ${e.type} on <${target.tagName.toLowerCase()}> (ID: ${target.id || 'none'}, Class: ${target.className.substring(0, 20)}...)`);
         window.electron.invoke('open-keyboard');
       }
     };
