@@ -43,7 +43,7 @@ export const Layout: React.FC = () => {
 	const { isAuthenticated, user, logout } = useAuth();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const [sidebarOpen, setSidebarOpen] = useState(true);
+	const [sidebarOpen, setSidebarOpen] = useState(false);
 	const {
 		lowStockProducts,
 		outOfStockProducts,
@@ -155,7 +155,7 @@ export const Layout: React.FC = () => {
 	];
 
 	return (
-		<div className="min-h-screen bg-gray-50 flex">
+		<div className="min-h-screen bg-gray-50 flex w-full">
 			{/* Left Sidebar */}
 			<aside
 				className={`${
@@ -229,7 +229,7 @@ export const Layout: React.FC = () => {
 			</aside>
 
 			{/* Main Content Area */}
-			<div className="flex-1 flex flex-col min-w-0">
+			<div className="flex-1 flex flex-col min-w-0 " >
 				{/* Top Header Bar */}
 				<header className="bg-white border-b h-16 flex items-center justify-between px-6 sticky top-0 z-10 gap-4">
 					<div className="flex items-center gap-4 flex-1">
@@ -237,7 +237,6 @@ export const Layout: React.FC = () => {
 							variant="ghost"
 							size="icon"
 							onClick={() => setSidebarOpen(!sidebarOpen)}
-							className="lg:hidden"
 						>
 							<Menu className="size-5" />
 						</Button>

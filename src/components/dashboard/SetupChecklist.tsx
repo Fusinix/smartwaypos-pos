@@ -78,7 +78,7 @@ export const SetupChecklist: React.FC<SetupChecklistProps> = ({
       label: "Place Your First Order",
       description: "Your POS is ready! Start taking orders.",
       icon: ClipboardList,
-      route: "/orders",
+      route: "/create-order",
       done: orderCount > 0,
     },
   ];
@@ -88,7 +88,7 @@ export const SetupChecklist: React.FC<SetupChecklistProps> = ({
   const progressPct = Math.round((completedCount / steps.length) * 100);
 
   // Hide widget once everything is done and there's real activity
-  if (allDone && orderCount > 1) return null;
+  if (allDone && orderCount > 0) return null;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">

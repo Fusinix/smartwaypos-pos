@@ -1,18 +1,17 @@
 import { useEffect } from 'react';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useKeyboard, type KeyboardMode } from '../context/KeyboardContext';
 
 /**
  * Global hook that listens for focus events on all input fields
- * and triggers the Windows On-Screen Keyboard if the setting is enabled.
- * Mount this once in App.tsx.
+ * and triggers our custom virtual keyboard if the setting is enabled.
  */
 export function useOnScreenKeyboard() {
   const settings = useSettingsStore((state) => state.settings);
-  const autoOpenKeyboard = settings?.pos?.autoOpenKeyboard ?? false;
+  const autoOpenKeyboard = settings?.pos?.autoOpenKeyboard ?? true; // Default to true if not set
+  const { openKeyboard, closeKeyboard } = useKeyboard();
 
   useEffect(() => {
-    if (!window.electron) return; // Only in Electron
-
     const isTextInput = (el: HTMLElement) => {
       if (el.isContentEditable) return true;
       if (el.tagName === 'TEXTAREA') return true;
@@ -27,38 +26,66 @@ export function useOnScreenKeyboard() {
       if (!autoOpenKeyboard) return;
       
       const target = e.target as HTMLElement;
-      const isInput = isTextInput(target);
-      
-      // Log the event for debugging, but only if it's potentially an input
-      if (isInput) {
-        console.log(`[Keyboard] Triggered by ${e.type} on <${target.tagName.toLowerCase()}> (ID: ${target.id || 'none'}, Class: ${target.className.substring(0, 20)}...)`);
-        window.electron.invoke('open-keyboard');
+      if (isTextInput(target)) {
+        const input = target as HTMLInputElement | HTMLTextAreaElement;
+        
+        // Remove active tag from all other inputs
+        document.querySelectorAll('[data-keyboard-active="true"]').forEach(el => {
+          el.removeAttribute('data-keyboard-active');
+        });
+        
+        // Tag this as the active one
+        input.setAttribute('data-keyboard-active', 'true');
+        
+        // Determine mode
+        let mode: KeyboardMode = (input.getAttribute('data-keyboard-mode') as KeyboardMode) || 'all';
+        
+        if (mode === 'all') {
+          const isNumeric = 
+            input.type === 'number' || 
+            input.type === 'tel' ||
+            input.inputMode === 'numeric' || 
+            input.inputMode === 'decimal' ||
+            input.id.toLowerCase().includes('price') || 
+            input.id.toLowerCase().includes('amount') ||
+            input.id.toLowerCase().includes('quantity') ||
+            input.id.toLowerCase().includes('qty') ||
+            input.id.toLowerCase().includes('total') ||
+            input.id.toLowerCase().includes('tax') ||
+            input.id.toLowerCase().includes('discount') ||
+            input.name.toLowerCase().includes('price') ||
+            input.name.toLowerCase().includes('amount') ||
+            input.placeholder.toLowerCase().includes('price') ||
+            input.placeholder.toLowerCase().includes('amount');
+
+          if (isNumeric) mode = 'numeric';
+        }
+        
+        openKeyboard(input, mode);
       }
     };
 
     const handleBlur = (e: FocusEvent) => {
-      if (!autoOpenKeyboard) return;
-      const target = e.target as HTMLElement;
-      
-      if (isTextInput(target)) {
-        // Small delay to check if focus moved to another input
-        setTimeout(() => {
-          const activeEl = document.activeElement as HTMLElement;
-          if (!activeEl || !isTextInput(activeEl)) {
-            window.electron.invoke('close-keyboard');
-          }
-        }, 150);
-      }
+      // Optional: Close keyboard on blur, but often better to keep it open until explicit close or focus change
+      // const target = e.target as HTMLElement;
+      // if (isTextInput(target)) {
+      //   setTimeout(() => {
+      //     const activeEl = document.activeElement as HTMLElement;
+      //     if (!activeEl || !isTextInput(activeEl)) {
+      //       closeKeyboard();
+      //     }
+      //   }, 150);
+      // }
     };
 
     document.addEventListener('focusin', handleTrigger, true);
     document.addEventListener('click', handleTrigger, true);
-    document.addEventListener('focusout', handleBlur, true);
+    // document.addEventListener('focusout', handleBlur, true);
 
     return () => {
       document.removeEventListener('focusin', handleTrigger, true);
       document.removeEventListener('click', handleTrigger, true);
-      document.removeEventListener('focusout', handleBlur, true);
+      // document.removeEventListener('focusout', handleBlur, true);
     };
-  }, [autoOpenKeyboard]);
+  }, [autoOpenKeyboard, openKeyboard, closeKeyboard]);
 }

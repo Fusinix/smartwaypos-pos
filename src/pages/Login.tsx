@@ -153,7 +153,7 @@ export const Login: React.FC = () => {
 	};
 
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8">
+		<div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8 w-full">
 			<form
 				className="w-full max-w-md mx-auto bg-white shadow-md border rounded-xl"
 				onSubmit={handleSubmit}

@@ -310,3 +310,5 @@ export const SuperAdmin: React.FC = () => {
   );
 };
 
+export default SuperAdmin;
+

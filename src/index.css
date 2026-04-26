@@ -99,3 +99,22 @@
 .recharts-cartesian-grid-vertical line {
   stroke: #f0f0f0 !important;
 }
+
+/* --- Virtual Keyboard Support --- */
+
+/* Allow long-press/touch interaction on keyboard without losing focus */
+.keyboard-container {
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Ensure toast notifications stay visible */
+.keyboard-open .toaster {
+  margin-right: 500px;
+  transition: margin-right 0.3s ease-in-out;
+}
+
+/* Hide native scrollbar during keyboard transitions to avoid flicker */
+.keyboard-open body {
+  overflow: hidden;
+}

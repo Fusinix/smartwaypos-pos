@@ -17,6 +17,8 @@ interface FoodItemSelectionDialogProps {
 	open: boolean;
 	foodItem: any;
 	foodExtras: any[];
+	initialExtras?: number[];
+	initialNotes?: string;
 	onClose: () => void;
 	onAdd: (foodItem: any, selectedExtras: number[], notes: string) => void;
 }
@@ -25,6 +27,8 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 	open,
 	foodItem,
 	foodExtras,
+	initialExtras,
+	initialNotes,
 	onClose,
 	onAdd,
 }) => {
@@ -36,11 +40,23 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 
 	useEffect(() => {
 		if (open) {
-			// Reset state when dialog opens (not when it closes)
-			setExtraQuantities(new Map());
-			setNotes("");
+			console.log("FoodItemSelectionDialog: Opening with", { initialExtras, initialNotes });
+			// Initialize state with provided values or reset if none
+			if (initialExtras && initialExtras.length > 0) {
+				const counts = new Map<number, number>();
+				initialExtras.forEach(id => {
+					// Ensure ID is a number for Map matching
+					const numericId = Number(id);
+					counts.set(numericId, (counts.get(numericId) || 0) + 1);
+				});
+				console.log("FoodItemSelectionDialog: Calculated extraQuantities", Array.from(counts.entries()));
+				setExtraQuantities(counts);
+			} else {
+				setExtraQuantities(new Map());
+			}
+			setNotes(initialNotes || "");
 		}
-	}, [open, foodItem?.id]);
+	}, [open, foodItem?.id, initialExtras, initialNotes]);
 
 	const handleToggleExtra = (extraId: number) => {
 		setExtraQuantities((prev) => {
@@ -102,7 +118,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="w-full !max-w-5xl">
+			<DialogContent className="w-[95%] sm:max-w-[900px] max-h-[95vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle className="text-xl">{foodItem.name}</DialogTitle>
 				</DialogHeader>
@@ -176,6 +192,8 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 														-
 													</Button>
 													<Input
+														id={`extra-qty-${extra.id}`}
+														name={`extra-qty-${extra.id}`}
 														type="number"
 														min={1}
 														value={quantity}
@@ -224,6 +242,8 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 							Special Instructions / Notes (Optional)
 						</label>
 						<Textarea
+							id="food-item-notes"
+							name="food-item-notes"
 							placeholder="e.g., No pepper, Extra spicy, Less salt, Well done..."
 							value={notes}
 							onChange={(e) => setNotes(e.target.value)}
