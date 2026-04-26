@@ -758,28 +758,78 @@ export const Settings: React.FC = () => {
                   <p className="mt-1 text-xs text-gray-500">Connects to the monitor/pole at the back of the POS.</p>
                 </div>
 
-                <div className="flex items-end">
+              </div>
+
+              {/* Display Test Panel */}
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Test Display</p>
+
+                {/* Amount test buttons */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Send a test amount:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['10.00', '50.00', '99.99', '150.00'].map((amount) => (
+                      <Button
+                        key={amount}
+                        variant="outline"
+                        size="sm"
+                        disabled={!localPosSettings.customerDisplayPort}
+                        onClick={async () => {
+                          try {
+                            await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, amount, '');
+                            toast.success(`Sent ${amount} to display`);
+                          } catch (err: any) {
+                            toast.error(`Test failed: ${err.message}`);
+                          }
+                        }}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50 font-mono"
+                      >
+                        {amount}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-200">
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!localPosSettings.customerDisplayPort}
                     onClick={async () => {
-                      if (!localPosSettings.customerDisplayPort) {
-                        toast.error('Please select a COM port first');
-                        return;
+                      try {
+                        await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, '0.00', '');
+                        toast.success('Display cleared to 0.00');
+                      } catch (err: any) {
+                        toast.error(`Clear failed: ${err.message}`);
                       }
+                    }}
+                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                  >
+                    Clear Display (0.00)
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!localPosSettings.customerDisplayPort}
+                    onClick={async () => {
                       try {
                         await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, 'SMARTWAY POS', 'WELCOME!');
-                        toast.success('Test message sent to display');
+                        toast.success('Welcome message sent to display');
                       } catch (err: any) {
                         toast.error(`Test failed: ${err.message}`);
                       }
                     }}
-                    disabled={!localPosSettings.customerDisplayPort}
                     className="text-green-600 border-green-200 hover:bg-green-50"
                   >
-                    Test Customer Display
+                    Test Welcome Message
                   </Button>
                 </div>
+
+                {!localPosSettings.customerDisplayPort && (
+                  <p className="text-xs text-amber-600">Select a display port above to enable test buttons.</p>
+                )}
               </div>
             </div>
 

@@ -37,26 +37,33 @@ export function useOnScreenKeyboard() {
         // Tag this as the active one
         input.setAttribute('data-keyboard-active', 'true');
         
-        // Determine mode
+        // Determine mode — use safe guards since in packaged Electron these
+        // properties can be undefined and .toLowerCase() would throw silently.
         let mode: KeyboardMode = (input.getAttribute('data-keyboard-mode') as KeyboardMode) || 'all';
         
         if (mode === 'all') {
-          const isNumeric = 
-            input.type === 'number' || 
+          const id          = (input.id          || '').toLowerCase();
+          const name        = (input.name        || '').toLowerCase();
+          const placeholder = (input.placeholder || '').toLowerCase();
+          // getAttribute is more reliable than the .inputMode DOM property in packaged Electron
+          const inputMode   = (input.getAttribute('inputmode') || input.inputMode || '').toLowerCase();
+
+          const isNumeric =
+            input.type === 'number' ||
             input.type === 'tel' ||
-            input.inputMode === 'numeric' || 
-            input.inputMode === 'decimal' ||
-            input.id.toLowerCase().includes('price') || 
-            input.id.toLowerCase().includes('amount') ||
-            input.id.toLowerCase().includes('quantity') ||
-            input.id.toLowerCase().includes('qty') ||
-            input.id.toLowerCase().includes('total') ||
-            input.id.toLowerCase().includes('tax') ||
-            input.id.toLowerCase().includes('discount') ||
-            input.name.toLowerCase().includes('price') ||
-            input.name.toLowerCase().includes('amount') ||
-            input.placeholder.toLowerCase().includes('price') ||
-            input.placeholder.toLowerCase().includes('amount');
+            inputMode === 'numeric' ||
+            inputMode === 'decimal' ||
+            id.includes('price') ||
+            id.includes('amount') ||
+            id.includes('quantity') ||
+            id.includes('qty') ||
+            id.includes('total') ||
+            id.includes('tax') ||
+            id.includes('discount') ||
+            name.includes('price') ||
+            name.includes('amount') ||
+            placeholder.includes('price') ||
+            placeholder.includes('amount');
 
           if (isNumeric) mode = 'numeric';
         }
@@ -67,12 +74,10 @@ export function useOnScreenKeyboard() {
 
     document.addEventListener('focusin', handleTrigger, true);
     document.addEventListener('click', handleTrigger, true);
-    // document.addEventListener('focusout', handleBlur, true);
 
     return () => {
       document.removeEventListener('focusin', handleTrigger, true);
       document.removeEventListener('click', handleTrigger, true);
-      // document.removeEventListener('focusout', handleBlur, true);
     };
   }, [autoOpenKeyboard, openKeyboard, closeKeyboard]);
 }

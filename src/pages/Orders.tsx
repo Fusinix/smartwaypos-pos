@@ -38,7 +38,6 @@ export const Orders: React.FC = () => {
 	const [dateFilter, setDateFilter] = useState<string>("today"); // "all", "today", "week", "month", "custom"
 	const [customDateStart, setCustomDateStart] = useState<string>("");
 	const [customDateEnd, setCustomDateEnd] = useState<string>("");
-	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 	const [selectedOrderLoading, setSelectedOrderLoading] = useState(false);
 	const [editItemsDialogOpen, setEditItemsDialogOpen] = useState(false);
@@ -164,20 +163,20 @@ export const Orders: React.FC = () => {
 		selectedOrder.items.forEach((item: any) => {
 			const itemPrice =
 				item.item_type === "food" ?
-					(item.food_price || item.price || 0)
-				:	(item.price || 0);
-			const quantity = item.quantity || 1;
+					Number(item.food_price || item.price || 0)
+				:	Number(item.price || 0);
+			const quantity = parseInt(item.quantity || 1, 10);
 			let itemTotal = itemPrice * quantity;
 			if (item.item_type === "food" && item.extras && item.extras.length > 0) {
 				const extrasTotal = item.extras.reduce(
-					(sum: number, e: any) => sum + (e.price || 0) * (e.quantity || 1),
+					(sum: number, e: any) => sum + parseFloat(e.price || 0) * parseInt(e.quantity || 1, 10),
 					0
 				);
 				itemTotal += extrasTotal * quantity;
 			}
 			subtotal += itemTotal;
 		});
-	const taxRate = selectedOrder.tax || 0;
+		const taxRate = Number(selectedOrder.tax || 0);
 		return subtotal * (1 + taxRate / 100);
 	}, [selectedOrder]);
 
@@ -188,7 +187,7 @@ export const Orders: React.FC = () => {
 		if (!port) return;
 
 		if (selectedOrder) {
-			const totalStr = selectedOrderTotal.toFixed(2);
+			const totalStr = parseFloat(selectedOrderTotal.toFixed(2)).toFixed(2);
 			window.electron.invoke("update-customer-display", port, totalStr, "");
 		} else {
 			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
