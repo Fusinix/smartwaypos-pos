@@ -42,13 +42,8 @@ function generateLicense() {
           const signature = signLicense(licenseData);
           const license = { ...licenseData, signature };
           
-          console.log('\n=== GENERATED LICENSE ===');
           console.log(JSON.stringify(license, null, 2));
-          console.log('\n=== LICENSE KEY ===');
           console.log(licenseKey);
-          console.log('\n=== FOR TESTING ===');
-          console.log('Hardware ID:', license.hardwareId);
-          console.log('Features:', license.features.join(', '));
           
           rl.close();
         });
@@ -56,8 +51,5 @@ function generateLicense() {
     });
   });
 }
-
-console.log('SmartWay Pos License Generator');
-console.log('========================\n');
 
 generateLicense(); 
