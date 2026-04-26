@@ -19,7 +19,6 @@ import type { Order } from "@/types";
 import { Share2 } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
-import { CreateOrderDialog } from "@/components/orders/CreateOrderDialog";
 import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
 import { Label } from "@/components/ui/label";
 import { AlertWithActions } from "@/components/alerts/alert-with-actions";
@@ -781,24 +780,6 @@ export const Orders: React.FC = () => {
 					setSelectedOrder(updatedOrder);
 					setEditItemsDialogOpen(false);
 					await fetchOrders();
-				}}
-			/>
-			{/* Create Order Dialog */}
-			<CreateOrderDialog
-				open={createDialogOpen}
-				onClose={() => setCreateDialogOpen(false)}
-				onOrderCreated={(newOrder) => {
-					// If order is closed (customer order), switch to closed tab to show it
-					if (newOrder.status === "closed") {
-						setActiveTab("closed");
-						
-						// Increased delay for tab switch stability
-						setTimeout(() => {
-							setOrderToPrint(newOrder);
-							setShowPrintConfirm(true);
-						}, 500);
-					}
-					// fetchOrders is already called in createOrder hook
 				}}
 			/>
 
