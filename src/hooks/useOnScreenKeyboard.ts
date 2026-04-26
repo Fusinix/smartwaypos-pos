@@ -65,19 +65,6 @@ export function useOnScreenKeyboard() {
       }
     };
 
-    const handleBlur = (e: FocusEvent) => {
-      // Optional: Close keyboard on blur, but often better to keep it open until explicit close or focus change
-      // const target = e.target as HTMLElement;
-      // if (isTextInput(target)) {
-      //   setTimeout(() => {
-      //     const activeEl = document.activeElement as HTMLElement;
-      //     if (!activeEl || !isTextInput(activeEl)) {
-      //       closeKeyboard();
-      //     }
-      //   }, 150);
-      // }
-    };
-
     document.addEventListener('focusin', handleTrigger, true);
     document.addEventListener('click', handleTrigger, true);
     // document.addEventListener('focusout', handleBlur, true);
