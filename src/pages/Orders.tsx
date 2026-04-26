@@ -188,9 +188,9 @@ export const Orders: React.FC = () => {
 
 		if (selectedOrder) {
 			const totalStr = parseFloat(selectedOrderTotal.toFixed(2)).toFixed(2);
-			window.electron.invoke("update-customer-display", port, totalStr, "");
+			window.electron.invoke("update-customer-display", port, totalStr);
 		} else {
-			window.electron.invoke("update-customer-display", port, "WELCOME TO", "SMARTWAY POS");
+			window.electron.invoke("update-customer-display", port, "0.00");
 		}
 	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos, settings?.general?.defaultCurrency]);
 
@@ -234,7 +234,7 @@ export const Orders: React.FC = () => {
 				if (port) {
 					const change = (updated.amount_tendered || 0) - (updated.amount || 0);
 					const changeStr = change > 0 ? change.toFixed(2) : "0.00";
-					window.electron.invoke("update-customer-display", port, changeStr, "");
+					window.electron.invoke("update-customer-display", port, changeStr);
 				}
 			}
 		} catch (error) {

@@ -113,11 +113,11 @@ ipcMain.handle("list-ports", async () => {
 	}
 });
 
-ipcMain.handle("update-customer-display", async (_, portPath: string, line1: string, line2: string = "") => {
+ipcMain.handle("update-customer-display", async (_, portPath: string, amount: string) => {
 	return new Promise((resolve, reject) => {
 		const port = new SerialPort({
 			path: portPath,
-			baudRate: 9600, // Standard for most VFD displays
+			baudRate: 9600,
 			autoOpen: false,
 		});
 
@@ -127,19 +127,20 @@ ipcMain.handle("update-customer-display", async (_, portPath: string, line1: str
 				return reject(err);
 			}
 
-			// VFD Displays usually need a "Clear" command first (Hex 0x0C)
-			const clearCommand = Buffer.from([0x0C]);
-			// Move cursor to home (Hex 0x0B)
-			const homeCommand = Buffer.from([0x0B]);
+			const formatted = amount.padStart(8);
+			
+			port.write(formatted, (writeErr) => {
+				if (writeErr) {
+					console.error("Error writing to display:", writeErr.message);
+					port.close();
+					return reject(writeErr);
+				}
 
-			port.write(clearCommand);
-			port.write(homeCommand);
-			port.write(`${line1.padEnd(20)}\n${line2.padEnd(20)}`);
-
-			setTimeout(() => {
-				port.close();
-				resolve(true);
-			}, 200);
+				setTimeout(() => {
+					port.close();
+					resolve(true);
+				}, 200);
+			});
 		});
 	});
 });

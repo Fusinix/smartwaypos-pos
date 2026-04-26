@@ -776,7 +776,7 @@ export const Settings: React.FC = () => {
                         disabled={!localPosSettings.customerDisplayPort}
                         onClick={async () => {
                           try {
-                            await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, amount, '');
+                            await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, amount);
                             toast.success(`Sent ${amount} to display`);
                           } catch (err: any) {
                             toast.error(`Test failed: ${err.message}`);
@@ -798,7 +798,7 @@ export const Settings: React.FC = () => {
                     disabled={!localPosSettings.customerDisplayPort}
                     onClick={async () => {
                       try {
-                        await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, '0.00', '');
+                        await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, '0.00');
                         toast.success('Display cleared to 0.00');
                       } catch (err: any) {
                         toast.error(`Clear failed: ${err.message}`);
@@ -815,7 +815,7 @@ export const Settings: React.FC = () => {
                     disabled={!localPosSettings.customerDisplayPort}
                     onClick={async () => {
                       try {
-                        await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, 'SMARTWAY POS', 'WELCOME!');
+                        await window.electron.invoke('update-customer-display', localPosSettings.customerDisplayPort, '0.00');
                         toast.success('Welcome message sent to display');
                       } catch (err: any) {
                         toast.error(`Test failed: ${err.message}`);

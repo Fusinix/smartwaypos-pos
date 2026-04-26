@@ -40,23 +40,24 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 
 	useEffect(() => {
 		if (open) {
-			console.log("FoodItemSelectionDialog: Opening with", { initialExtras, initialNotes });
-			// Initialize state with provided values or reset if none
+			// Initialize state with provided values or reset if none.
+			// NOTE: intentionally omitting initialExtras/initialNotes from the
+			// dependency array — they are new references on every parent render
+			// (e.g. [] literal), which would reset the user's selections mid-edit.
 			if (initialExtras && initialExtras.length > 0) {
 				const counts = new Map<number, number>();
 				initialExtras.forEach(id => {
-					// Ensure ID is a number for Map matching
 					const numericId = Number(id);
 					counts.set(numericId, (counts.get(numericId) || 0) + 1);
 				});
-				console.log("FoodItemSelectionDialog: Calculated extraQuantities", Array.from(counts.entries()));
 				setExtraQuantities(counts);
 			} else {
 				setExtraQuantities(new Map());
 			}
 			setNotes(initialNotes || "");
 		}
-	}, [open, foodItem?.id, initialExtras, initialNotes]);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open, foodItem?.id]);
 
 	const handleToggleExtra = (extraId: number) => {
 		setExtraQuantities((prev) => {

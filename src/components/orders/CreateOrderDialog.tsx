@@ -3,6 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+} from "@/components/ui/dialog";
+import {
 	Dialog as ViewDialog,
 	DialogContent as ViewDialogContent,
 	DialogFooter as ViewDialogFooter,
@@ -26,18 +31,24 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTables } from "@/hooks/useTables";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
-import { X, Eye, ChevronLeft } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { FoodItemSelectionDialog } from "@/components/orders/FoodItemSelectionDialog";
-import { AlertWithActions } from "@/components/alerts/alert-with-actions";
-import { useReceipt } from "@/hooks/useReceipt";
-import type { Order } from "@/types";
-import { useNavigate } from "react-router-dom";
-import { useKeyboard } from "@/context/KeyboardContext";
+import { X, Eye } from "lucide-react";
+import { FoodItemSelectionDialog } from "./FoodItemSelectionDialog";
 
-export const CreateOrder: React.FC = () => {
+import type { Order } from "@/types";
+import { Label } from "../ui/label";
+
+interface CreateOrderDialogProps {
+	open: boolean;
+	onClose: () => void;
+	onOrderCreated?: (order: Order) => void;
+}
+
+export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
+	open,
+	onClose,
+	onOrderCreated,
+}) => {
 	const { products, loading: productsLoading, fetchProducts } = useProducts();
-	const navigate = useNavigate();
 	const { foodItems, foodCategories, fetchFoodItems, fetchFoodCategories } =
 		useFood();
 	const { extras: foodExtras, fetchExtras } = useFoodExtras();
@@ -46,9 +57,6 @@ export const CreateOrder: React.FC = () => {
 	const { format: formatCurrency } = useCurrency();
 	const { tables, getTables } = useTables();
 	const { createOrder, orders, fetchOrders, loading } = useOrders();
-	const { printReceipt, printKitchenOrder } = useReceipt();
-	const { isOpen: isKeyboardOpen } = useKeyboard();
-
 	const [activeTab, setActiveTab] = useState<"drinks" | "food">("drinks");
 	const [search, setSearch] = useState("");
 	const [category, setCategory] = useState<string>("all");
@@ -59,7 +67,6 @@ export const CreateOrder: React.FC = () => {
 		item: any;
 		index: number;
 	} | null>(null);
-	const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
 	const [orderType, setOrderType] = useState<"customer" | "table" | "takeout">("customer");
 	const [tableNumber, setTableNumber] = useState("");
 	const [paymentMode, setPaymentMode] = useState<"cash" | "momo" | "bank">(
@@ -68,10 +75,9 @@ export const CreateOrder: React.FC = () => {
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
 	const [notes, setNotes] = useState("");
 	const [amountTendered, setAmountTendered] = useState("");
-	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
-	const [orderToPrint, setOrderToPrint] = useState<any>(null);
 
 	useEffect(() => {
+		if (open) {
 			fetchProducts();
 			fetchCategories();
 			fetchFoodItems();
@@ -79,7 +85,8 @@ export const CreateOrder: React.FC = () => {
 			getTables();
 			fetchExtras();
 			fetchOrders();
-	}, []);
+		}
+	}, [open]);
 
 	const filteredProducts = products.filter((p) => {
 		const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
@@ -130,17 +137,6 @@ export const CreateOrder: React.FC = () => {
 			extrasCount: selectedExtras.length,
 		});
 		setCart((prev) => {
-			if (editingCartIndex !== null) {
-				// Update existing item
-				const newCart = [...prev];
-				newCart[editingCartIndex] = {
-					...prev[editingCartIndex],
-					extraIds: selectedExtras || [],
-					notes: notes || undefined,
-				};
-				setEditingCartIndex(null);
-				return newCart;
-			}
 			// For food items, we add each as a separate cart item (even if same food, different extras/notes)
 			const newCartItem = {
 				foodItem,
@@ -234,6 +230,19 @@ export const CreateOrder: React.FC = () => {
 		}
 	}, [total, cart.length, open, settings?.pos, settings?.general?.defaultCurrency]);
 
+	// Add a ref to clear cart and close dialog
+	useEffect(() => {
+		if (!open) {
+			setCart([]);
+			setOrderType("customer");
+			setTableNumber("");
+			setPaymentMode("cash");
+			setNotes("");
+			setAmountTendered("");
+			setActiveTab("drinks");
+			setSelectedFoodItem(null);
+		}
+	}, [open]);
 
 	// Reset table number when switching order types
 	useEffect(() => {
@@ -242,28 +251,9 @@ export const CreateOrder: React.FC = () => {
 		}
 	}, [orderType]);
 
-
-	const resetState = () => {
-    setCart([]);
-    setOrderType("customer");
-    setTableNumber("");
-    setPaymentMode("cash");
-    setAmountTendered("");
-    setNotes("");
-    setSearch("");
-    setActiveTab("drinks");
-    setSelectedFoodItem(null);
-  };
-
-  const onOrderCreated = (newOrder: Order) => {
-	resetState()
-
-	setTimeout(() => {
-							setOrderToPrint(newOrder);
-							setShowPrintConfirm(true);
-						}, 500);
-  };
-    
+	const handleCancel = () => {
+		onClose();
+	};
 
 	const handlePlaceOrder = async () => {
 		// Build order payload
@@ -320,7 +310,8 @@ export const CreateOrder: React.FC = () => {
 			if (onOrderCreated) {
 				onOrderCreated(result);
 			}
-			resetState();
+			onClose();
+			setCart([]);
 		} catch (error) {
 			console.error("Error placing order:", error);
 			// Error is already handled by createOrder hook with toast
@@ -330,21 +321,11 @@ export const CreateOrder: React.FC = () => {
 
 	return (
 		<>
-			<div className="w-full h-[100vh] p-0 overflow-hidden !relative">
+			<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+				<DialogContent className="max-w-[90vw] h-[90vh] w-full p-0 overflow-hidden">
 					<div className="flex h-full min-h-0">
 						{/* Left: Product/Food selection */}
 						<div className="flex-1 border-r bg-muted/50 flex flex-col min-h-0">
-						<div className="p-2 py-4 bg-white flex gap-4 items-center justify-start ">
-
-								<Button
-									variant={"ghost"}
-									onClick={() => navigate(-1)}
-									className="w-fit"
-								>
-									<ChevronLeft />
-								</Button>
-								<h2 className="font-bold text-2xl">Create New Order</h2>
-							</div>
 							{/* Tabs */}
 							<div className="flex border-b p-4">
 								<Button
@@ -363,8 +344,6 @@ export const CreateOrder: React.FC = () => {
 
 							<div className="p-4 border-b flex space-x-2">
 								<Input
-									id="order-search"
-									name="order-search"
 									placeholder={
 										activeTab === "drinks" ? "Search drinks..." : (
 											"Search food items..."
@@ -406,7 +385,7 @@ export const CreateOrder: React.FC = () => {
 
 							{/* Product/Food Grid */}
 							<div className="flex-1 overflow-y-auto px-6 py-6">
-								<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
+								<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
 									{activeTab === "drinks" ?
 										productsLoading ?
 											<div className="col-span-full text-center text-gray-400 py-20 text-lg">
@@ -616,7 +595,7 @@ export const CreateOrder: React.FC = () => {
 																<Button
 																	size="icon"
 																	variant="ghost"
-																	className="size-12 rounded-lg border-primary ml-4"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() =>
 																		removeFromCart(item.product.id, "drink")
 																	}
@@ -727,7 +706,7 @@ export const CreateOrder: React.FC = () => {
 																<Button
 																	size="icon"
 																	variant="ghost"
-																	className="size-12 rounded-lg border-primary ml-4"
+																	className="size-12 rounded-lg border-primary"
 																	onClick={() => removeFromCart(index, "food")}
 																>
 																	<X />
@@ -746,7 +725,7 @@ export const CreateOrder: React.FC = () => {
 									<span className="text-sm font-medium text-gray-700">
 										Order Type:
 									</span>
-									<div className="flex gap-2 overflow-x-auto">
+									<div className="flex gap-2">
 										<Button
 											className="flex-1 h-11 text-base"
 											variant={orderType === "customer" ? "default" : "outline"}
@@ -856,8 +835,6 @@ export const CreateOrder: React.FC = () => {
 										<div className="space-y-2">
 											<Label className="text-primary font-semibold">Cash Received</Label>
 											<Input
-												id="amount-tendered"
-												name="amount-tendered"
 												type="number"
 												placeholder="0.00"
 												value={amountTendered}
@@ -889,8 +866,6 @@ export const CreateOrder: React.FC = () => {
 										Notes:
 									</span>
 									<Input
-										id="order-notes"
-										name="order-notes"
 										value={notes}
 										onChange={(e) => setNotes(e.target.value)}
 										placeholder="Order notes..."
@@ -920,7 +895,7 @@ export const CreateOrder: React.FC = () => {
 									<Button
 										type="button"
 										variant="outline"
-										onClick={resetState}
+										onClick={handleCancel}
 										className="flex-1 h-12 text-base"
 									>
 										Cancel
@@ -931,7 +906,7 @@ export const CreateOrder: React.FC = () => {
 											cart.length === 0 || 
 											loading ||
 											(orderType === "table" && !tableNumber) ||
-											(paymentMode === "cash" && orderType === "customer" && (!amountTendered || parseFloat(amountTendered) <= 0 ||  parseFloat(amountTendered) < total ))
+											(paymentMode === "cash" && orderType === "customer" && (!amountTendered || parseFloat(amountTendered) <= 0))
 										}
 										onClick={handlePlaceOrder}
 										className="flex-1 h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white shadow-md transition-all active:scale-95"
@@ -944,21 +919,16 @@ export const CreateOrder: React.FC = () => {
 
 						</div>
 					</div>
-					<FoodItemSelectionDialog
+				</DialogContent>
+			</Dialog>
+
+			<FoodItemSelectionDialog
 				open={!!selectedFoodItem}
 				foodItem={selectedFoodItem}
 				foodExtras={foodExtras}
-				initialExtras={editingCartIndex !== null ? cart[editingCartIndex]?.extraIds : []}
-				initialNotes={editingCartIndex !== null ? cart[editingCartIndex]?.notes : ""}
-				onClose={() => {
-					setSelectedFoodItem(null);
-					setEditingCartIndex(null);
-				}}
+				onClose={() => setSelectedFoodItem(null)}
 				onAdd={addFoodToCart}
 			/>
-				</div>
-
-			
 
 			{/* View Cart Food Item Details Dialog */}
 			{viewingCartFoodItem && (
@@ -1104,53 +1074,18 @@ export const CreateOrder: React.FC = () => {
 							)}
 						</div>
 
-						<ViewDialogFooter className="gap-2">
+						<ViewDialogFooter>
 							<Button
 								variant="outline"
 								onClick={() => setViewingCartFoodItem(null)}
-								className="flex-1"
 							>
 								Close
-							</Button>
-							<Button
-								onClick={() => {
-									const itemToEdit = viewingCartFoodItem.item;
-									const index = viewingCartFoodItem.index;
-									
-									// Re-find the full food item from our master list to ensure we have the extras mapping
-									const fullFoodItem = foodItems.find(fi => fi.id === itemToEdit.foodItem.id);
-									
-									setViewingCartFoodItem(null);
-									setEditingCartIndex(index);
-									setSelectedFoodItem(fullFoodItem || itemToEdit.foodItem);
-								}}
-								className="flex-1"
-							>
-								Edit Item
 							</Button>
 						</ViewDialogFooter>
 					</ViewDialogContent>
 				</ViewDialog>
 			)}
-
-			<AlertWithActions
-							open={showPrintConfirm}
-							onOpenChange={setShowPrintConfirm}
-							title="Print Receipt?"
-							message="Would you like to print a receipt for this order?"
-							confirmText="Print Receipt"
-							cancelText="Skip"
-							onConfirm={async () => {
-								if (orderToPrint) {
-									await printReceipt(orderToPrint);
-								}
-								setShowPrintConfirm(false);
-								setOrderToPrint(null);
-							}}
-						/>
 		</>
 	);
 };
-
-export default CreateOrder;
 

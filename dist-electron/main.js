@@ -118,11 +118,11 @@ electron_1.ipcMain.handle("list-ports", async () => {
         return [];
     }
 });
-electron_1.ipcMain.handle("update-customer-display", async (_, portPath, line1, line2 = "") => {
+electron_1.ipcMain.handle("update-customer-display", async (_, portPath, amount) => {
     return new Promise((resolve, reject) => {
         const port = new serialport_1.SerialPort({
             path: portPath,
-            baudRate: 9600, // Standard for most VFD displays
+            baudRate: 9600,
             autoOpen: false,
         });
         port.open((err) => {
@@ -130,17 +130,18 @@ electron_1.ipcMain.handle("update-customer-display", async (_, portPath, line1, 
                 console.error("Error opening port:", err.message);
                 return reject(err);
             }
-            // VFD Displays usually need a "Clear" command first (Hex 0x0C)
-            const clearCommand = Buffer.from([0x0C]);
-            // Move cursor to home (Hex 0x0B)
-            const homeCommand = Buffer.from([0x0B]);
-            port.write(clearCommand);
-            port.write(homeCommand);
-            port.write(`${line1.padEnd(20)}\n${line2.padEnd(20)}`);
-            setTimeout(() => {
-                port.close();
-                resolve(true);
-            }, 200);
+            const formatted = amount.padStart(8);
+            port.write(formatted, (writeErr) => {
+                if (writeErr) {
+                    console.error("Error writing to display:", writeErr.message);
+                    port.close();
+                    return reject(writeErr);
+                }
+                setTimeout(() => {
+                    port.close();
+                    resolve(true);
+                }, 200);
+            });
         });
     });
 });

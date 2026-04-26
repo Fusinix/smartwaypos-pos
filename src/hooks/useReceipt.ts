@@ -95,11 +95,11 @@ export const useReceipt = () => {
                 <body style="font-family: 'Courier New', Courier, monospace; font-size: 11pt; font-weight: 600; line-height: 1.3; width: 72mm; margin: 0; padding: 0; color: #000; background-color: #fff;">
                     ${businessLogo ? `<div style="text-align: center; margin-bottom: 8px;"><img src="${businessLogo}" style="max-height: 150px; max-width: 150px; filter: grayscale(1) contrast(2);"></div>` : ""}
                     <div style="text-align: center; border-bottom: 2pt solid #000; padding: 6px 0; margin-bottom: 10px;">
-                        <h1 style="font-size: 18pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
-                        <div style="font-size: 11pt; font-weight: 700; margin-top: 4px;">OFFICIAL RECEIPT</div>
+                        <h1 style="font-size: 14pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
+                        <div style="font-size: 12pt; font-weight: 700; margin-top: 4px;">OFFICIAL RECEIPT</div>
                     </div>
                     
-                    <div style="margin-bottom: 12px; font-size: 11pt; font-weight: 700;">
+                    <div style="margin-bottom: 12px; font-size: 10pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between;"><span>ORDER:</span><span>#${order.order_number ?? order.id ?? "N/A"}</span></div>
                         <div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
                     </div>
