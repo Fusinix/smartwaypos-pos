@@ -190,7 +190,7 @@ export const Orders: React.FC = () => {
         : "0.00";
         
     window.electron.invoke("update-customer-display", port, totalStr);
-}, [selectedOrderTotal, selectedOrder, settings?.pos]);
+}, [selectedOrderTotal, selectedOrder?.id, settings?.pos]);
 
 	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
@@ -437,7 +437,7 @@ export const Orders: React.FC = () => {
 					</div>
 				</div>
 				{/* Right Panel: Order Details */}
-				<div className={cn("min-w-[200px] max-w-[450px] w-full bg-white flex flex-col border-l h-full", !selectedOrder && "hidden")}>
+				<div className={cn("min-w-[200px] max-w-[450px] w-full bg-white flex flex-col border-l h-full overflow-y-auto", !selectedOrder && "hidden")}>
 					<div className="flex items-center justify-between p-6 py-4 border-b">
 						<h2 className="text-3xl font-semibold py-0.5">Order Details</h2>
 					</div>

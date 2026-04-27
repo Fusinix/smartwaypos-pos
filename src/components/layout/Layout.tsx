@@ -25,6 +25,7 @@ import {
 	MoreVertical,
 	Minimize,
 	Maximize,
+	Utensils,
 } from "lucide-react";
 import { defaultValues } from "@/data/lang";
 import { Logo } from "../ui/logo";
@@ -158,10 +159,7 @@ export const Layout: React.FC = () => {
 			[{ path: "/orders", icon: ClipboardList, label: "Orders" }]
 		:	[]),
 		{ path: "/products", icon: Beer, label: "Drinks" },
-		{ path: "/food", icon: Package, label: "Food" },
-		...(isAdmin ?
-			[{ path: "/categories", icon: FolderKanban, label: "Categories" }]
-		:	[]),
+		{ path: "/food", icon: Utensils, label: "Food" },
 		...(isAdmin ?
 			[{ path: "/settings", icon: Settings, label: "Settings" }]
 		:	[]),

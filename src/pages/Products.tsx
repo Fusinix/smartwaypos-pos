@@ -29,6 +29,15 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { AddEditCategoryDialog } from "@/components/dialogs/add-edit-category-dialog";
 import { useAuth } from "@/context/AuthContext";
 import { useCategory } from "@/hooks/useCategory";
 import { useProducts } from "@/hooks/useProducts";
@@ -53,13 +62,29 @@ export default function Products() {
 		updateProduct,
 		deleteProduct,
 	} = useProducts();
-	const { categories, fetchCategories } = useCategory();
+	const {
+		categories,
+		fetchCategories,
+		addCategory,
+		updateCategory,
+		deleteCategory,
+		isLoading: isCategoriesLoading,
+	} = useCategory();
 	const { getStockStatus } = useStock();
 	const { format: formatCurrency, currency } = useCurrency();
 
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 	const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+
+	// Category management state
+	const [activeTab, setActiveTab] = useState<"products" | "categories">("products");
+	const [categorySearchQuery, setCategorySearchQuery] = useState("");
+	const [selectedCategory, setSelectedCategory] = useState<any>();
+	const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
+	const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
+	const [isDeleteCategoryDialogOpen, setIsDeleteCategoryDialogOpen] = useState(false);
+	const [categoryToDelete, setCategoryToDelete] = useState<any>(null);
 
 	const canManageProducts = user?.role === "admin" || user?.role === "manager";
 
@@ -121,6 +146,32 @@ export default function Products() {
 			return order * ((a[filters.sortBy] || 0) - (b[filters.sortBy] || 0));
 		});
 
+	const filteredCategories = categories.filter(
+		(category) =>
+			category.name.toLowerCase().includes(categorySearchQuery.toLowerCase()) ||
+			category.description?.toLowerCase().includes(categorySearchQuery.toLowerCase())
+	);
+
+	const handleAddCategory = async (category: any) => {
+		await addCategory(category);
+		setIsAddCategoryDialogOpen(false);
+	};
+
+	const handleEditCategory = async (category: any) => {
+		if (selectedCategory) {
+			await updateCategory(selectedCategory.id, category);
+			setIsEditCategoryDialogOpen(false);
+		}
+	};
+
+	const handleDeleteCategory = async () => {
+		if (categoryToDelete) {
+			await deleteCategory(categoryToDelete.id);
+			setIsDeleteCategoryDialogOpen(false);
+			setCategoryToDelete(null);
+		}
+	};
+
 	// Calculate stock summary metrics
 	const stockSummary = useMemo(() => {
 		const activeProducts = products.filter((p) => p.status === "active");
@@ -181,13 +232,43 @@ export default function Products() {
 			{/* Page Header */}
 			<div className="bg-white border-b px-8 py-6">
 				<div className="flex justify-between items-center">
-					<h1 className="text-3xl font-bold text-gray-900">Products</h1>
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
+						<div className="flex mt-4 gap-4">
+							<button
+								onClick={() => setActiveTab("products")}
+								className={cn(
+									"px-4 py-2 text-sm font-medium rounded-md transition-colors",
+									activeTab === "products" ?
+										"bg-primary text-white"
+									:	"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+								)}
+							>
+								Products
+							</button>
+							<button
+								onClick={() => setActiveTab("categories")}
+								className={cn(
+									"px-4 py-2 text-sm font-medium rounded-md transition-colors",
+									activeTab === "categories" ?
+										"bg-primary text-white"
+									:	"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+								)}
+							>
+								Categories
+							</button>
+						</div>
+					</div>
 					{canManageProducts && (
 						<Button
-							onClick={() => setIsAddDialogOpen(true)}
+							onClick={() =>
+								activeTab === "products" ?
+									setIsAddDialogOpen(true)
+								:	setIsAddCategoryDialogOpen(true)
+							}
 							className="text-base"
 						>
-							Add Product
+							{activeTab === "products" ? "Add Product" : "Add Category"}
 						</Button>
 					)}
 				</div>
@@ -200,6 +281,9 @@ export default function Products() {
 					onOpenChange={() => setError(null)}
 					message={error || ""}
 				/>
+
+				{activeTab === "products" ?
+					<>
 
 				{/* Stock Summary Section - Admin Only */}
 				{user?.role === "admin" && (
@@ -584,7 +668,97 @@ export default function Products() {
 						})}
 					</div>
 				}
+					</>
+				:	<div className="space-y-6">
+						<div className="mb-6">
+							<Input
+								placeholder="Search categories..."
+								value={categorySearchQuery}
+								onChange={(e) => setCategorySearchQuery(e.target.value)}
+								className="max-w-sm text-base"
+							/>
+						</div>
 
+						{isCategoriesLoading ?
+							<div className="flex items-center justify-center h-64">
+								<p className="text-lg">Loading categories...</p>
+							</div>
+						:	<div className="border rounded-lg bg-white">
+								<Table>
+									<TableHeader className="bg-gray-50">
+										<TableRow>
+											<TableHead className="text-base font-semibold">
+												Name
+											</TableHead>
+											<TableHead className="text-base font-semibold">
+												Description
+											</TableHead>
+											<TableHead className="text-base font-semibold">
+												Status
+											</TableHead>
+											{canManageProducts && (
+												<TableHead className="w-[100px] text-base font-semibold text-right">
+													Actions
+												</TableHead>
+											)}
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{filteredCategories.map((category) => (
+											<TableRow key={category.id}>
+												<TableCell className="font-medium text-base">
+													{category.name}
+												</TableCell>
+												<TableCell className="text-base">
+													{category.description || "-"}
+												</TableCell>
+												<TableCell>
+													<span
+														className={`px-3 py-1 rounded-full text-sm ${
+															category.status === "active" ?
+																"bg-green-100 text-green-800"
+															:	"bg-red-100 text-red-800"
+														}`}
+													>
+														{category.status}
+													</span>
+												</TableCell>
+												{canManageProducts && (
+													<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium">
+														<Button
+															variant="outline"
+															size="default"
+															onClick={() => {
+																setSelectedCategory(category);
+																setIsEditCategoryDialogOpen(true);
+															}}
+															className="mr-2 text-base"
+														>
+															Edit
+														</Button>
+														<Button
+															variant="destructive"
+															size="default"
+															onClick={() => {
+																setCategoryToDelete(category);
+																setIsDeleteCategoryDialogOpen(true);
+															}}
+															className="text-base"
+														>
+															Delete
+														</Button>
+													</TableCell>
+												)}
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+						}
+					</div>
+				}
+
+				{/* Dialogs */}
 				<AddEditProductDialog
 					open={isAddDialogOpen}
 					categories={categories}
@@ -601,6 +775,22 @@ export default function Products() {
 						onSave={(product) => updateProduct(editingProduct.id, product)}
 					/>
 				)}
+
+				<AddEditCategoryDialog
+					open={isAddCategoryDialogOpen}
+					onClose={() => setIsAddCategoryDialogOpen(false)}
+					onSave={handleAddCategory}
+				/>
+
+				<AddEditCategoryDialog
+					category={selectedCategory}
+					open={isEditCategoryDialogOpen}
+					onClose={() => {
+						setIsEditCategoryDialogOpen(false);
+						setSelectedCategory(undefined);
+					}}
+					onSave={handleEditCategory}
+				/>
 
 				<AlertDialog
 					open={!!productToDelete}
@@ -623,6 +813,30 @@ export default function Products() {
 										setProductToDelete(null);
 									}
 								}}
+							>
+								Delete
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+
+				<AlertDialog
+					open={isDeleteCategoryDialogOpen}
+					onOpenChange={setIsDeleteCategoryDialogOpen}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Are you sure?</AlertDialogTitle>
+							<AlertDialogDescription>
+								This action cannot be undone. This will permanently delete the
+								category and remove it from our servers.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								onClick={handleDeleteCategory}
+								className="bg-red-600 hover:bg-red-700"
 							>
 								Delete
 							</AlertDialogAction>

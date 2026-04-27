@@ -122,30 +122,32 @@ electron_1.ipcMain.handle("update-customer-display", async (_, portPath, amount)
     return new Promise((resolve, reject) => {
         const port = new serialport_1.SerialPort({
             path: portPath,
-            baudRate: 9600,
+            baudRate: 2400, // Update this to match your successful CMD 'MODE' test
             autoOpen: false,
         });
         port.open((err) => {
-            if (err) {
-                console.error("Error opening port:", err.message);
+            if (err)
                 return reject(err);
-            }
-            // ESC/POS: Initialize display
-            const init = Buffer.from([0x1B, 0x40]);
-            // ESC/POS: Clear display
-            const clear = Buffer.from([0x0C]);
-            // Right-align amount, digits only (no spaces)
+            // 1. ESC/POS Commands:
+            // [0x1B, 0x40] = Initialize
+            // [0x0C]       = Clear screen
+            const initAndClear = Buffer.from([0x1B, 0x40, 0x0C]);
+            // 2. Set Status Light (Optional): 
+            // [0x1B, 0x73, 0x32] turns on the "Total" light on this specific model
+            const setTotalLight = Buffer.from([0x1B, 0x73, 0x32]);
+            // 3. Format Amount: 
+            // Ensure the amount is exactly 8 characters by padding with spaces for right-alignment
             const text = Buffer.from(amount.padStart(8), 'ascii');
-            port.write(Buffer.concat([init, clear, text]), (writeErr) => {
+            // 4. Write sequence: Initialize -> Set Light -> Write Text
+            port.write(Buffer.concat([initAndClear, setTotalLight, text]), (writeErr) => {
                 if (writeErr) {
-                    console.error("Error writing to display:", writeErr.message);
                     port.close();
                     return reject(writeErr);
                 }
+                // Give the hardware 300ms to process the display buffer before closing
                 setTimeout(() => {
-                    port.close();
-                    resolve(true);
-                }, 200);
+                    port.close(() => resolve(true));
+                }, 300);
             });
         });
     });

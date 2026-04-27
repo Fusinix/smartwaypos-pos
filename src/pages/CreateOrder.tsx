@@ -514,7 +514,7 @@ export const CreateOrder: React.FC = () => {
 							</div>
 						</div>
 						{/* Right: Cart and finalization */}
-						<div className="w-1/3 bg-white flex flex-col border-l border-gray-100 h-full min-h-0">
+						<div className={cn("w-1/3 bg-white flex flex-col border-l border-gray-100 h-full min-h-0", cart.length === 0 && "hidden")}>
 							{/* Cart Header */}
 							<div className="px-6 py-5 border-b border-gray-100 flex-shrink-0">
 								<h2 className="text-xl font-bold text-gray-900">
