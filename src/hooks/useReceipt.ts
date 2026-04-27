@@ -122,7 +122,6 @@ export const useReceipt = () => {
                                         <span>${qty}x ${name}</span>
                                         <span>${receiptCurrency} ${safeFormat(itemTotal)}</span>
                                     </div>
-                                    ${item.notes ? `<div style="font-size: 9pt; font-weight: 400; font-style: italic;">Note: ${item.notes}</div>` : ""}
                                 </div>
                             `;
                         }).join("")}

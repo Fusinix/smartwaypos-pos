@@ -23,6 +23,8 @@ import {
 	Package,
 	AlertTriangle,
 	MoreVertical,
+	Minimize,
+	Maximize,
 } from "lucide-react";
 import { defaultValues } from "@/data/lang";
 import { Logo } from "../ui/logo";
@@ -38,6 +40,7 @@ import {
 import { useStock } from "../../hooks/useStock";
 import { useOrders } from "../../hooks/useOrders";
 import { useProducts } from "../../hooks/useProducts";
+import { useSettings } from "@/hooks/useSettings";
 
 export const Layout: React.FC = () => {
 	const { isAuthenticated, user, logout } = useAuth();
@@ -50,10 +53,14 @@ export const Layout: React.FC = () => {
 		getLowStockProducts,
 		getOutOfStockProducts,
 	} = useStock();
+	const {
+		settings,
+	  } = useSettings();
 	const { orders, fetchOrders } = useOrders();
 	const { products, fetchProducts } = useProducts();
 	const hasProducts = products.length > 0;
 	const [language, setLanguage] = useState("en");
+	const [isFullScreen, setIsFullScreen] = useState(false);
 
 	useEffect(() => {
 		if (!isAuthenticated) {
@@ -77,6 +84,12 @@ export const Layout: React.FC = () => {
 				}
 			};
 			loadNotifications();
+
+			if(settings?.pos?.fullscreen){
+				setIsFullScreen(true)
+			}else{
+				setIsFullScreen(false)
+			}
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isAuthenticated]);
@@ -463,6 +476,21 @@ export const Layout: React.FC = () => {
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
+
+						{/* add minimize button that only shows when fullscreen mode is enabled */}
+
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() =>{
+								window.electron.invoke('set-fullscreen', !isFullScreen)
+								setIsFullScreen(!isFullScreen)
+							}}
+						>
+							{
+								isFullScreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />
+							}
+						</Button>
 					</div>
 				</header>
 

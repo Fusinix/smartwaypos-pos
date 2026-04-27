@@ -861,7 +861,7 @@ export const Settings: React.FC = () => {
                     <p className="text-xs text-gray-500">Hide the system menu bar (File, Edit, View…). You can still access it by pressing <kbd className="px-1 py-0.5 text-xs font-mono bg-gray-100 border rounded">Alt</kbd>.</p>
                   </div>
                   <Switch
-                    checked={localPosSettings.hideMenuBar !== false}
+                    checked={localPosSettings?.hideMenuBar !== false}
                     onCheckedChange={(checked) => {
                       setLocalPosSettings({
                         ...localPosSettings,
