@@ -47,6 +47,7 @@ import { getCategoryName } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { useEffect, useMemo, useState } from "react";
 import { Package, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import { useKeyboard } from "@/context/KeyboardContext";
 
 export default function Products() {
 	const { user } = useAuth();
@@ -72,6 +73,7 @@ export default function Products() {
 	} = useCategory();
 	const { getStockStatus } = useStock();
 	const { format: formatCurrency, currency } = useCurrency();
+	const { isOpen:isKeyboardOpen } = useKeyboard();
 
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -476,7 +478,7 @@ export default function Products() {
 					<div className="text-center py-12 text-gray-400 text-lg">
 						No products found.
 					</div>
-				:	<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+				:	<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 						{filteredProducts.map((product) => {
 							const stockStatus = getStockStatus(product);
 							const profit =
@@ -643,7 +645,7 @@ export default function Products() {
 
 										{/* Actions */}
 										{canManageProducts && (
-											<div className="flex gap-2 pt-3 border-t border-gray-200">
+											<div className="flex gap-2 pt-3 border-t border-gray-200 flex-wrap">
 												<Button
 													variant="outline"
 													size="sm"
@@ -724,7 +726,7 @@ export default function Products() {
 													</span>
 												</TableCell>
 												{canManageProducts && (
-													<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium">
+													<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium ">
 														<Button
 															variant="outline"
 															size="default"

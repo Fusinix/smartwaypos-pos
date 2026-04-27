@@ -42,6 +42,8 @@ import type { FoodItem, FoodCategory, FoodExtra, NewFoodExtra } from "@/types/fo
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Utensils, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useKeyboard } from "@/context/KeyboardContext";
 
 export default function Food() {
 	const { user } = useAuth();
@@ -62,6 +64,7 @@ export default function Food() {
 	} = useFood();
 
 	const { format: formatCurrency } = useCurrency();
+	const { isOpen:isKeyboardOpen } = useKeyboard();
 
 	// Tab state
 	const [activeTab, setActiveTab] = useState<"items" | "categories" | "extras">("items");
@@ -251,7 +254,7 @@ export default function Food() {
 						) : filteredFoodItems.length === 0 ? (
 							<div className="text-center py-12 text-gray-400 text-lg">No food items found.</div>
 						) : (
-							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+							<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 								{filteredFoodItems.map((item) => {
 									const category = foodCategories.find((c) => c.id === item.category_id);
 									const itemExtras = foodExtras.filter((e) => item.extras?.some((ie) => ie.id === e.id));
@@ -287,7 +290,7 @@ export default function Food() {
 													</div>
 												)}
 												{canManageFood && (
-													<div className="flex gap-2 pt-3 border-t border-gray-200">
+													<div className="flex gap-2 pt-3 border-t border-gray-200 flex-wrap">
 														<Button variant="outline" size="sm" onClick={() => setEditingFoodItem(item)} className="flex-1 text-base">Edit</Button>
 														<Button variant="destructive" size="sm" onClick={() => setFoodItemToDelete(item)} className="flex-1 text-base">Delete</Button>
 													</div>
@@ -407,14 +410,14 @@ export default function Food() {
 						) : filteredExtras.length === 0 ? (
 							<div className="text-center py-12 text-gray-400 text-lg">No extras found.</div>
 						) : (
-							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+							<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 								{filteredExtras.map((extra) => (
 									<div key={extra.id} className="bg-white border rounded-lg p-4 hover:shadow-lg transition-all">
 										<h3 className="font-bold text-lg text-gray-900">{extra.name}</h3>
 										<p className="text-sm text-gray-500">Price: {formatCurrency(Number(extra.price) || 0)}</p>
 										<span className={`mt-2 inline-block px-2 py-1 text-xs font-semibold rounded-full ${extra.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{extra.status}</span>
 										{canManageFood && (
-											<div className="flex gap-2 pt-3 mt-3 border-t border-gray-200">
+											<div className="flex gap-2 pt-3 mt-3 border-t border-gray-200 flex-wrap">
 												<Button variant="outline" size="sm" className="flex-1" onClick={() => setEditingExtra(extra)}>Edit</Button>
 												<Button variant="destructive" size="sm" className="flex-1" onClick={() => setExtraToDelete(extra)}>Delete</Button>
 											</div>
