@@ -130,8 +130,13 @@ electron_1.ipcMain.handle("update-customer-display", async (_, portPath, amount)
                 console.error("Error opening port:", err.message);
                 return reject(err);
             }
-            const formatted = amount.padStart(8);
-            port.write(formatted, (writeErr) => {
+            // ESC/POS: Initialize display
+            const init = Buffer.from([0x1B, 0x40]);
+            // ESC/POS: Clear display
+            const clear = Buffer.from([0x0C]);
+            // Right-align amount, digits only (no spaces)
+            const text = Buffer.from(amount.padStart(8), 'ascii');
+            port.write(Buffer.concat([init, clear, text]), (writeErr) => {
                 if (writeErr) {
                     console.error("Error writing to display:", writeErr.message);
                     port.close();
@@ -144,6 +149,19 @@ electron_1.ipcMain.handle("update-customer-display", async (_, portPath, amount)
             });
         });
     });
+});
+// Toggle menu bar visibility
+electron_1.ipcMain.handle('set-menu-bar-visible', (_, visible) => {
+    if (mainWindow) {
+        mainWindow.setMenuBarVisibility(visible);
+        mainWindow.setAutoHideMenuBar(!visible);
+    }
+});
+// Toggle fullscreen mode
+electron_1.ipcMain.handle('set-fullscreen', (_, enabled) => {
+    if (mainWindow) {
+        mainWindow.setFullScreen(enabled);
+    }
 });
 async function logAction({ db, admin_id, admin_name, admin_role, action, page, context, }) {
     await db.run("INSERT INTO logs (created_at, admin_id, admin_name, admin_role, action, page, context) VALUES (?, ?, ?, ?, ?, ?, ?)", [
@@ -480,7 +498,13 @@ async function createWindow() {
         }
         catch (error) {
             // Table might already exist, ignore error
-            // console.log('cost_price column might already exist:', error.message);
+        }
+        // Migration: add quantity column to order_item_extras if it doesn't exist
+        try {
+            await db.run("ALTER TABLE order_item_extras ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+        }
+        catch {
+            // Column already exists — safe to ignore
         }
         // Create default admin user if not exists
         const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", [
@@ -536,7 +560,7 @@ async function createWindow() {
             mainWindow.loadURL('app://index.html');
         }
         // 3. Transition from Splash to Main
-        mainWindow.once('ready-to-show', () => {
+        mainWindow.once('ready-to-show', async () => {
             if (splashWindow) {
                 splashWindow.close();
                 splashWindow = null;
@@ -544,6 +568,22 @@ async function createWindow() {
             if (mainWindow) {
                 mainWindow.show();
                 mainWindow.maximize();
+                // Apply saved menu bar preference (default: hidden for POS kiosk)
+                try {
+                    const savedSettings = await db.get('SELECT pos FROM settings ORDER BY id DESC LIMIT 1');
+                    const posSettings = savedSettings?.pos ? JSON.parse(savedSettings.pos) : {};
+                    const hideMenuBar = posSettings.hideMenuBar !== false; // default true (hidden)
+                    mainWindow.setMenuBarVisibility(!hideMenuBar);
+                    mainWindow.setAutoHideMenuBar(hideMenuBar);
+                    const fullscreen = posSettings.fullscreen === true; // default false
+                    if (fullscreen)
+                        mainWindow.setFullScreen(true);
+                }
+                catch {
+                    // If settings can't be read, hide menu bar by default
+                    mainWindow.setMenuBarVisibility(false);
+                    mainWindow.setAutoHideMenuBar(true);
+                }
             }
         });
     }
@@ -1906,24 +1946,16 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
                     ]);
                     const orderItemId = orderItemResult.lastID;
                     // Insert order item extras if any
-                    console.log("Food item extras received:", {
-                        extraIds: item.extraIds,
-                        type: typeof item.extraIds,
-                        isArray: Array.isArray(item.extraIds),
-                        length: item.extraIds?.length,
-                    });
-                    if (item.extraIds &&
-                        Array.isArray(item.extraIds) &&
-                        item.extraIds.length > 0) {
-                        console.log(`Inserting ${item.extraIds.length} extras for order item ${orderItemId}`);
+                    if (item.extraIds && Array.isArray(item.extraIds) && item.extraIds.length > 0) {
+                        // Deduplicate: count occurrences of each extra_id to get quantity
+                        const extraCounts = new Map();
                         for (const extraId of item.extraIds) {
-                            console.log(`Inserting extra ${extraId} for order item ${orderItemId}`);
-                            await db.run("INSERT INTO order_item_extras (order_item_id, extra_id) VALUES (?, ?)", [orderItemId, extraId]);
+                            const id = Number(extraId);
+                            extraCounts.set(id, (extraCounts.get(id) || 0) + 1);
                         }
-                        console.log(`Successfully inserted ${item.extraIds.length} extras`);
-                    }
-                    else {
-                        console.log("No extras to insert or extraIds is not a valid array");
+                        for (const [extraId, qty] of extraCounts.entries()) {
+                            await db.run("INSERT OR IGNORE INTO order_item_extras (order_item_id, extra_id, quantity) VALUES (?, ?, ?)", [orderItemId, extraId, qty]);
+                        }
                     }
                 }
             }
@@ -1968,11 +2000,10 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
         for (const item of orderItems) {
             if (item.item_type === "food") {
                 const extrasRaw = await db.all(`
-					SELECT fe.id, fe.name, fe.price, COUNT(*) as quantity
+					SELECT fe.id, fe.name, fe.price, oie.quantity
 					FROM order_item_extras oie
 					JOIN food_extras fe ON oie.extra_id = fe.id
 					WHERE oie.order_item_id = ?
-					GROUP BY fe.id, fe.name, fe.price
 				`, [item.id]);
                 item.extras = extrasRaw.map((e) => ({
                     id: e.id,
@@ -2065,11 +2096,10 @@ electron_1.ipcMain.handle("get-order-by-id", async (_event, orderId, payload = {
             for (const item of orderItems) {
                 if (item.item_type === "food") {
                     const extrasRaw = await db.all(`
-              SELECT fe.id, fe.name, fe.price, COUNT(*) as quantity
+                            SELECT fe.id, fe.name, fe.price, oie.quantity
               FROM order_item_extras oie
               JOIN food_extras fe ON oie.extra_id = fe.id
               WHERE oie.order_item_id = ?
-              GROUP BY fe.id, fe.name, fe.price
             `, [item.id]);
                     item.extras = extrasRaw.map((e) => ({
                         id: e.id,
@@ -2249,11 +2279,15 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
                     ]);
                     const orderItemId = orderItemResult.lastID;
                     // Insert order item extras if any
-                    if (item.extraIds &&
-                        Array.isArray(item.extraIds) &&
-                        item.extraIds.length > 0) {
+                    if (Array.isArray(item.extraIds) && item.extraIds.length > 0) {
+                        // Deduplicate: count occurrences of each extra_id to get quantity
+                        const extraCounts = new Map();
                         for (const extraId of item.extraIds) {
-                            await db.run("INSERT INTO order_item_extras (order_item_id, extra_id) VALUES (?, ?)", [orderItemId, extraId]);
+                            const id = Number(extraId);
+                            extraCounts.set(id, (extraCounts.get(id) || 0) + 1);
+                        }
+                        for (const [extraId, qty] of extraCounts.entries()) {
+                            await db.run("INSERT OR IGNORE INTO order_item_extras (order_item_id, extra_id, quantity) VALUES (?, ?, ?)", [orderItemId, extraId, qty]);
                         }
                     }
                 }
@@ -2342,11 +2376,10 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
             for (const item of updatedItems) {
                 if (item.item_type === "food") {
                     const extrasRaw = await db.all(`
-              SELECT fe.id, fe.name, fe.price, COUNT(*) as quantity
+                            SELECT fe.id, fe.name, fe.price, oie.quantity
               FROM order_item_extras oie
               JOIN food_extras fe ON oie.extra_id = fe.id
               WHERE oie.order_item_id = ?
-              GROUP BY fe.id, fe.name, fe.price
             `, [item.id]);
                     item.extras = extrasRaw.map((e) => ({
                         id: e.id,

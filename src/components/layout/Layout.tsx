@@ -155,7 +155,7 @@ export const Layout: React.FC = () => {
 	];
 
 	return (
-		<div className="min-h-screen bg-gray-50 flex w-full">
+		<div className="h-screen bg-gray-50 flex w-full">
 			{/* Left Sidebar */}
 			<aside
 				className={`${

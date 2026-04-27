@@ -29,6 +29,8 @@ export interface POSSettings {
   receiptPrinter?: string;
   customerDisplayPort?: string;
   autoOpenKeyboard?: boolean;
+  hideMenuBar?: boolean;
+  fullscreen?: boolean;
 }
 
 export interface TableSettings {

@@ -852,6 +852,45 @@ export const Settings: React.FC = () => {
               </div>
             </div>
 
+            <div className="pt-4 border-t border-gray-100">
+              <h4 className="text-sm font-semibold text-gray-900 mb-4">Window Appearance</h4>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Hide Menu Bar</p>
+                    <p className="text-xs text-gray-500">Hide the system menu bar (File, Edit, View…). You can still access it by pressing <kbd className="px-1 py-0.5 text-xs font-mono bg-gray-100 border rounded">Alt</kbd>.</p>
+                  </div>
+                  <Switch
+                    checked={localPosSettings.hideMenuBar !== false}
+                    onCheckedChange={(checked) => {
+                      setLocalPosSettings({
+                        ...localPosSettings,
+                        hideMenuBar: checked,
+                      });
+                      window.electron.invoke('set-menu-bar-visible', !checked);
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Fullscreen Mode</p>
+                    <p className="text-xs text-gray-500">Run the app in true fullscreen — hides the title bar, menu bar, and OS taskbar. Ideal for kiosk use.</p>
+                  </div>
+                  <Switch
+                    checked={localPosSettings.fullscreen === true}
+                    onCheckedChange={(checked) => {
+                      setLocalPosSettings({
+                        ...localPosSettings,
+                        fullscreen: checked,
+                      });
+                      window.electron.invoke('set-fullscreen', checked);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end pt-4">
               <Button
                 onClick={handleSavePosSettings}

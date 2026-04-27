@@ -182,17 +182,15 @@ export const Orders: React.FC = () => {
 
 	// Auto-update Customer Display (must be after selectedOrderTotal is defined)
 	useEffect(() => {
-		const posSettings = parseJSONString(settings?.pos as any);
-		const port = posSettings?.customerDisplayPort;
-		if (!port) return;
+    const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
+    if (!port) return;
 
-		if (selectedOrder) {
-			const totalStr = parseFloat(selectedOrderTotal.toFixed(2)).toFixed(2);
-			window.electron.invoke("update-customer-display", port, totalStr);
-		} else {
-			window.electron.invoke("update-customer-display", port, "0.00");
-		}
-	}, [selectedOrderTotal, selectedOrder?.id, selectedOrder?.status, settings?.pos, settings?.general?.defaultCurrency]);
+    const totalStr = selectedOrder 
+        ? selectedOrderTotal.toFixed(2) 
+        : "0.00";
+        
+    window.electron.invoke("update-customer-display", port, totalStr);
+}, [selectedOrderTotal, selectedOrder, settings?.pos]);
 
 	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
@@ -417,11 +415,11 @@ export const Orders: React.FC = () => {
 												</div>
 
 												<div className="pt-2 border-t border-gray-200">
-													<div className="flex items-baseline justify-between">
-														<span className="text-sm text-gray-500">Total</span>
-														<span className="font-bold text-sm text-gray-900">
+													<div className="flex items-baseline justify-between flex-wrap">
+														<p className="text-sm text-gray-500">Total</p>
+														<p className="font-bold text-sm text-gray-900">
 															{formatCurrency(order.amount ?? 0)}
-														</span>
+														</p>
 													</div>
 												</div>
 
@@ -439,7 +437,7 @@ export const Orders: React.FC = () => {
 					</div>
 				</div>
 				{/* Right Panel: Order Details */}
-				<div className="min-w-[200px] max-w-[450px] w-full bg-white flex flex-col border-l h-full">
+				<div className={cn("min-w-[200px] max-w-[450px] w-full bg-white flex flex-col border-l h-full", !selectedOrder && "hidden")}>
 					<div className="flex items-center justify-between p-6 py-4 border-b">
 						<h2 className="text-3xl font-semibold py-0.5">Order Details</h2>
 					</div>

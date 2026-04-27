@@ -219,16 +219,12 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 
 	// Update Customer Display in real-time
 	useEffect(() => {
-		const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
-		if (!port || !open) return;
+    const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
+    if (!port || !open) return;
 
-		if (cart.length > 0) {
-			const totalStr = total.toFixed(2);
-			window.electron.invoke("update-customer-display", port, totalStr);
-		} else {
-			window.electron.invoke("update-customer-display", port, "0.00");
-		}
-	}, [total, cart.length, open, settings?.pos, settings?.general?.defaultCurrency]);
+    const totalStr = cart.length > 0 ? total.toFixed(2) : "0.00";
+    window.electron.invoke("update-customer-display", port, totalStr);
+}, [total, cart, open, settings?.pos]);
 
 	// Add a ref to clear cart and close dialog
 	useEffect(() => {

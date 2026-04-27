@@ -9,7 +9,6 @@ import { Login } from './pages/Login';
 import { useAlertStore } from './stores/useAlertStore';
 import { LicenseCheck } from './components/LicenseCheck';
 import { useOnScreenKeyboard } from './hooks/useOnScreenKeyboard';
-import { useSettings } from './hooks/useSettings';
 
 // Lazy load pages for better performance
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -24,7 +23,6 @@ const CreateOrder = React.lazy(() => import('./pages/CreateOrder'));
 
 import { SideKeyboard } from './components/keyboard/SideKeyboard';
 import { useKeyboard } from './context/KeyboardContext';
-import { cn } from './lib/utils';
 
 /** Thin wrapper so useOnScreenKeyboard runs inside AuthProvider */
 const KeyboardListener: React.FC = () => {
