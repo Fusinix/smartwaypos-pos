@@ -40,6 +40,7 @@ export default function AddEditProductDialog({
                       price: 0,
                       cost_price: 0,
                       stock: 0,
+                      low_stock_threshold: 10,
                       status: 'active',
                       image: ""
                   }
@@ -52,6 +53,7 @@ export default function AddEditProductDialog({
                   price: Number(product.price),
                   cost_price: Number(product.cost_price || 0),
                   stock: Number(product.stock),
+                  low_stock_threshold: Number(product.low_stock_threshold || 10),
                   status: product.status,
                   image: product.image || ""
               }
@@ -201,6 +203,23 @@ export default function AddEditProductDialog({
                                     setFormData((prev) => ({
                                         ...prev,
                                         stock: parseInt(e.target.value, 10),
+                                    }))
+                                }
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <Label htmlFor="low_stock_threshold">Low Stock Threshold</Label>
+                            <Input
+                                id="low_stock_threshold"
+                                type="number"
+                                min="0"
+                                value={formData.low_stock_threshold}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        low_stock_threshold: parseInt(e.target.value, 10),
                                     }))
                                 }
                                 required

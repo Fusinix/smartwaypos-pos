@@ -3,7 +3,7 @@
 import type { Order } from "@/types";
 
 export const useReceipt = () => {
-    const printReceipt = async (order: Order) => {
+    const printReceipt = async (order: Order, openDrawer?: boolean) => {
             if (!order || !order.items) return;
     
             // Calculate subtotal from items to ensure accuracy

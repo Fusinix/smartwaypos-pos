@@ -79,6 +79,7 @@ const validChannels = [
     'complete-password-reset',
     'set-menu-bar-visible',
     'set-fullscreen',
+    'get-daily-inventory-report',
 ];
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object

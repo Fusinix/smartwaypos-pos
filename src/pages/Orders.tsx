@@ -25,6 +25,12 @@ import { AlertWithActions } from "@/components/alerts/alert-with-actions";
 import { useReceipt } from "@/hooks/useReceipt";
 import { useNavigate } from "react-router-dom";
 import { useKeyboard } from "@/context/KeyboardContext";
+import { useAuth } from "@/context/AuthContext";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "sonner";
+import { FileText, Archive } from "lucide-react";
+import { DailyReportDialog } from "@/components/dialogs/daily-report-dialog";
 
 export const Orders: React.FC = () => {
 	const { orders, loading, error, fetchOrders, getOrderById, updateOrder } =
@@ -49,6 +55,10 @@ export const Orders: React.FC = () => {
 
 	const [lastEnterPress, setLastEnterPress] = useState<number>(0);
 	const [enterCount, setEnterCount] = useState<number>(0);
+	const { user } = useAuth();
+	const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+	const [reportDialogOpen, setReportDialogOpen] = useState(false);
+	const [reportData, setReportData] = useState<any>(null);
 
 	// Multi-enter shortcut for manual drawer trigger
 	useEffect(() => {
@@ -244,21 +254,144 @@ export const Orders: React.FC = () => {
 		setEditItemsDialogOpen(true);
 	};
 
+	const handleGenerateReport = async () => {
+		setIsGeneratingReport(true);
+		try {
+			const data = await window.electron.invoke("get-daily-inventory-report");
+			setReportData(data);
+			setReportDialogOpen(true);
+		} catch (error) {
+			console.error("Failed to fetch report data:", error);
+			toast.error("Failed to fetch report data");
+		} finally {
+			setIsGeneratingReport(false);
+		}
+	};
+
+	const handleDownloadPDF = () => {
+		if (!reportData) return;
+		
+		try {
+			const doc = new jsPDF();
+			const pageWidth = doc.internal.pageSize.getWidth();
+			
+			// 1. Header
+			doc.setFontSize(22);
+			doc.setTextColor(40, 40, 40);
+			doc.text("Daily Sales & Inventory Report", pageWidth / 2, 20, { align: "center" });
+			
+			doc.setFontSize(12);
+			doc.setTextColor(100, 100, 100);
+			doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 28, { align: "center" });
+			doc.text(`Staff: ${user?.username || "Admin"}`, pageWidth / 2, 35, { align: "center" });
+			
+			// 2. Inventory Table (Drinks)
+			doc.setFontSize(16);
+			doc.setTextColor(0, 0, 0);
+			doc.text("Drinks Inventory Reconciliation", 14, 50);
+			
+			const inventoryBody = reportData.inventory.map((item: any) => [
+				item.name,
+				item.openingStock,
+				item.added,
+				item.totalStock,
+				item.sold,
+				formatCurrency(item.price),
+				formatCurrency(item.totalSales),
+				item.stockLeft
+			]);
+			
+			autoTable(doc, {
+				startY: 55,
+				head: [["Item", "Opening", "Added", "Total", "Sold", "Price", "Sales", "Left"]],
+				body: inventoryBody,
+				theme: 'striped',
+				headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+				styles: { fontSize: 9 }
+			});
+			
+			// 3. Food Sales Table
+			const finalY = (doc as any).lastAutoTable.finalY || 100;
+			doc.setFontSize(16);
+			doc.text("Food Sales Summary", 14, finalY + 15);
+			
+			const foodBody = reportData.foodSales.map((item: any) => [
+				item.name,
+				item.quantity,
+				formatCurrency(item.price),
+				formatCurrency(item.totalSales)
+			]);
+			
+			autoTable(doc, {
+				startY: finalY + 20,
+				head: [["Item Name", "Qty Sold", "Price", "Total Revenue"]],
+				body: foodBody,
+				theme: 'striped',
+				headStyles: { fillColor: [39, 174, 96], textColor: 255 },
+				styles: { fontSize: 10 }
+			});
+			
+			// 4. Totals
+			const drinksTotal = reportData.inventory.reduce((sum: number, item: any) => sum + item.totalSales, 0);
+			const foodTotal = reportData.foodSales.reduce((sum: number, item: any) => sum + item.totalSales, 0);
+			const grandTotal = drinksTotal + foodTotal;
+			
+			const finalY2 = (doc as any).lastAutoTable.finalY || 200;
+			doc.setFontSize(14);
+			doc.setFont("helvetica", "bold");
+			doc.text(`Drinks Revenue: ${formatCurrency(drinksTotal)}`, pageWidth - 14, finalY2 + 15, { align: "right" });
+			doc.text(`Food Revenue: ${formatCurrency(foodTotal)}`, pageWidth - 14, finalY2 + 23, { align: "right" });
+			
+			doc.setFontSize(18);
+			doc.setTextColor(41, 128, 185);
+			doc.text(`GRAND TOTAL: ${formatCurrency(grandTotal)}`, pageWidth - 14, finalY2 + 35, { align: "right" });
+			
+			// Save the PDF
+			const fileName = `DailyReport_${reportData.date}_${user?.username || "Admin"}.pdf`;
+			doc.save(fileName);
+			toast.success("Report downloaded successfully");
+		} catch (error) {
+			console.error("Failed to generate PDF:", error);
+			toast.error("Failed to generate PDF");
+		}
+	};
+
 	return (
 		<div className="h-full flex flex-col flex-1">
 			{/* Page Header */}
 			<div className="bg-white border-b px-8 py-6">
 				<div className="flex justify-between items-center">
 					<h1 className="text-3xl font-bold text-gray-900">Orders</h1>
-					<Button
-						size="default"
-						className="text-base"
-						onClick={() => {
-							navigate("/create-order");
-						}}
-					>
-						Create Order
-					</Button>
+					<div className="flex gap-3">
+						<Button
+							variant="outline"
+							size="default"
+							className="text-base flex items-center gap-2 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:border-orange-300"
+							onClick={() => window.electron.invoke("trigger-cash-drawer")}
+						>
+							<Archive className="h-5 w-5" />
+							Open Drawer
+						</Button>
+						<Button
+							variant="outline"
+							size="default"
+							className="text-base flex items-center gap-2"
+							onClick={handleGenerateReport}
+							disabled={isGeneratingReport}
+						>
+							<FileText className="h-5 w-5" />
+							{isGeneratingReport ? "Generating..." : "Daily Report"}
+						</Button>
+						<Button
+							size="default"
+							className="text-base"
+							onClick={() => {
+								navigate("/create-order");
+							}}
+						>
+							Create Order
+						</Button>
+					</div>
 				</div>
 			</div>
 
@@ -716,7 +849,8 @@ export const Orders: React.FC = () => {
 							</div>
 							{/* Actions Section */}
 							<div className="flex flex-col gap-2">
-								{selectedOrder.status === "open" && (
+								{/* show this button only if there are food items in the order */}
+								{selectedOrder?.status === "open" && selectedOrder?.items?.filter((item: any) => item.item_type === "food").length > 0 && selectedOrder && (
 									<Button
 										variant="outline"
 										onClick={() => printKitchenOrder(selectedOrder)}
@@ -726,13 +860,13 @@ export const Orders: React.FC = () => {
 									</Button>
 								)}
 								<div className="flex space-x-2">
-									{selectedOrder.status === "open" ?
+									{selectedOrder?.status === "open" ?
 										<>
 											<Button
 											variant="default"
 											onClick={handleCloseOrder}
 											className="text-base flex-1"
-											disabled={selectedOrder.payment_mode === 'cash' && (parseFloat(amountTendered || "0") < selectedOrderTotal)}
+											disabled={selectedOrder?.payment_mode === 'cash' && (parseFloat(amountTendered || "0") < (selectedOrderTotal || 0))}
 										>
 											Close Order
 										</Button>
@@ -755,7 +889,7 @@ export const Orders: React.FC = () => {
 											</Button>
 											<Button
 												variant="outline"
-												onClick={() => printReceipt(selectedOrder)}
+												onClick={() => printReceipt(selectedOrder, false)}
 												className="text-base flex-1"
 											>
 												Print Receipt
@@ -795,7 +929,14 @@ export const Orders: React.FC = () => {
 				order={selectedOrder}
 				open={shareDialogOpen}
 				onClose={() => setShareDialogOpen(false)}
-				onPrint={() => selectedOrder && printReceipt(selectedOrder)}
+				onPrint={() => selectedOrder && printReceipt(selectedOrder, false)}
+			/>
+			<DailyReportDialog
+				open={reportDialogOpen}
+				onClose={() => setReportDialogOpen(false)}
+				reportData={reportData}
+				onDownload={handleDownloadPDF}
+				user={user}
 			/>
 			<AlertWithActions
 				open={showPrintConfirm}

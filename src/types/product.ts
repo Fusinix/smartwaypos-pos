@@ -21,6 +21,7 @@ export interface NewProduct {
     price: number;
     cost_price?: number;
     stock: number;
+    low_stock_threshold?: number;
     status: 'active' | 'inactive';
     image?: string;
 }

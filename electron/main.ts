@@ -21,6 +21,7 @@ interface Product {
 	price: number;
 	cost_price?: number;
 	stock: number;
+	low_stock_threshold?: number;
 	status: "active" | "inactive";
 	image?: string;
 }
@@ -203,6 +204,29 @@ async function logAction({
 	);
 }
 
+async function logInventoryChange({
+	db,
+	productId,
+	changeAmount,
+	previousStock,
+	newStock,
+	reason,
+	adminId,
+}: {
+	db: any;
+	productId: number;
+	changeAmount: number;
+	previousStock: number;
+	newStock: number;
+	reason: "sale" | "restock" | "adjustment" | "wastage";
+	adminId: number | null;
+}) {
+	await db.run(
+		"INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id) VALUES (?, ?, ?, ?, ?, ?)",
+		[productId, changeAmount, previousStock, newStock, reason, adminId]
+	);
+}
+
 // Register protocol before app is ready
 protocol.registerSchemesAsPrivileged([
 	{ scheme: 'app', privileges: { secure: true, standard: true, allowServiceWorkers: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
@@ -293,6 +317,18 @@ async function createWindow() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (category) REFERENCES categories(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS inventory_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        change_amount INTEGER NOT NULL,
+        previous_stock INTEGER NOT NULL,
+        new_stock INTEGER NOT NULL,
+        reason TEXT NOT NULL CHECK(reason IN ('sale', 'restock', 'adjustment', 'wastage')),
+        admin_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS orders (
@@ -517,6 +553,13 @@ async function createWindow() {
 		try {
 			await db.run("ALTER TABLE products ADD COLUMN cost_price REAL DEFAULT 0");
 			// console.log('Added cost_price column to products table');
+		} catch (error: any) {
+			// Column might already exist, ignore error
+		}
+
+		// Add low_stock_threshold column to products table if it doesn't exist
+		try {
+			await db.run("ALTER TABLE products ADD COLUMN low_stock_threshold INTEGER DEFAULT 10");
 		} catch (error: any) {
 			// Column might already exist, ignore error
 		}
@@ -1466,9 +1509,10 @@ ipcMain.handle(
         price, 
         cost_price,
         stock, 
+        low_stock_threshold,
         status,
         image
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
 				[
 					product.name,
@@ -1477,6 +1521,7 @@ ipcMain.handle(
 					product.price,
 					product.cost_price || 0,
 					product.stock,
+					product.low_stock_threshold || 10,
 					product.status,
 					product.image || null,
 				]
@@ -1495,6 +1540,19 @@ ipcMain.handle(
 				page: "products",
 				context: newProduct,
 			});
+
+			if (newProduct && newProduct.stock > 0) {
+				await logInventoryChange({
+					db,
+					productId: newProduct.id!,
+					changeAmount: newProduct.stock,
+					previousStock: 0,
+					newStock: newProduct.stock,
+					reason: "restock",
+					adminId: author.id || null,
+				});
+			}
+
 			return newProduct;
 		} catch (error) {
 			console.error("Error adding product:", error);
@@ -1506,6 +1564,9 @@ ipcMain.handle(
 ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 	try {
 		const db = await getDatabase();
+		const oldProduct = await db.get("SELECT stock FROM products WHERE id = ?", [product.id]);
+		const oldStock = oldProduct?.stock || 0;
+
 		await db.run(
 			`
       UPDATE products 
@@ -1515,6 +1576,7 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
           price = ?,
           cost_price = ?,
           stock = ?,
+          low_stock_threshold = ?,
           status = ?,
           image = ?,
           updated_at = CURRENT_TIMESTAMP
@@ -1527,6 +1589,7 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 				product.price,
 				product.cost_price || 0,
 				product.stock,
+				product.low_stock_threshold || 10,
 				product.status,
 				product.image || null,
 				product.id,
@@ -1537,6 +1600,20 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 		]);
 		// console.log('Updated product:', updatedProduct);
 		const author = payload.author || {};
+
+		// Log inventory change if stock was modified
+		if (updatedProduct.stock !== oldStock) {
+			await logInventoryChange({
+				db,
+				productId: product.id!,
+				changeAmount: updatedProduct.stock - oldStock,
+				previousStock: oldStock,
+				newStock: updatedProduct.stock,
+				reason: updatedProduct.stock > oldStock ? "restock" : "adjustment",
+				adminId: author.id || null,
+			});
+		}
+
 		await logAction({
 			db,
 			admin_id: author.id || null,
@@ -1635,6 +1712,18 @@ ipcMain.handle(
 			);
 
 			const author = payload.author || {};
+
+			// Log inventory change
+			await logInventoryChange({
+				db,
+				productId,
+				changeAmount: newStock - oldStock.stock,
+				previousStock: oldStock.stock,
+				newStock: newStock,
+				reason: newStock > oldStock.stock ? "restock" : "adjustment",
+				adminId: author.id || null,
+			});
+
 			await logAction({
 				db,
 				admin_id: author.id || null,
@@ -1657,6 +1746,104 @@ ipcMain.handle(
 		}
 	}
 );
+
+ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
+	try {
+		const db = await getDatabase();
+		const reportDate = date || new Date().toISOString().split("T")[0];
+		
+		// 1. Get all products
+		const products = await db.all("SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC");
+		
+		const report = [];
+		
+		for (const product of products) {
+			// 2. Get today's logs for this product (for Opening Stock and Added)
+			const logs = await db.all(
+				`SELECT * FROM inventory_logs 
+				 WHERE product_id = ? 
+				 AND date(created_at) = date(?)`,
+				[product.id, reportDate]
+			);
+			
+			// 2b. Get today's sales from orders for this product
+			const salesData = await db.get(
+				`SELECT SUM(oi.quantity) as sold_qty
+				 FROM order_items oi
+				 JOIN orders o ON oi.order_id = o.id
+				 WHERE oi.product_id = ? 
+				 AND oi.item_type = 'drink'
+				 AND date(o.created_at) = date(?)`,
+				[product.id, reportDate]
+			);
+			
+			const sold = salesData?.sold_qty || 0;
+			let added = 0;
+			
+			logs.forEach((log: any) => {
+				if (log.reason === 'restock') {
+					added += log.change_amount;
+				} else if (log.reason === 'adjustment' && log.change_amount > 0) {
+					added += log.change_amount;
+				}
+				// Note: 'adjustment' < 0 is not added to 'sold' here because 'sold' now comes from orders.
+				// If we want to show 'wastage/adjustment' separately, we could, 
+				// but for a "Sales Report", order-based 'sold' is better.
+			});
+			
+			// 3. Find opening stock
+			// If we have logs today, opening stock is the 'previous_stock' of the first log of today.
+			// If no logs today, opening stock is the current stock.
+			let openingStock = product.stock;
+			if (logs.length > 0) {
+				const firstLog = logs.reduce((prev: any, curr: any) => prev.id < curr.id ? prev : curr);
+				openingStock = firstLog.previous_stock;
+			}
+			
+			// 4. Only include in report if there was activity (sales, restocks, adjustments)
+			if (sold > 0 || logs.length > 0) {
+				report.push({
+					id: product.id,
+					name: product.name,
+					openingStock,
+					added,
+					sold,
+					totalStock: openingStock + added,
+					price: product.price,
+					totalSales: sold * product.price,
+					stockLeft: product.stock,
+					lowStockThreshold: product.low_stock_threshold
+				});
+			}
+		}
+		
+		// 4. Get food sales summary for the same date
+		const foodSales = await db.all(
+			`SELECT fi.name, SUM(oi.quantity) as quantity, fi.price
+			 FROM order_items oi
+			 JOIN food_items fi ON oi.food_item_id = fi.id
+			 JOIN orders o ON oi.order_id = o.id
+			 WHERE oi.item_type = 'food'
+			 AND date(o.created_at) = date(?)
+			 GROUP BY fi.id, fi.name, fi.price`,
+			[reportDate]
+		);
+
+		return {
+			date: reportDate,
+			inventory: report,
+			foodSales: foodSales.map((f: any) => ({
+				name: f.name,
+				quantity: f.quantity,
+				price: f.price,
+				totalSales: f.quantity * f.price
+			}))
+		};
+	} catch (error) {
+		console.error("Error generating daily report:", error);
+		throw error;
+	}
+});
 
 // Food Category handlers
 ipcMain.handle("get-food-categories", async () => {
@@ -2261,17 +2448,33 @@ ipcMain.handle("create-order", async (_event, order) => {
 					);
 
 					// Update product stock (reduce by ordered quantity)
+					// Get stock before update for logging
+					const oldProduct = await db.get(
+						"SELECT name, stock FROM products WHERE id = ?",
+						[item.productId]
+					);
+					const oldStock = oldProduct?.stock || 0;
+
+					// Update product stock (reduce by ordered quantity)
 					await db.run(
 						"UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
 						[item.quantity, item.productId]
 					);
 
-					// Log stock update
-					const product = await db.get(
-						"SELECT name, stock FROM products WHERE id = ?",
-						[item.productId]
-					);
-					if (product) {
+					const newStock = oldStock - item.quantity;
+
+					// Log inventory change
+					await logInventoryChange({
+						db,
+						productId: item.productId!,
+						changeAmount: -item.quantity,
+						previousStock: oldStock,
+						newStock: newStock,
+						reason: "sale",
+						adminId: author.id || null,
+					});
+
+					if (oldProduct) {
 						await logAction({
 							db,
 							admin_id: author.id || null,
@@ -2281,9 +2484,9 @@ ipcMain.handle("create-order", async (_event, order) => {
 							page: "orders",
 							context: {
 								productId: item.productId,
-								productName: product.name,
+								productName: oldProduct.name,
 								quantityReduced: item.quantity,
-								newStock: product.stock - item.quantity,
+								newStock: newStock,
 								orderId,
 							},
 						});

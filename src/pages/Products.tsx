@@ -46,7 +46,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { getCategoryName } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { useEffect, useMemo, useState } from "react";
-import { Package, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import { Package, DollarSign, TrendingUp, AlertTriangle, LayoutGrid, List, ArrowDownUp } from "lucide-react";
 import { useKeyboard } from "@/context/KeyboardContext";
 
 export default function Products() {
@@ -87,6 +87,7 @@ export default function Products() {
 	const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
 	const [isDeleteCategoryDialogOpen, setIsDeleteCategoryDialogOpen] = useState(false);
 	const [categoryToDelete, setCategoryToDelete] = useState<any>(null);
+	const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
 	const canManageProducts = user?.role === "admin" || user?.role === "manager";
 
@@ -470,6 +471,43 @@ export default function Products() {
 							<SelectItem value="in-stock">In Stock</SelectItem>
 						</SelectContent>
 					</Select>
+					<div className="flex gap-2">
+						<Button
+							variant="outline"
+							className={cn(
+								"flex-1",
+								filters.sortBy === "stock" && "bg-primary/10 border-primary text-primary"
+							)}
+							onClick={() => handleSort("stock")}
+						>
+							<ArrowDownUp className="h-4 w-4 mr-2" />
+							By Stock {filters.sortBy === "stock" && (filters.sortOrder === "asc" ? "↑" : "↓")}
+						</Button>
+						<div className="flex border rounded-md overflow-hidden">
+							<Button
+								variant="ghost"
+								size="icon"
+								className={cn(
+									"rounded-none h-10 w-10",
+									viewMode === "grid" && "bg-primary text-white hover:bg-primary hover:text-white"
+								)}
+								onClick={() => setViewMode("grid")}
+							>
+								<LayoutGrid className="h-4 w-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								className={cn(
+									"rounded-none h-10 w-10",
+									viewMode === "list" && "bg-primary text-white hover:bg-primary hover:text-white"
+								)}
+								onClick={() => setViewMode("list")}
+							>
+								<List className="h-4 w-4" />
+							</Button>
+						</div>
+					</div>
 				</div>
 
 				{loading ?
@@ -478,7 +516,8 @@ export default function Products() {
 					<div className="text-center py-12 text-gray-400 text-lg">
 						No products found.
 					</div>
-				:	<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
+				: viewMode === "grid" ?
+					<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 						{filteredProducts.map((product) => {
 							const stockStatus = getStockStatus(product);
 							const profit =
@@ -669,8 +708,77 @@ export default function Products() {
 							);
 						})}
 					</div>
+				:	<div className="border rounded-lg bg-white overflow-hidden">
+						<Table>
+							<TableHeader className="bg-gray-50">
+								<TableRow>
+									<TableHead className="w-[80px]">Image</TableHead>
+									<TableHead>Product Name</TableHead>
+									<TableHead>Category</TableHead>
+									<TableHead className="text-right">Selling Price</TableHead>
+									<TableHead className="text-right">Cost Price</TableHead>
+									<TableHead className="text-right">Stock</TableHead>
+									<TableHead>Status</TableHead>
+									<TableHead className="text-right">Actions</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{filteredProducts.map((product) => {
+									const stockStatus = getStockStatus(product);
+									return (
+										<TableRow key={product.id}>
+											<TableCell>
+												<div className="size-10 rounded overflow-hidden bg-gray-100">
+													{product.image ?
+														<img src={product.image} className="w-full h-full object-cover" />
+													:	<div className="w-full h-full flex items-center justify-center text-lg">📦</div>
+													}
+												</div>
+											</TableCell>
+											<TableCell className="font-medium">{product.name}</TableCell>
+											<TableCell className="capitalize">
+												{product.category ?
+													getCategoryName(product.category as any, categories)
+												:	"Uncategorized"}
+											</TableCell>
+											<TableCell className="text-right font-semibold">
+												{formatCurrency(product.price)}
+											</TableCell>
+											<TableCell className="text-right text-gray-500">
+												{product.cost_price ? formatCurrency(product.cost_price) : "—"}
+											</TableCell>
+											<TableCell className="text-right">
+												<span className={cn(
+													"font-bold",
+													stockStatus.status === "out-of-stock" ? "text-red-600"
+													: stockStatus.status === "low-stock" ? "text-yellow-600"
+													: "text-green-600"
+												)}>
+													{product.stock}
+												</span>
+											</TableCell>
+											<TableCell>
+												<span className={cn(
+													"px-2 py-0.5 rounded-full text-xs font-medium",
+													product.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+												)}>
+													{product.status}
+												</span>
+											</TableCell>
+											<TableCell className="text-right">
+												<div className="flex justify-end gap-2">
+													<Button variant="ghost" size="sm" onClick={() => setEditingProduct(product)}>Edit</Button>
+													<Button variant="ghost" size="sm" className="text-red-600" onClick={() => setProductToDelete(product)}>Delete</Button>
+												</div>
+											</TableCell>
+										</TableRow>
+									);
+								})}
+							</TableBody>
+						</Table>
+					</div>
 				}
-					</>
+			</>
 				:	<div className="space-y-6">
 						<div className="mb-6">
 							<Input
