@@ -882,7 +882,7 @@ export default function Products() {
 						open={!!editingProduct}
 						categories={categories}
 						onClose={() => setEditingProduct(null)}
-						onSave={(product) => updateProduct(editingProduct.id, product)}
+						onSave={(product, reason) => updateProduct(editingProduct.id, product, reason)}
 					/>
 				)}
 

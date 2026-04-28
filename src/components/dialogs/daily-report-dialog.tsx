@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileDown, Printer, X } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
+import { cn } from "@/lib/utils";
 
 interface DailyReportDialogProps {
 	open: boolean;
@@ -35,11 +36,12 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 	const drinksTotal = reportData.inventory.reduce((sum: number, item: any) => sum + item.totalSales, 0);
 	const foodTotal = reportData.foodSales.reduce((sum: number, item: any) => sum + item.totalSales, 0);
 	const grandTotal = drinksTotal + foodTotal;
+	const netRevenue = grandTotal - (reportData.totalExpenses || 0);
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
 			<DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-				<DialogHeader className="px-6 py-4 border-b">
+				<DialogHeader className="px-6 py-4 border-b bg-white z-10">
 					<div className="flex items-center justify-between">
 						<div>
 							<DialogTitle className="text-2xl font-bold">Daily Sales & Inventory Report</DialogTitle>
@@ -56,54 +58,84 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 					</div>
 				</DialogHeader>
 
-				<div className="flex-1 px-6 py-4 overflow-y-auto">
+				<div className="flex-1 px-6 py-4 overflow-y-auto bg-gray-50/30">
 					<div className="space-y-8">
-						{/* Drinks Inventory Section */}
-						<section>
-							<h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-								<span className="w-2 h-6 bg-blue-600 rounded-full"></span>
-								Drinks Inventory Reconciliation
-							</h3>
-							<div className="border rounded-lg overflow-hidden">
-								<Table>
-									<TableHeader className="bg-gray-50">
-										<TableRow>
-											<TableHead className="font-bold">Item Name</TableHead>
-											<TableHead className="text-right">Opening</TableHead>
-											<TableHead className="text-right">Added</TableHead>
-											<TableHead className="text-right">Sold</TableHead>
-											<TableHead className="text-right">Sales</TableHead>
-											<TableHead className="text-right">Left</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{reportData.inventory.map((item: any) => (
-											<TableRow key={item.id}>
-												<TableCell className="font-medium">{item.name}</TableCell>
-												<TableCell className="text-right">{item.openingStock}</TableCell>
-												<TableCell className="text-right text-green-600">+{item.added}</TableCell>
-												<TableCell className="text-right text-blue-600">{item.sold}</TableCell>
-												<TableCell className="text-right font-semibold">{formatCurrency(item.totalSales)}</TableCell>
-												<TableCell className="text-right">{item.stockLeft}</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
+						{/* Summary Stats Overview */}
+						<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+							<div className="bg-white p-4 rounded-lg border shadow-sm">
+								<p className="text-xs text-gray-500 uppercase font-semibold">Total Sales</p>
+								<p className="text-xl font-bold text-gray-900">{formatCurrency(grandTotal)}</p>
 							</div>
+							<div className="bg-white p-4 rounded-lg border shadow-sm">
+								<p className="text-xs text-gray-500 uppercase font-semibold">Total Expenses</p>
+								<p className="text-xl font-bold text-red-600">{formatCurrency(reportData.totalExpenses || 0)}</p>
+							</div>
+							<div className={cn("bg-white p-4 rounded-lg border shadow-sm", user?.role === "cashier" ? "hidden":"")}>
+								<p className="text-xs text-gray-500 uppercase font-semibold">Net Revenue</p>
+								<p className="text-xl font-bold text-green-600">{formatCurrency(netRevenue)}</p>
+							</div>
+							<div className="bg-white p-4 rounded-lg border shadow-sm">
+								<p className="text-xs text-gray-500 uppercase font-semibold">Pending Orders</p>
+								<p className="text-xl font-bold text-blue-600">{reportData.pendingOrders?.count || 0} ({formatCurrency(reportData.pendingOrders?.total || 0)})</p>
+							</div>
+						</div>
+
+						{/* Drinks Inventory Section */}
+						<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
+							<div className="px-4 py-3 border-b bg-gray-50/50 flex items-center justify-between">
+								<h3 className="font-bold flex items-center gap-2">
+									<span className="w-2 h-4 bg-blue-600 rounded-full"></span>
+									Drinks Inventory Reconciliation
+								</h3>
+							</div>
+							<Table>
+								<TableHeader>
+									<TableRow className="bg-gray-50/30">
+										<TableHead className="font-bold">Item Name</TableHead>
+										<TableHead className="text-right">Opening</TableHead>
+										<TableHead className="text-right">Added</TableHead>
+										<TableHead className="text-right">Sold</TableHead>
+										<TableHead className="text-right">Damaged</TableHead>
+										<TableHead className="text-right">Adj</TableHead>
+										<TableHead className="text-right">Left</TableHead>
+										<TableHead className="text-right">Sales</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{reportData.inventory?.length > 0 ? reportData.inventory.map((item: any) => (
+										<TableRow key={item.id}>
+											<TableCell className="font-medium">{item.name}</TableCell>
+											<TableCell className="text-right">{item.openingStock}</TableCell>
+											<TableCell className="text-right text-green-600">+{item.added}</TableCell>
+											<TableCell className="text-right text-blue-600">{item.sold}</TableCell>
+											<TableCell className="text-right text-orange-600">-{item.damaged}</TableCell>
+											<TableCell className="text-right text-red-500">-{item.adjusted}</TableCell>
+											<TableCell className="text-right font-bold">{item.stockLeft}</TableCell>
+											<TableCell className="text-right font-semibold">{formatCurrency(item.totalSales)}</TableCell>
+										</TableRow>
+									)):
+									<TableRow>
+											<TableCell colSpan={8} className="text-center py-4 text-gray-500 italic">No Inventory Data</TableCell>
+									</TableRow>
+								}
+								</TableBody>
+							</Table>
 						</section>
 
-						{/* Food Sales Section */}
-						<section>
-							<h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-								<span className="w-2 h-6 bg-green-600 rounded-full"></span>
-								Food Sales Summary
-							</h3>
-							<div className="border rounded-lg overflow-hidden">
+						{/* Food Sales & Expenses Row */}
+						<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+							{/* Food Sales Section */}
+							<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
+								<div className="px-4 py-3 border-b bg-gray-50/50">
+									<h3 className="font-bold flex items-center gap-2">
+										<span className="w-2 h-4 bg-green-600 rounded-full"></span>
+										Food Sales Summary
+									</h3>
+								</div>
 								<Table>
-									<TableHeader className="bg-gray-50">
-										<TableRow>
+									<TableHeader>
+										<TableRow className="bg-gray-50/30">
 											<TableHead className="font-bold">Item Name</TableHead>
-											<TableHead className="text-right">Price</TableHead>
 											<TableHead className="text-right">Qty Sold</TableHead>
 											<TableHead className="text-right">Total Revenue</TableHead>
 										</TableRow>
@@ -111,13 +143,12 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 									<TableBody>
 										{reportData.foodSales.length === 0 ? (
 											<TableRow>
-												<TableCell colSpan={4} className="text-center py-4 text-gray-500 italic">No food sales recorded for this date.</TableCell>
+												<TableCell colSpan={3} className="text-center py-4 text-gray-500 italic">No food sales.</TableCell>
 											</TableRow>
 										) : (
 											reportData.foodSales.map((item: any, idx: number) => (
 												<TableRow key={idx}>
 													<TableCell className="font-medium">{item.name}</TableCell>
-													<TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
 													<TableCell className="text-right">{item.quantity}</TableCell>
 													<TableCell className="text-right font-semibold">{formatCurrency(item.totalSales)}</TableCell>
 												</TableRow>
@@ -125,25 +156,48 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 										)}
 									</TableBody>
 								</Table>
-							</div>
-						</section>
+							</section>
 
-						{/* Totals Section */}
-						<div className="bg-gray-50 p-6 rounded-xl border-2 border-dashed border-gray-200">
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-								<div className="space-y-1">
-									<p className="text-sm text-gray-500 uppercase tracking-wider">Drinks Revenue</p>
-									<p className="text-2xl font-bold text-blue-600">{formatCurrency(drinksTotal)}</p>
+							{/* Expenses Section */}
+							<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
+								<div className="px-4 py-3 border-b bg-gray-50/50">
+									<h3 className="font-bold flex items-center gap-2">
+										<span className="w-2 h-4 bg-red-600 rounded-full"></span>
+										Today's Expenses
+									</h3>
 								</div>
-								<div className="space-y-1">
-									<p className="text-sm text-gray-500 uppercase tracking-wider">Food Revenue</p>
-									<p className="text-2xl font-bold text-green-600">{formatCurrency(foodTotal)}</p>
-								</div>
-								<div className="space-y-1 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
-									<p className="text-sm text-gray-500 uppercase tracking-wider">Grand Total</p>
-									<p className="text-3xl font-black text-gray-900">{formatCurrency(grandTotal)}</p>
-								</div>
-							</div>
+								<Table>
+									<TableHeader>
+										<TableRow className="bg-gray-50/30">
+											<TableHead className="font-bold">Description</TableHead>
+											<TableHead className="text-right">Amount</TableHead>
+											<TableHead className="text-right">By</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{reportData.expenses.length === 0 ? (
+											<TableRow>
+												<TableCell colSpan={3} className="text-center py-4 text-gray-500 italic">No expenses recorded.</TableCell>
+											</TableRow>
+										) : (
+											reportData.expenses.map((expense: any, idx: number) => (
+												<TableRow key={idx}>
+													<TableCell className="font-medium">{expense.description}</TableCell>
+													<TableCell className="text-right text-red-600 font-semibold">{formatCurrency(expense.amount)}</TableCell>
+													<TableCell className="text-right text-xs text-gray-500">{expense.staff}</TableCell>
+												</TableRow>
+											))
+										)}
+										{reportData.expenses.length > 0 && (
+											<TableRow className="bg-gray-50/50 font-bold">
+												<TableCell>Total Expenses</TableCell>
+												<TableCell className="text-right text-red-600">{formatCurrency(reportData.totalExpenses)}</TableCell>
+												<TableCell />
+											</TableRow>
+										)}
+									</TableBody>
+								</Table>
+							</section>
 						</div>
 					</div>
 				</div>

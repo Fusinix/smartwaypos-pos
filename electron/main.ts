@@ -420,6 +420,15 @@ async function createWindow() {
         FOREIGN KEY (extra_id) REFERENCES food_extras(id) ON DELETE CASCADE,
         UNIQUE(food_item_id, extra_id)
       );
+
+      CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        admin_name TEXT NOT NULL,
+        admin_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
 		// Add amount columns to orders table if they don't exist (migration)
@@ -1609,7 +1618,7 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 				changeAmount: updatedProduct.stock - oldStock,
 				previousStock: oldStock,
 				newStock: updatedProduct.stock,
-				reason: updatedProduct.stock > oldStock ? "restock" : "adjustment",
+				reason: payload.reason || (updatedProduct.stock > oldStock ? "restock" : "adjustment"),
 				adminId: author.id || null,
 			});
 		}
@@ -1694,7 +1703,7 @@ ipcMain.handle("get-out-of-stock-products", async () => {
 
 ipcMain.handle(
 	"update-product-stock",
-	async (_, productId: number, newStock: number, payload = {}) => {
+	async (_, productId: number, newStock: number, payload: any = {}) => {
 		try {
 			const db = await getDatabase();
 			const oldStock = await db.get(
@@ -1712,6 +1721,7 @@ ipcMain.handle(
 			);
 
 			const author = payload.author || {};
+			const changeReason = payload.reason || (newStock > oldStock.stock ? "restock" : "adjustment");
 
 			// Log inventory change
 			await logInventoryChange({
@@ -1720,7 +1730,7 @@ ipcMain.handle(
 				changeAmount: newStock - oldStock.stock,
 				previousStock: oldStock.stock,
 				newStock: newStock,
-				reason: newStock > oldStock.stock ? "restock" : "adjustment",
+				reason: changeReason,
 				adminId: author.id || null,
 			});
 
@@ -1758,7 +1768,7 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 		const report = [];
 		
 		for (const product of products) {
-			// 2. Get today's logs for this product (for Opening Stock and Added)
+			// 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
 			const logs = await db.all(
 				`SELECT * FROM inventory_logs 
 				 WHERE product_id = ? 
@@ -1773,34 +1783,38 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 				 JOIN orders o ON oi.order_id = o.id
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
+				 AND o.status = 'closed'
 				 AND date(o.created_at) = date(?)`,
 				[product.id, reportDate]
 			);
 			
 			const sold = salesData?.sold_qty || 0;
 			let added = 0;
+			let adjusted = 0;
+			let damaged = 0;
 			
 			logs.forEach((log: any) => {
 				if (log.reason === 'restock') {
 					added += log.change_amount;
-				} else if (log.reason === 'adjustment' && log.change_amount > 0) {
-					added += log.change_amount;
+				} else if (log.reason === 'damage') {
+					damaged += Math.abs(log.change_amount);
+				} else if (log.reason === 'adjustment') {
+					if (log.change_amount > 0) {
+						added += log.change_amount;
+					} else {
+						adjusted += Math.abs(log.change_amount);
+					}
 				}
-				// Note: 'adjustment' < 0 is not added to 'sold' here because 'sold' now comes from orders.
-				// If we want to show 'wastage/adjustment' separately, we could, 
-				// but for a "Sales Report", order-based 'sold' is better.
 			});
 			
 			// 3. Find opening stock
-			// If we have logs today, opening stock is the 'previous_stock' of the first log of today.
-			// If no logs today, opening stock is the current stock.
 			let openingStock = product.stock;
 			if (logs.length > 0) {
 				const firstLog = logs.reduce((prev: any, curr: any) => prev.id < curr.id ? prev : curr);
 				openingStock = firstLog.previous_stock;
 			}
 			
-			// 4. Only include in report if there was activity (sales, restocks, adjustments)
+			// 4. Only include in report if there was activity
 			if (sold > 0 || logs.length > 0) {
 				report.push({
 					id: product.id,
@@ -1808,6 +1822,8 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 					openingStock,
 					added,
 					sold,
+					damaged,
+					adjusted,
 					totalStock: openingStock + added,
 					price: product.price,
 					totalSales: sold * product.price,
@@ -1817,15 +1833,31 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 			}
 		}
 		
-		// 4. Get food sales summary for the same date
+		// 5. Get food sales summary (closed orders only)
 		const foodSales = await db.all(
 			`SELECT fi.name, SUM(oi.quantity) as quantity, fi.price
 			 FROM order_items oi
 			 JOIN food_items fi ON oi.food_item_id = fi.id
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
+			 AND o.status = 'closed'
 			 AND date(o.created_at) = date(?)
 			 GROUP BY fi.id, fi.name, fi.price`,
+			[reportDate]
+		);
+
+		// 6. Get pending orders summary
+		const pendingOrders = await db.get(
+			`SELECT COUNT(id) as count, SUM(amount) as total
+			 FROM orders 
+			 WHERE status = 'open' 
+			 AND date(created_at) = date(?)`,
+			[reportDate]
+		);
+
+		// 7. Get today's expenses
+		const expenses = await db.all(
+			`SELECT * FROM expenses WHERE date(created_at) = date(?)`,
 			[reportDate]
 		);
 
@@ -1837,10 +1869,61 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 				quantity: f.quantity,
 				price: f.price,
 				totalSales: f.quantity * f.price
-			}))
+			})),
+			pendingOrders: {
+				count: pendingOrders?.count || 0,
+				total: pendingOrders?.total || 0
+			},
+			expenses: expenses.map((e: any) => ({
+				description: e.description,
+				amount: e.amount,
+				staff: e.admin_name
+			})),
+			totalExpenses: expenses.reduce((sum: number, e: any) => sum + e.amount, 0)
 		};
 	} catch (error) {
 		console.error("Error generating daily report:", error);
+		throw error;
+	}
+});
+
+// Expense handlers
+ipcMain.handle("get-expenses", async (_, date?: string) => {
+	try {
+		const db = await getDatabase();
+		const reportDate = date || new Date().toISOString().split("T")[0];
+		const expenses = await db.all(
+			"SELECT * FROM expenses WHERE date(created_at) = date(?) ORDER BY created_at DESC",
+			[reportDate]
+		);
+		return expenses;
+	} catch (error) {
+		console.error("Error getting expenses:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("add-expense", async (_, expense: { description: string; amount: number; admin_name: string; admin_id?: number }) => {
+	try {
+		const db = await getDatabase();
+		const result = await db.run(
+			"INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)",
+			[expense.description, expense.amount, expense.admin_name, expense.admin_id || null]
+		);
+		return { success: true, id: result.lastID };
+	} catch (error) {
+		console.error("Error adding expense:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("delete-expense", async (_, id: number) => {
+	try {
+		const db = await getDatabase();
+		await db.run("DELETE FROM expenses WHERE id = ?", [id]);
+		return { success: true };
+	} catch (error) {
+		console.error("Error deleting expense:", error);
 		throw error;
 	}
 });

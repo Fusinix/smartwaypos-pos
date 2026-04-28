@@ -39,11 +39,11 @@ export const useStock = () => {
     }
   }, []);
 
-  const updateProductStock = useCallback(async (productId: number, newStock: number, author: any) => {
+  const updateProductStock = useCallback(async (productId: number, newStock: number, author: any, reason?: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      const result = await window.electron.invoke('update-product-stock', productId, newStock, { author });
+      const result = await window.electron.invoke('update-product-stock', productId, newStock, { author, reason });
       
       // Refresh stock lists after update
       await Promise.all([

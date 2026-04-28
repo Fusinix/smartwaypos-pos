@@ -22,7 +22,7 @@ interface AddEditProductDialogProps {
     open: boolean;
     categories: any;
     onClose: () => void;
-    onSave: (product: NewProduct) => Promise<Product>;
+    onSave: (product: NewProduct, reason?: string) => Promise<Product>;
 }
 
 
@@ -60,12 +60,15 @@ export default function AddEditProductDialog({
             : defaultProd
     );
     const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null);
+    const [reason, setReason] = useState<string>("adjustment");
     const navigate = useNavigate();
+
+    const stockChanged = product && Number(product.stock) !== formData.stock;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await onSave({...formData, category: getCategoryId(formData.category as any,categories)});
+            await onSave({...formData, category: getCategoryId(formData.category as any,categories)}, stockChanged ? reason : undefined);
             setFormData(defaultProd)
             onClose();
         } catch (error) {
@@ -225,6 +228,24 @@ export default function AddEditProductDialog({
                                 required
                             />
                         </div>
+
+                        {stockChanged && (
+                            <div className="space-y-2 mt-4 p-4 border rounded-md bg-orange-50/50 border-orange-200">
+                                <Label htmlFor="reason" className="text-orange-800 font-semibold flex items-center gap-2">
+                                    Reason for Stock Change
+                                </Label>
+                                <Select value={reason} onValueChange={setReason}>
+                                    <SelectTrigger id="reason" className="bg-white">
+                                        <SelectValue placeholder="Select reason" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="restock">Restock (Added New Inventory)</SelectItem>
+                                        <SelectItem value="adjustment">Correction (Fixing Count)</SelectItem>
+                                        <SelectItem value="damage">Damage / Spoilage</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         <div className="flex items-center space-x-2">
                             <Switch

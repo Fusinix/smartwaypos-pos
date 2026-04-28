@@ -749,7 +749,7 @@ export const CreateOrder: React.FC = () => {
 											variant={orderType === "customer" ? "default" : "outline"}
 											onClick={() => setOrderType("customer")}
 										>
-											In-House
+											Cashier
 										</Button>
 										<Button
 											className="flex-1 h-11 text-base"

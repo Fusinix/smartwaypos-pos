@@ -43,11 +43,11 @@ export function useProducts() {
     }
   };
 
-  const updateProduct = async (id: number, product: Partial<NewProduct>): Promise<Product> => {
+  const updateProduct = async (id: number, product: Partial<NewProduct>, reason?: string): Promise<Product> => {
     store.setLoading(true);
     store.setError(null);
     try {
-      const updatedProduct = await window.electron.invoke('update-product', { ...product, id, author: user });
+      const updatedProduct = await window.electron.invoke('update-product', { ...product, id }, { author: user, reason });
       store.setProducts(store.products.map((p) => (p.id === id ? updatedProduct : p)));
       showToast.success('Product updated successfully');
       return updatedProduct;

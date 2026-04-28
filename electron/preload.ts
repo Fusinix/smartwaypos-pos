@@ -79,6 +79,9 @@ const validChannels = [
   'set-menu-bar-visible',
   'set-fullscreen',
   'get-daily-inventory-report',
+  'get-expenses',
+  'add-expense',
+  'delete-expense',
 ];
 
 // Expose protected methods that allow the renderer process to use

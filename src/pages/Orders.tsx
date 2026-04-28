@@ -29,8 +29,9 @@ import { useAuth } from "@/context/AuthContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { FileText, Archive } from "lucide-react";
+import { FileText, Archive, Receipt } from "lucide-react";
 import { DailyReportDialog } from "@/components/dialogs/daily-report-dialog";
+import { ExpensesDialog } from "@/components/dialogs/expenses-dialog";
 
 export const Orders: React.FC = () => {
 	const { orders, loading, error, fetchOrders, getOrderById, updateOrder } =
@@ -58,6 +59,7 @@ export const Orders: React.FC = () => {
 	const { user } = useAuth();
 	const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 	const [reportDialogOpen, setReportDialogOpen] = useState(false);
+	const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
 	const [reportData, setReportData] = useState<any>(null);
 
 	// Multi-enter shortcut for manual drawer trigger
@@ -294,57 +296,78 @@ export const Orders: React.FC = () => {
 				item.name,
 				item.openingStock,
 				item.added,
-				item.totalStock,
 				item.sold,
-				formatCurrency(item.price),
+				item.damaged,
+				item.adjusted,
 				formatCurrency(item.totalSales),
 				item.stockLeft
 			]);
 			
 			autoTable(doc, {
 				startY: 55,
-				head: [["Item", "Opening", "Added", "Total", "Sold", "Price", "Sales", "Left"]],
+				head: [["Item", "Open", "Add", "Sold", "Dmg", "Adj", "Sales", "Left"]],
 				body: inventoryBody,
 				theme: 'striped',
 				headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-				styles: { fontSize: 9 }
+				styles: { fontSize: 8 }
 			});
 			
 			// 3. Food Sales Table
-			const finalY = (doc as any).lastAutoTable.finalY || 100;
-			doc.setFontSize(16);
-			doc.text("Food Sales Summary", 14, finalY + 15);
+			let currentY = (doc as any).lastAutoTable.finalY || 100;
+			doc.setFontSize(14);
+			doc.setTextColor(0, 0, 0);
+			doc.text("Food Sales Summary", 14, currentY + 15);
 			
 			const foodBody = reportData.foodSales.map((item: any) => [
 				item.name,
 				item.quantity,
-				formatCurrency(item.price),
 				formatCurrency(item.totalSales)
 			]);
 			
 			autoTable(doc, {
-				startY: finalY + 20,
-				head: [["Item Name", "Qty Sold", "Price", "Total Revenue"]],
+				startY: currentY + 20,
+				head: [["Item Name", "Qty Sold", "Total Revenue"]],
 				body: foodBody,
 				theme: 'striped',
 				headStyles: { fillColor: [39, 174, 96], textColor: 255 },
-				styles: { fontSize: 10 }
+				styles: { fontSize: 9 }
+			});
+
+			// 4. Expenses Table
+			currentY = (doc as any).lastAutoTable.finalY || 200;
+			doc.setFontSize(14);
+			doc.text("Daily Expenses", 14, currentY + 15);
+			
+			const expenseBody = reportData.expenses.map((e: any) => [
+				e.description,
+				formatCurrency(e.amount),
+				e.staff
+			]);
+			
+			autoTable(doc, {
+				startY: currentY + 20,
+				head: [["Description", "Amount", "Staff"]],
+				body: expenseBody,
+				theme: 'striped',
+				headStyles: { fillColor: [192, 57, 43], textColor: 255 },
+				styles: { fontSize: 9 }
 			});
 			
-			// 4. Totals
+			// 5. Final Summary
+			currentY = (doc as any).lastAutoTable.finalY || 250;
 			const drinksTotal = reportData.inventory.reduce((sum: number, item: any) => sum + item.totalSales, 0);
 			const foodTotal = reportData.foodSales.reduce((sum: number, item: any) => sum + item.totalSales, 0);
-			const grandTotal = drinksTotal + foodTotal;
+			const netRevenue = (drinksTotal + foodTotal) - (reportData.totalExpenses || 0);
 			
-			const finalY2 = (doc as any).lastAutoTable.finalY || 200;
-			doc.setFontSize(14);
+			doc.setFontSize(12);
 			doc.setFont("helvetica", "bold");
-			doc.text(`Drinks Revenue: ${formatCurrency(drinksTotal)}`, pageWidth - 14, finalY2 + 15, { align: "right" });
-			doc.text(`Food Revenue: ${formatCurrency(foodTotal)}`, pageWidth - 14, finalY2 + 23, { align: "right" });
+			doc.text(`Total Sales: ${formatCurrency(drinksTotal + foodTotal)}`, pageWidth - 14, currentY + 15, { align: "right" });
+			doc.text(`Total Expenses: -${formatCurrency(reportData.totalExpenses || 0)}`, pageWidth - 14, currentY + 23, { align: "right" });
+			doc.text(`Pending Orders: ${formatCurrency(reportData.pendingOrders?.total || 0)} (${reportData.pendingOrders?.count})`, pageWidth - 14, currentY + 31, { align: "right" });
 			
-			doc.setFontSize(18);
-			doc.setTextColor(41, 128, 185);
-			doc.text(`GRAND TOTAL: ${formatCurrency(grandTotal)}`, pageWidth - 14, finalY2 + 35, { align: "right" });
+			doc.setFontSize(16);
+			doc.setTextColor(39, 174, 96);
+			doc.text(`NET REVENUE: ${formatCurrency(netRevenue)}`, pageWidth - 14, currentY + 45, { align: "right" });
 			
 			// Save the PDF
 			const fileName = `DailyReport_${reportData.date}_${user?.username || "Admin"}.pdf`;
@@ -381,6 +404,15 @@ export const Orders: React.FC = () => {
 						>
 							<FileText className="h-5 w-5" />
 							{isGeneratingReport ? "Generating..." : "Daily Report"}
+						</Button>
+						<Button
+							variant="outline"
+							size="default"
+							className="text-base flex items-center gap-2 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300"
+							onClick={() => setExpensesDialogOpen(true)}
+						>
+							<Receipt className="h-5 w-5" />
+							Expenses
 						</Button>
 						<Button
 							size="default"
@@ -936,6 +968,11 @@ export const Orders: React.FC = () => {
 				onClose={() => setReportDialogOpen(false)}
 				reportData={reportData}
 				onDownload={handleDownloadPDF}
+				user={user}
+			/>
+			<ExpensesDialog
+				open={expensesDialogOpen}
+				onClose={() => setExpensesDialogOpen(false)}
 				user={user}
 			/>
 			<AlertWithActions
