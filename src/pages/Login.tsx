@@ -155,12 +155,12 @@ export const Login: React.FC = () => {
 	return (
 		<div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8 w-full">
 			<form
-				className="w-full max-w-md mx-auto bg-white shadow-md border rounded-xl"
+				className="w-full max-w-md mx-auto bg-white"
 				onSubmit={handleSubmit}
 			>
 				<div className="p-8 border-b border-border/50 bg-muted/5">
 					<Logo size="md" />
-					<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-4 leading-relaxed">
+					<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-4 leading-relaxed hidden">
 						The best offline System for <span className="text-primary">Desktop & Tablet</span> devices
 					</p>
 				</div>
@@ -219,7 +219,7 @@ export const Login: React.FC = () => {
 						</div>
 					)}
 
-					<Button type="submit" className="w-full" disabled={isLoading}>
+					<Button type="submit" className="w-fit mt-12 ml-auto" disabled={isLoading}>
 						{isLoading ? "Signing in..." : "Sign in"}
 						{!isLoading && <ArrowRight className="ml-2 size-4" />}
 					</Button>

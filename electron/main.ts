@@ -1,7 +1,7 @@
 /** @format */
 
 import * as bcrypt from "bcryptjs";
-import { app, BrowserWindow, ipcMain, protocol } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, dialog } from "electron";
 import * as path from "path";
 import { getDatabase } from "./database";
 import { licensingManager } from "./licensing";
@@ -101,6 +101,9 @@ const LOG_ACTIONS = {
 	CREATE_FOOD_CATEGORY: "create_food_category",
 	UPDATE_FOOD_CATEGORY: "update_food_category",
 	DELETE_FOOD_CATEGORY: "delete_food_category",
+	CLEAR_ALL_DATA: "clear_all_data",
+	ADD_EXPENSE: "add_expense",
+	DELETE_EXPENSE: "delete_expense",
 };
 
 // Customer Display Handler
@@ -428,6 +431,16 @@ async function createWindow() {
         admin_name TEXT NOT NULL,
         admin_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS shifts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        clock_in DATETIME DEFAULT CURRENT_TIMESTAMP,
+        clock_out DATETIME,
+        total_hours REAL,
+        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
 
@@ -774,6 +787,7 @@ ipcMain.handle("get-settings", async () => {
 });
 
 ipcMain.handle("update-settings", async (_, settings) => {
+	const { author, ...cleanSettings } = settings;
 	try {
 		// console.log('Updating settings:', settings);
 		// Check if settings record exists
@@ -815,12 +829,12 @@ ipcMain.handle("update-settings", async (_, settings) => {
 		// console.log('Settings updated:', updated);
 		await logAction({
 			db,
-			admin_id: null,
-			admin_name: null,
-			admin_role: null,
+			admin_id: author?.id || null,
+			admin_name: author?.username || null,
+			admin_role: author?.role || null,
 			action: LOG_ACTIONS.UPDATE_SETTINGS,
 			page: "settings",
-			context: settings,
+			context: cleanSettings,
 		});
 		return updated;
 	} catch (error) {
@@ -842,7 +856,8 @@ ipcMain.handle("get-users", async () => {
 	}
 });
 
-ipcMain.handle("add-user", async (_, user) => {
+ipcMain.handle("add-user", async (_, data) => {
+	const { author, ...user } = data;
 	try {
 		// console.log('Adding user with data:', user);
 
@@ -876,12 +891,12 @@ ipcMain.handle("add-user", async (_, user) => {
 		// console.log('Updated users list:', users);
 		await logAction({
 			db,
-			admin_id: null,
-			admin_name: null,
-			admin_role: null,
+			admin_id: author?.id || null,
+			admin_name: author?.username || null,
+			admin_role: author?.role || null,
 			action: LOG_ACTIONS.ADD_USER,
 			page: "users",
-			context: user,
+			context: { user: user.username, role: user.role },
 		});
 		return users;
 	} catch (error) {
@@ -890,7 +905,8 @@ ipcMain.handle("add-user", async (_, user) => {
 	}
 });
 
-ipcMain.handle("update-user", async (_, id, user) => {
+ipcMain.handle("update-user", async (_, id, data) => {
+	const { author, ...user } = data;
 	try {
 		// console.log('Updating user:', { id, user });
 		if (user.password) {
@@ -910,9 +926,9 @@ ipcMain.handle("update-user", async (_, id, user) => {
 		// console.log('User updated, updated users:', users);
 		await logAction({
 			db,
-			admin_id: null,
-			admin_name: null,
-			admin_role: null,
+			admin_id: author?.id || null,
+			admin_name: author?.username || null,
+			admin_role: author?.role || null,
 			action: LOG_ACTIONS.UPDATE_USER,
 			page: "users",
 			context: { id, user },
@@ -924,7 +940,70 @@ ipcMain.handle("update-user", async (_, id, user) => {
 	}
 });
 
-ipcMain.handle("delete-user", async (_, id) => {
+ipcMain.handle("clock-in", async (_, userId) => {
+	try {
+		// Ensure no other active shift exists for this user
+		await db.run("UPDATE shifts SET status = 'completed', clock_out = CURRENT_TIMESTAMP WHERE user_id = ? AND status = 'active'", [userId]);
+		
+		await db.run("INSERT INTO shifts (user_id, status) VALUES (?, 'active')", [userId]);
+		const shift = await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
+		return shift;
+	} catch (error) {
+		console.error("Error clocking in:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("clock-out", async (_, userId) => {
+	try {
+		const activeShift = await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
+		if (!activeShift) return null;
+
+		const clockOut = new Date().toISOString();
+		const clockIn = new Date(activeShift.clock_in);
+		const diffMs = new Date(clockOut).getTime() - clockIn.getTime();
+		const totalHours = diffMs / (1000 * 60 * 60);
+
+		await db.run(
+			"UPDATE shifts SET clock_out = ?, total_hours = ?, status = 'completed' WHERE id = ?",
+			[clockOut, totalHours, activeShift.id]
+		);
+		return { ...activeShift, clock_out: clockOut, total_hours: totalHours, status: 'completed' };
+	} catch (error) {
+		console.error("Error clocking out:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("get-active-shift", async (_, userId) => {
+	try {
+		return await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
+	} catch (error) {
+		console.error("Error getting active shift:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("get-all-shifts", async (_, filters) => {
+	try {
+		let query = "SELECT shifts.*, users.username FROM shifts JOIN users ON shifts.user_id = users.id";
+		const params: any[] = [];
+		
+		if (filters?.userId) {
+			query += " WHERE user_id = ?";
+			params.push(filters.userId);
+		}
+		
+		query += " ORDER BY clock_in DESC";
+		return await db.all(query, params);
+	} catch (error) {
+		console.error("Error getting shifts:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("delete-user", async (_, id, options) => {
+	const { author } = options || {};
 	try {
 		// console.log('Deleting user:', id);
 		await db.run("DELETE FROM users WHERE id = ?", [id]);
@@ -932,9 +1011,9 @@ ipcMain.handle("delete-user", async (_, id) => {
 		// console.log('User deleted, updated users:', users);
 		await logAction({
 			db,
-			admin_id: null,
-			admin_name: null,
-			admin_role: null,
+			admin_id: author?.id || null,
+			admin_name: author?.username || null,
+			admin_role: author?.role || null,
 			action: LOG_ACTIONS.DELETE_USER,
 			page: "users",
 			context: { id },
@@ -1060,7 +1139,8 @@ ipcMain.handle("complete-password-reset", async (_, licenseKey, newPassword) => 
 });
 
 // Database backup/restore handlers
-ipcMain.handle("export-database", async (_, exportType = "all") => {
+ipcMain.handle("export-database", async (_, exportType = "all", options) => {
+	const { author } = options || {};
 	try {
 		// console.log('Exporting database with type:', exportType);
 		const data: any = {};
@@ -1089,9 +1169,9 @@ ipcMain.handle("export-database", async (_, exportType = "all") => {
 		// console.log('Database exported successfully');
 		await logAction({
 			db,
-			admin_id: null,
-			admin_name: null,
-			admin_role: null,
+			admin_id: author?.id || null,
+			admin_name: author?.username || author?.name || null,
+			admin_role: author?.role || null,
 			action: LOG_ACTIONS.EXPORT_DATABASE,
 			page: "database",
 			context: { operation: "export", exportType, data },
@@ -1103,7 +1183,8 @@ ipcMain.handle("export-database", async (_, exportType = "all") => {
 	}
 });
 
-ipcMain.handle("import-database", async (_, data, importType = "all") => {
+ipcMain.handle("import-database", async (_, data, importType = "all", options) => {
+	const { author } = options || {};
 	try {
 		// console.log('Importing database with type:', importType);
 		const parsedData = typeof data === "string" ? JSON.parse(data) : data;
@@ -1249,9 +1330,9 @@ ipcMain.handle("import-database", async (_, data, importType = "all") => {
 		// console.log('Database imported successfully');
 		await logAction({
 			db,
-			admin_id: null,
-			admin_name: null,
-			admin_role: null,
+			admin_id: author?.id || null,
+			admin_name: author?.username || author?.name || null,
+			admin_role: author?.role || null,
 			action: LOG_ACTIONS.IMPORT_DATABASE,
 			page: "database",
 			context: { operation: "import", importType, data: parsedData },
@@ -1286,13 +1367,13 @@ ipcMain.handle("clear-all-data", async (_, user) => {
 		);
 
 		// Log the action
-		const author = user || {};
+		const author = user?.author || user || {};
 		await logAction({
 			db,
 			admin_id: author.id || null,
-			admin_name: author.name || null,
+			admin_name: author.username || author.name || null,
 			admin_role: author.role || null,
-			action: LOG_ACTIONS.DELETE_USER, // Using existing action type
+			action: LOG_ACTIONS.CLEAR_ALL_DATA,
 			page: "settings",
 			context: { action: "clear_all_data" },
 		});
@@ -1910,6 +1991,17 @@ ipcMain.handle("add-expense", async (_, expense: { description: string; amount: 
 			"INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)",
 			[expense.description, expense.amount, expense.admin_name, expense.admin_id || null]
 		);
+
+		await logAction({
+			db,
+			admin_id: expense.admin_id || null,
+			admin_name: expense.admin_name || "System",
+			admin_role: "admin", // Assuming admin for now
+			action: LOG_ACTIONS.ADD_EXPENSE,
+			page: "accounting",
+			context: expense,
+		});
+
 		return { success: true, id: result.lastID };
 	} catch (error) {
 		console.error("Error adding expense:", error);
@@ -1921,6 +2013,17 @@ ipcMain.handle("delete-expense", async (_, id: number) => {
 	try {
 		const db = await getDatabase();
 		await db.run("DELETE FROM expenses WHERE id = ?", [id]);
+
+		await logAction({
+			db,
+			admin_id: null,
+			admin_name: "System",
+			admin_role: "system",
+			action: LOG_ACTIONS.DELETE_EXPENSE,
+			page: "accounting",
+			context: { id },
+		});
+
 		return { success: true };
 	} catch (error) {
 		console.error("Error deleting expense:", error);
@@ -3695,13 +3798,62 @@ ipcMain.handle(
 				}
 			}
 
-			// TODO: Implement actual file export based on format
-			// console.log(`Exporting ${type} as ${format}:`, data);
+			let finalPath = '';
+
+			if (format === 'csv') {
+				let csvString = '';
+				if (type === 'dashboard') {
+					// data is { columns: string[], rows: any[] }
+					csvString += data.columns.join(',') + '\n';
+					data.rows.forEach((row: any) => {
+						if (row.__section) {
+							csvString += `\n"${row.__section}"\n`;
+						} else {
+							csvString += data.columns.map((col: string) => {
+								const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : '';
+								// Escape quotes and wrap in quotes to handle commas within values
+								return `"${val.replace(/"/g, '""')}"`;
+							}).join(',') + '\n';
+						}
+					});
+				} else {
+					// data is an array of objects
+					if (data.length > 0) {
+						const columns = Object.keys(data[0]);
+						csvString += columns.join(',') + '\n';
+						data.forEach((row: any) => {
+							csvString += columns.map(col => {
+								const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : '';
+								return `"${val.replace(/"/g, '""')}"`;
+							}).join(',') + '\n';
+						});
+					} else {
+						csvString = 'No data available';
+					}
+				}
+
+				// Prompt save dialog
+				const { canceled, filePath } = await dialog.showSaveDialog({
+					title: 'Save CSV Export',
+					defaultPath: `Smartway_Export_${type}_${new Date().toISOString().split('T')[0]}.csv`,
+					filters: [{ name: 'CSV Files', extensions: ['csv'] }]
+				});
+
+				if (canceled || !filePath) {
+					return { success: false, message: 'Export cancelled' };
+				}
+
+				fs.writeFileSync(filePath, csvString, 'utf8');
+				finalPath = filePath;
+			} else {
+				// Stub for PDF or other formats
+				return { success: false, message: `Export format ${format} not fully implemented yet. Please use CSV.` };
+			}
 
 			return {
 				success: true,
 				data,
-				message: `${type} data exported successfully as ${format}`,
+				message: `${type} data exported successfully to ${finalPath}`,
 			};
 		} catch (error) {
 			console.error("Export error:", error);

@@ -25,8 +25,10 @@ import {
 	MoreVertical,
 	Minimize,
 	Maximize,
+  Timer,
 	Utensils,
 } from "lucide-react";
+import { useShifts } from "../../hooks/useShifts";
 import { defaultValues } from "@/data/lang";
 import { Logo } from "../ui/logo";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,8 @@ export const Layout: React.FC = () => {
 		settings,
 	  } = useSettings();
 	const { orders, fetchOrders } = useOrders();
+	const { activeShift, clockIn, clockOut } = useShifts();
+	const [shiftTimer, setShiftTimer] = useState("00:00:00");
 	const { products, fetchProducts } = useProducts();
 	const hasProducts = products.length > 0;
 	const [language, setLanguage] = useState("en");
@@ -142,9 +146,20 @@ export const Layout: React.FC = () => {
 					second: "2-digit",
 				})
 			);
+
+			if (activeShift?.clock_in) {
+				const start = new Date(activeShift.clock_in).getTime();
+				const diff = now.getTime() - start;
+				const hrs = Math.floor(diff / 3600000);
+				const mins = Math.floor((diff % 3600000) / 60000);
+				const secs = Math.floor((diff % 60000) / 1000);
+				setShiftTimer(
+					`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+				);
+			}
 		}, 1000);
 		return () => clearInterval(interval);
-	}, []);
+	}, [activeShift]);
 
 	if (!isAuthenticated) {
 		return null;
@@ -161,7 +176,10 @@ export const Layout: React.FC = () => {
 		{ path: "/products", icon: Beer, label: "Drinks" },
 		{ path: "/food", icon: Utensils, label: "Food" },
 		...(isAdmin ?
-			[{ path: "/settings", icon: Settings, label: "Settings" }]
+			[
+				{ path: "/settings", icon: Settings, label: "Settings" },
+				{ path: "/accounting", icon: FolderKanban, label: "Accounting" }
+			]
 		:	[]),
 	];
 
@@ -389,6 +407,36 @@ export const Layout: React.FC = () => {
 								</DropdownMenuItem> */}
 							</DropdownMenuContent>
 						</DropdownMenu>
+
+						{/* Shift Clock In/Out */}
+						<div className="flex items-center gap-3">
+							{activeShift ? (
+								<div className="flex items-center gap-3 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
+									<div className="flex flex-col items-end">
+										<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight leading-none mb-0.5">Active Shift</span>
+										<span className="text-xs font-mono font-bold text-emerald-700">{shiftTimer}</span>
+									</div>
+									<Button 
+										onClick={() => clockOut()} 
+										variant="ghost" 
+										size="sm" 
+										className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold text-xs"
+									>
+										Clock Out
+									</Button>
+								</div>
+							) : (
+								<Button 
+									onClick={() => clockIn()} 
+									variant="outline" 
+									size="sm" 
+									className="h-9 px-4 border-primary/20 text-primary hover:bg-primary/5 font-bold flex items-center gap-2"
+								>
+									<Timer className="size-4" />
+									Clock In
+								</Button>
+							)}
+						</div>
 
 						{/* Quick Actions Menu */}
 						<DropdownMenu>

@@ -6,7 +6,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { parseJSONString } from '@/lib/utils';
-import { Code } from 'lucide-react';
+import { Code, User } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertWithActions } from '../components/alerts/alert-with-actions';
@@ -70,6 +70,7 @@ export const Settings: React.FC = () => {
   const [availablePorts, setAvailablePorts] = useState<any[]>([]);
   const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
   const [isTestingDrawer, setIsTestingDrawer] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<SystemLog | null>(null);
   
   // Local state for settings with default values
   const [localGeneralSettings, setLocalGeneralSettings] = useState<GeneralSettings>({
@@ -1110,46 +1111,39 @@ export const Settings: React.FC = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {logs.map((log) => (
-                      <tr key={log.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <tr 
+                        key={log.id} 
+                        onClick={() => setSelectedLog(log)}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatDateTime(log.created_at)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {log.admin_name || '-'}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="size-7 bg-primary/10 rounded-full flex items-center justify-center">
+                              <User className="size-3.5 text-primary" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-900">{log.admin_name || 'System'}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {log.admin_role || '-'}
+                          <span className="capitalize">{log.admin_role || '-'}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
                             {log.action}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {log.page || '-'}
+                          <span className="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                            {log.page || 'Global'}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
-                          <HoverCard>
-                             <HoverCardTrigger asChild>
-
-                          <div className="truncate">
-                            {formatContext(log.context)}
+                          <div className="truncate font-mono text-[11px] bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                            {log.context || '-'}
                           </div>
-                             </HoverCardTrigger>
-                             <HoverCardContent className="w-full max-w-md max-h-[50vh] overflow-hidden overflow-y-auto">
-                                <div className="flex justify-between gap-4">
-                                  <div className="size-10 bg-muted/60 rounded-full flex-shrink-0 flex items-center justify-center">
-                                    <Code className="size-4 text-muted-foreground" />
-                                  </div>
-                                  <div className="space-y-1 overflow-hidden">
-                                    <span className='font-medium'>Context:</span>
-                                    <p className="break-words text-sm text-muted-foreground">
-                                      {formatContext(log.context)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </HoverCardContent>
-                          </HoverCard>
                         </td>
                       </tr>
                     ))}
@@ -1263,6 +1257,85 @@ export const Settings: React.FC = () => {
         </SectionCard>
         )}
       </div>
+
+      {/* Log Details Drawer */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity animate-in fade-in duration-300" 
+            onClick={() => setSelectedLog(null)} 
+          />
+          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-md animate-in slide-in-from-right duration-500">
+              <div className="h-full flex flex-col bg-white shadow-2xl">
+                <div className="px-6 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Log Details</h2>
+                    <p className="text-xs text-gray-500">Entry ID: #{selectedLog.id}</p>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setSelectedLog(null)}
+                    className="rounded-full hover:bg-white"
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </Button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Date & Time</label>
+                      <p className="text-sm font-medium text-gray-900">{formatDateTime(selectedLog.created_at)}</p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Action</label>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                        {selectedLog.action}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">User</label>
+                      <div className="flex items-center gap-2">
+                        <div className="size-6 bg-primary/10 rounded-full flex items-center justify-center">
+                          <User className="size-3 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{selectedLog.admin_name || 'System'}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Module / Page</label>
+                      <p className="text-sm font-medium text-gray-900 capitalize">{selectedLog.page || 'Global'}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Raw Context Data</label>
+                    <div className="bg-gray-900 rounded-xl p-4 overflow-x-auto shadow-inner">
+                      <pre className="text-xs font-mono text-emerald-400 leading-relaxed">
+                        {selectedLog.context ? JSON.stringify(JSON.parse(selectedLog.context), null, 2) : '// No context available'}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-gray-100">
+                    <p className="text-xs text-gray-400 text-center italic">
+                      This log entry was recorded automatically by the system audit service.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

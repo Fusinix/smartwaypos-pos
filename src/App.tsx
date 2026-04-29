@@ -19,6 +19,7 @@ const Settings = React.lazy(() => import('./pages/Settings'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
 const CreateOrder = React.lazy(() => import('./pages/CreateOrder'));
+const Accounting = React.lazy(() => import('./pages/Accounting'));
 
 import { SideKeyboard } from './components/keyboard/SideKeyboard';
 import { useKeyboard } from './context/KeyboardContext';
@@ -83,6 +84,7 @@ const App: React.FC = () => {
                     <Route path="/create-order" element={<CreateOrder />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/profile" element={<Profile />} />
+                    <Route path="/accounting" element={<Accounting />} />
                   </Route>
                 </Routes>
               </React.Suspense>

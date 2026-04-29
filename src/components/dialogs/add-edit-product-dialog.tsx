@@ -241,7 +241,7 @@ export default function AddEditProductDialog({
                                     <SelectContent>
                                         <SelectItem value="restock">Restock (Added New Inventory)</SelectItem>
                                         <SelectItem value="adjustment">Correction (Fixing Count)</SelectItem>
-                                        <SelectItem value="damage">Damage / Spoilage</SelectItem>
+                                        <SelectItem value="wastage">Damage / Spoilage</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
