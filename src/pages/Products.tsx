@@ -46,7 +46,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { getCategoryName } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { useEffect, useMemo, useState } from "react";
-import { Package, DollarSign, TrendingUp, AlertTriangle, LayoutGrid, List, ArrowDownUp } from "lucide-react";
+import { Package, DollarSign, TrendingUp, AlertTriangle, LayoutGrid, List, ArrowDownUp, Search } from "lucide-react";
 import { useKeyboard } from "@/context/KeyboardContext";
 
 export default function Products() {
@@ -233,11 +233,23 @@ export default function Products() {
 	return (
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
-			<div className="bg-white border-b px-8 py-6">
-				<div className="flex justify-between items-center">
-					<div>
+			<div className="bg-white border-b">
+					<div className="flex items-center justify-between px-8 py-2">
 						<h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
-						<div className="flex mt-4 gap-4">
+						{canManageProducts && (
+						<Button
+							onClick={() =>
+								activeTab === "products" ?
+									setIsAddDialogOpen(true)
+								:	setIsAddCategoryDialogOpen(true)
+							}
+							className="text-base"
+						>
+							{activeTab === "products" ? "+ Add Product" : "+ Add Category"}
+						</Button>
+					)}
+					</div>
+						<div className="flex border-t gap-4 px-8 py-2">
 							<button
 								onClick={() => setActiveTab("products")}
 								className={cn(
@@ -261,19 +273,106 @@ export default function Products() {
 								Categories
 							</button>
 						</div>
-					</div>
-					{canManageProducts && (
-						<Button
-							onClick={() =>
+
+						<div className="border-t grid grid-cols-1 md:grid-cols-4 gap-4 px-8 py-2">
+							<div className="relative flex flex-1 max-w-lg items-center">
+								<Search className="h-4 w-4 absolute left-3 text-muted-foreground" />
+								<Input
+									placeholder={`Search ${activeTab}...`}
+									className="pl-8 rounded-full flex-1"
+									value={activeTab === "products" ? filters.search : categorySearchQuery}
+									onChange={(e) =>
+										activeTab === "products" ?
+											setFilters({ search: e.target.value })
+										: setCategorySearchQuery(e.target.value)
+									}
+								/>
+							</div>
+							{
 								activeTab === "products" ?
-									setIsAddDialogOpen(true)
-								:	setIsAddCategoryDialogOpen(true)
+								<>
+					{categories?.length ?
+						<Select
+							value={filters.category || "all"}
+							onValueChange={(value) =>
+								setFilters({ category: value === "All" ? null : value })
 							}
-							className="text-base"
 						>
-							{activeTab === "products" ? "Add Product" : "Add Category"}
+							<SelectTrigger className="capitalize">
+								<SelectValue placeholder="Select category" />
+							</SelectTrigger>
+							<SelectContent>
+								{[{ id: "all", name: "all" }, ...categories].map(
+									(category: any, index) => (
+										<SelectItem
+											key={index}
+											value={category?.id}
+											className="capitalize"
+										>
+											{category?.name}
+										</SelectItem>
+									)
+								)}
+							</SelectContent>
+						</Select>
+					:	null}
+					<Select
+						value={filters.stockLevel || "all"}
+						onValueChange={(
+							value: "all" | "out-of-stock" | "low-stock" | "in-stock"
+						) => setFilters({ stockLevel: value })}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Filter by stock level" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Stock Levels</SelectItem>
+							<SelectItem value="out-of-stock">Out of Stock</SelectItem>
+							<SelectItem value="low-stock">Low Stock</SelectItem>
+							<SelectItem value="in-stock">In Stock</SelectItem>
+						</SelectContent>
+					</Select>
+					<div className="flex gap-2">
+						<Button
+							variant="outline"
+							className={cn(
+								"flex-1",
+								filters.sortBy === "stock" && "bg-primary/10 border-primary text-primary"
+							)}
+							onClick={() => handleSort("stock")}
+						>
+							<ArrowDownUp className="h-4 w-4 mr-2" />
+							By Stock {filters.sortBy === "stock" && (filters.sortOrder === "asc" ? "↑" : "↓")}
 						</Button>
-					)}
+						<div className="flex items-center border rounded-md overflow-hidden">
+							<Button
+								variant="ghost"
+								size="icon"
+								className={cn(
+									"rounded-none h-full",
+									viewMode === "grid" && "bg-primary text-white hover:bg-primary hover:text-white"
+								)}
+								onClick={() => setViewMode("grid")}
+							>
+								<LayoutGrid className="h-4 w-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								className={cn(
+									"rounded-none h-full",
+									viewMode === "list" && "bg-primary text-white hover:bg-primary hover:text-white"
+								)}
+								onClick={() => setViewMode("list")}
+							>
+								<List className="h-4 w-4" />
+							</Button>
+						</div>
+					</div>
+								</>
+									
+								: null
+							}
 				</div>
 			</div>
 
@@ -292,7 +391,7 @@ export default function Products() {
 				{user?.role === "admin" && (
 					<>
 						<div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-							<Card className="bg-muted/50">
+							<Card className="bg-white">
 								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 									<CardTitle className="text-sm font-medium">
 										Total Products
@@ -309,7 +408,7 @@ export default function Products() {
 								</CardContent>
 							</Card>
 
-							<Card className="bg-muted/50">
+							<Card className="bg-white">
 								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 									<CardTitle className="text-sm font-medium">
 										Total Cost Value
@@ -326,7 +425,7 @@ export default function Products() {
 								</CardContent>
 							</Card>
 
-							<Card className="bg-muted/50">
+							<Card className="bg-white">
 								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 									<CardTitle className="text-sm font-medium">
 										Potential Revenue
@@ -343,7 +442,7 @@ export default function Products() {
 								</CardContent>
 							</Card>
 
-							<Card className="bg-muted/50">
+							<Card className="bg-white">
 								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 									<CardTitle className="text-sm font-medium">
 										Profit Potential
@@ -409,106 +508,7 @@ export default function Products() {
 					</>
 				)}
 
-				<div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-					<Input
-						placeholder="Search products..."
-						value={filters.search}
-						onChange={(e) => setFilters({ search: e.target.value })}
-					/>
-					{categories?.length ?
-						<Select
-							value={filters.category || "all"}
-							onValueChange={(value) =>
-								setFilters({ category: value === "All" ? null : value })
-							}
-						>
-							<SelectTrigger className="capitalize">
-								<SelectValue placeholder="Select category" />
-							</SelectTrigger>
-							<SelectContent>
-								{[{ id: "all", name: "all" }, ...categories].map(
-									(category: any, index) => (
-										<SelectItem
-											key={index}
-											value={category?.id}
-											className="capitalize"
-										>
-											{category?.name}
-										</SelectItem>
-									)
-								)}
-							</SelectContent>
-						</Select>
-					:	null}
-					{/* <Select
-						value={filters.status}
-						onValueChange={(value: "all" | "active" | "inactive") =>
-							setFilters({ status: value })
-						}
-					>
-						<SelectTrigger>
-							<SelectValue placeholder="Filter by status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Inactive</SelectItem>
-						</SelectContent>
-					</Select> */}
-					<Select
-						value={filters.stockLevel || "all"}
-						onValueChange={(
-							value: "all" | "out-of-stock" | "low-stock" | "in-stock"
-						) => setFilters({ stockLevel: value })}
-					>
-						<SelectTrigger>
-							<SelectValue placeholder="Filter by stock level" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Stock Levels</SelectItem>
-							<SelectItem value="out-of-stock">Out of Stock</SelectItem>
-							<SelectItem value="low-stock">Low Stock</SelectItem>
-							<SelectItem value="in-stock">In Stock</SelectItem>
-						</SelectContent>
-					</Select>
-					<div className="flex gap-2">
-						<Button
-							variant="outline"
-							className={cn(
-								"flex-1",
-								filters.sortBy === "stock" && "bg-primary/10 border-primary text-primary"
-							)}
-							onClick={() => handleSort("stock")}
-						>
-							<ArrowDownUp className="h-4 w-4 mr-2" />
-							By Stock {filters.sortBy === "stock" && (filters.sortOrder === "asc" ? "↑" : "↓")}
-						</Button>
-						<div className="flex border rounded-md overflow-hidden">
-							<Button
-								variant="ghost"
-								size="icon"
-								className={cn(
-									"rounded-none h-10 w-10",
-									viewMode === "grid" && "bg-primary text-white hover:bg-primary hover:text-white"
-								)}
-								onClick={() => setViewMode("grid")}
-							>
-								<LayoutGrid className="h-4 w-4" />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								className={cn(
-									"rounded-none h-10 w-10",
-									viewMode === "list" && "bg-primary text-white hover:bg-primary hover:text-white"
-								)}
-								onClick={() => setViewMode("list")}
-							>
-								<List className="h-4 w-4" />
-							</Button>
-						</div>
-					</div>
-				</div>
+				
 
 				{loading ?
 					<div className="text-center py-4 text-lg">Loading...</div>
@@ -780,14 +780,14 @@ export default function Products() {
 				}
 			</>
 				:	<div className="space-y-6">
-						<div className="mb-6">
+						{/* <div className="mb-6">
 							<Input
 								placeholder="Search categories..."
 								value={categorySearchQuery}
 								onChange={(e) => setCategorySearchQuery(e.target.value)}
 								className="max-w-sm text-base"
 							/>
-						</div>
+						</div> */}
 
 						{isCategoriesLoading ?
 							<div className="flex items-center justify-center h-64">

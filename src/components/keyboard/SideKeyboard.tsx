@@ -146,7 +146,7 @@ export const SideKeyboard: React.FC = () => {
       variant={variant}
       tabIndex={-1}
       className={cn(
-        "h-16 sm:h-20 text-xl sm:text-2xl font-black rounded-2xl transition-all active:scale-90 shadow-md border-2 border-border/40",
+        "h-16 sm:h-20 text-xl sm:text-2xl font-black rounded-2xl transition-all active:scale-90 !shadow-none border-2 border-border/40",
         className
       )}
       onPointerDown={(e) => {
@@ -338,11 +338,11 @@ export const SideKeyboard: React.FC = () => {
                       return <Key key="enter" value="ENTER" label={<CornerDownLeft className="size-6" />} variant="default" className="flex-1 shadow-xl shadow-primary/30" />;
                     }
                     if (key === 'BACKSPACE') {
-                      return <Key key="back" value="BACKSPACE" label={<Delete className="size-6" />} className="flex-1 bg-muted/50 text-destructive border-destructive/20" />;
+                      return <Key key="back" value="BACKSPACE" label={<Delete className="size-6" />} className="flex-1 bg-destructive text-white" />;
                     }
                     
                     const char = layout === 'uppercase' ? key.toUpperCase() : key;
-                    return <Key key={key} value={char} className="flex-1 min-w-0 px-0 shadow-sm" />;
+                    return <Key key={key} value={char} className="flex-1 min-w-0 px-0 shadow-none" />;
                   })}
                </div>
              ))}

@@ -74,23 +74,23 @@ export const GeneralUserDashboard: React.FC<GeneralUserDashboardProps> = ({
       />
 
       {/* Quick Tips Section */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-lg font-medium text-blue-900 mb-4">Quick Tips</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+      <div className=" bg-background rounded-lg p-6 py-8">
+				<h3 className="text-lg font-semibold mb-4 flex items-center">Quick Tips</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div className="flex items-start space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="size-2 bg-muted-foreground rounded-full mt-1.5 flex-shrink-0" />
             <p>Check stock levels before taking large orders</p>
           </div>
           <div className="flex items-start space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="size-2 bg-muted-foreground rounded-full mt-1.5 flex-shrink-0" />
             <p>Peak hours are shown above - plan staffing accordingly</p>
           </div>
           <div className="flex items-start space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="size-2 bg-muted-foreground rounded-full mt-1.5 flex-shrink-0" />
             <p>Monitor active orders to ensure timely service</p>
           </div>
           <div className="flex items-start space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="size-2 bg-muted-foreground rounded-full mt-1.5 flex-shrink-0" />
             <p>Track daily revenue to meet targets</p>
           </div>
         </div>

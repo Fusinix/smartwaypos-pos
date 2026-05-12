@@ -139,7 +139,7 @@ export const Dashboard: React.FC = () => {
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
 			<div className="bg-white border-b px-8 py-4 space-y-4">
-				<h1 className="text-3xl font-bold text-gray-900">Welcome {user?.username || "Cashier"}!</h1>
+				<h1 className="text-2xl font-bold text-gray-900">Welcome {user?.username || "Cashier"}!</h1>
 				{/* <RoleWelcomeMessage
 					userRole={user?.role || "cashier"}
 					username={user?.username || "User"}
@@ -147,7 +147,7 @@ export const Dashboard: React.FC = () => {
 			</div>
 
 			{/* Filter Bar */}
-			<div className="bg-white border-b sticky top-0 z-10">
+			<div className="bg-white sticky top-0 z-10">
 				<FilterBar
 					className="px-8"
 					filters={filters}
@@ -163,7 +163,7 @@ export const Dashboard: React.FC = () => {
 			</div>
 
 			{/* Analytics Last Updated */}
-			<div className="px-8 py-3 text-sm text-gray-500 flex items-center gap-2 bg-gray-50 border-b">
+			<div className="px-8 py-3 text-sm text-gray-500 flex items-center gap-2 bg-background border-b">
 				<span>Analytics last updated:</span>
 				<span className="font-mono">
 					{analyticsLastRefresh?.toLocaleTimeString([], {
@@ -177,7 +177,7 @@ export const Dashboard: React.FC = () => {
 			</div>
 
 			{/* Main Content */}
-			<div className="flex-1 px-8 py-6 space-y-6 z-0">
+			<div className="flex-1 px-8 py-6 space-y-6 z-0 bg-muted">
 				{/* Setup Checklist — shown until system is fully configured */}
 				<SetupChecklist
 					productCount={setupCounts.products}

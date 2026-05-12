@@ -12,7 +12,7 @@ export const InventoryInsights: React.FC<InventoryInsightsProps> = ({
   data,
   isLoading = false
 }) => {
-  const formatCurrency = (value: number) => `GHS ${value.toFixed(2)}`;
+  const formatCurrency = (value: number) => value.toFixed(2);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -63,24 +63,24 @@ export const InventoryInsights: React.FC<InventoryInsightsProps> = ({
       </CardHeader>
       <CardContent>
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-muted/60 p-4 rounded-lg">
             <div className="text-sm font-medium text-blue-600">Total Stock Value</div>
-            <div className="text-2xl font-bold text-blue-900">{formatCurrency(totalStockValue)}</div>
+            <div className="text-2xl font-bold line-clamp-1"><span className='font-black text-sm'>GHS </span>{formatCurrency(totalStockValue)}</div>
           </div>
-          <div className="bg-green-50 p-4 rounded-lg">
+          <div className="bg-muted/60 p-4 rounded-lg">
             <div className="text-sm font-medium text-green-600">Avg Turnover Rate</div>
-            <div className="text-2xl font-bold text-green-900">{avgTurnoverRate.toFixed(2)}</div>
+            <div className="text-2xl font-bold ">{avgTurnoverRate.toFixed(2)}</div>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
+          <div className="bg-muted/60 p-4 rounded-lg">
             <div className="text-sm font-medium text-purple-600">Avg Profit Margin</div>
-            <div className="text-2xl font-bold text-purple-900">{avgProfitMargin.toFixed(1)}%</div>
+            <div className="text-2xl font-bold">{avgProfitMargin.toFixed(1)}%</div>
           </div>
         </div>
 
         {/* Stock Turnover Chart */}
         <div className="mb-6">
-          <h4 className="text-lg font-medium mb-4">Stock Turnover Rate</h4>
+          <h4 className="text-md font-medium mb-4">Stock Turnover Rate</h4>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={data.slice(0, 10)} layout="horizontal">
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -109,7 +109,7 @@ export const InventoryInsights: React.FC<InventoryInsightsProps> = ({
 
         {/* Top Products by Stock Value */}
         <div>
-          <h4 className="text-lg font-medium mb-4">Top Products by Stock Value</h4>
+          <h4 className="text-md font-medium mb-4">Top Products by Stock Value</h4>
           <div className="space-y-2">
             {data
               .sort((a, b) => b.stockValue - a.stockValue)

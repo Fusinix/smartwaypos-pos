@@ -158,7 +158,7 @@ export const Login: React.FC = () => {
 				className="w-full max-w-md mx-auto bg-white"
 				onSubmit={handleSubmit}
 			>
-				<div className="p-8 border-b border-border/50 bg-muted/5">
+				<div className="p-8">
 					<Logo size="md" />
 					<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-4 leading-relaxed hidden">
 						The best offline System for <span className="text-primary">Desktop & Tablet</span> devices
@@ -230,7 +230,7 @@ export const Login: React.FC = () => {
 			<Dialog open={isRecoveryOpen} onOpenChange={setIsRecoveryOpen}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
-						<DialogTitle>Admin Password Recovery</DialogTitle>
+						<DialogTitle className="mt-12">Admin Password Recovery</DialogTitle>
 						<DialogDescription>
 							{recoveryStep === 1 
 								? "Enter your License Key to verify ownership of this system."

@@ -68,9 +68,9 @@ export const StockAlerts: React.FC = () => {
 
   if (!hasAlerts) {
     return (
-      <Card>
+      <Card className="border-0">
         <CardContent className="p-8 text-center">
-          <p className="text-gray-500">No stock alerts at the moment.</p>
+          <p className="text-gray-500 font-semibold">No stock alerts at the moment.</p>
           <p className="text-sm text-gray-400 mt-2">All products have sufficient stock levels.</p>
         </CardContent>
       </Card>

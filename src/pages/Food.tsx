@@ -41,7 +41,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import type { FoodItem, FoodCategory, FoodExtra, NewFoodExtra } from "@/types/food";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Utensils, Plus } from "lucide-react";
+import { Utensils, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useKeyboard } from "@/context/KeyboardContext";
 
@@ -159,8 +159,8 @@ export default function Food() {
 	return (
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
-			<div className="bg-white border-b px-8 py-6">
-				<div className="flex justify-between items-center">
+			<div className="bg-white">
+				<div className="flex justify-between items-center border-b px-8 py-2">
 					<h1 className="text-3xl font-bold text-gray-900">Food Management</h1>
 					<div className="flex gap-2">
 						{canManageFood && activeTab === "items" && (
@@ -181,7 +181,7 @@ export default function Food() {
 					</div>
 				</div>
 				{/* Tabs */}
-				<div className="mt-4 flex gap-2">
+				<div className="flex gap-2 py-2 px-8">
 					<Button variant={activeTab === "items" ? "default" : "ghost"} onClick={() => setActiveTab("items")}>Food Items</Button>
 					{canManageFood && (
 						<Button variant={activeTab === "categories" ? "default" : "ghost"} onClick={() => setActiveTab("categories")}>Categories</Button>
@@ -190,6 +190,25 @@ export default function Food() {
 						<Button variant={activeTab === "extras" ? "default" : "ghost"} onClick={() => setActiveTab("extras")}>Extras</Button>
 					)}
 				</div>
+				<div className="py-2 px-8 border-t flex items-center gap-4">
+					<div className="flex-1 w-full max-w-lg flex items-center relative">
+						<Search className="absolute left-2 h-4 w-4 text-muted-foreground" />
+						<Input className="pl-8 rounded-full" placeholder="Search food items..." value={search} onChange={(e) => setSearch(e.target.value)} />
+					</div>
+						
+							{foodCategories?.length ? (
+								<Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value)}>
+									<SelectTrigger className="w-fit"><SelectValue placeholder="Select category" /></SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">All Categories</SelectItem>
+										{foodCategories.map((category: any) => (
+											<SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							) : null}
+						</div>
+
 			</div>
 
 			{/* Main Content */}
@@ -201,7 +220,7 @@ export default function Food() {
 					<>
 						{user?.role === "admin" && (
 							<div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-								<Card className="bg-muted/50">
+								<Card className="bg-white">
 									<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 										<CardTitle className="text-sm font-medium">Total Food Items</CardTitle>
 										<Utensils className="h-4 w-4 text-muted-foreground" />
@@ -211,7 +230,7 @@ export default function Food() {
 										<p className="text-xs text-muted-foreground">Active food items</p>
 									</CardContent>
 								</Card>
-								<Card className="bg-muted/50">
+								<Card className="bg-white">
 									<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 										<CardTitle className="text-sm font-medium">Total Food Sales</CardTitle>
 										<Utensils className="h-4 w-4 text-muted-foreground" />
@@ -221,7 +240,7 @@ export default function Food() {
 										<p className="text-xs text-muted-foreground">Total revenue from food items</p>
 									</CardContent>
 								</Card>
-								<Card className="bg-muted/50">
+								<Card className="bg-white">
 									<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 										<CardTitle className="text-sm font-medium">Total Extras Sales</CardTitle>
 										<Utensils className="h-4 w-4 text-muted-foreground" />
@@ -233,21 +252,6 @@ export default function Food() {
 								</Card>
 							</div>
 						)}
-
-						<div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-							<Input placeholder="Search food items..." value={search} onChange={(e) => setSearch(e.target.value)} />
-							{foodCategories?.length ? (
-								<Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value)}>
-									<SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-									<SelectContent>
-										<SelectItem value="all">All Categories</SelectItem>
-										{foodCategories.map((category: any) => (
-											<SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							) : null}
-						</div>
 
 						{loading ? (
 							<div className="text-center py-4 text-lg">Loading...</div>
@@ -391,7 +395,7 @@ export default function Food() {
 					<>
 						{user?.role === "admin" && (
 							<div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-								<Card className="bg-muted/50">
+								<Card className="bg-white">
 									<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 										<CardTitle className="text-sm font-medium">Total Extras</CardTitle>
 									</CardHeader>

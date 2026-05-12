@@ -16,7 +16,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
 import type { Order } from "@/types";
-import { Share2 } from "lucide-react";
+import { Plus, Search, Share2, Upload } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
 import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
@@ -382,33 +382,32 @@ export const Orders: React.FC = () => {
 	return (
 		<div className="h-full flex flex-col flex-1">
 			{/* Page Header */}
-			<div className="bg-white border-b px-8 py-6">
+			<div className="bg-white border-b px-8 py-2">
 				<div className="flex justify-between items-center">
-					<h1 className="text-3xl font-bold text-gray-900">Orders</h1>
+					<h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
 					<div className="flex gap-3">
 						<Button
-							variant="outline"
-							size="default"
-							className="text-base flex items-center gap-2 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:border-orange-300"
+							variant="ghost"
+							size="icon"
+							// className="text-base flex items-center gap-2"
 							onClick={() => window.electron.invoke("trigger-cash-drawer")}
 						>
-							<Archive className="h-5 w-5" />
-							Open Drawer
+							<Upload className="h-5 w-5" />
 						</Button>
 						<Button
 							variant="outline"
 							size="default"
-							className="text-base flex items-center gap-2"
+							className="text-base flex items-center gap-2 shadow-none"
 							onClick={handleGenerateReport}
 							disabled={isGeneratingReport}
 						>
 							<FileText className="h-5 w-5" />
-							{isGeneratingReport ? "Generating..." : "Daily Report"}
+							{isGeneratingReport ? "Generating..." : "Report"}
 						</Button>
 						<Button
 							variant="outline"
 							size="default"
-							className="text-base flex items-center gap-2 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300"
+							className="text-base flex items-center gap-2 text-red-700 hover:bg-red-50 hover:border-red-100 hover:text-red-500 shadow-none"
 							onClick={() => setExpensesDialogOpen(true)}
 						>
 							<Receipt className="h-5 w-5" />
@@ -421,6 +420,7 @@ export const Orders: React.FC = () => {
 								navigate("/create-order");
 							}}
 						>
+							<Plus />
 							Create Order
 						</Button>
 					</div>
@@ -431,52 +431,36 @@ export const Orders: React.FC = () => {
 			<div className="flex-1 flex overflow-hidden">
 				{/* Left Panel */}
 				<div className="flex-1 h-full border-r bg-white flex flex-col">
-					{/* Tabs */}
-					<div className="flex space-x-2 p-4 border-b">
+					{/* Filter Header */}
+					<div className="flex items-center gap-3 px-8 border-b">
+						<div className="flex border-b mr-auto">
 						<Button
 							variant={activeTab === "active" ? "secondary" : "outline"}
 							size="default"
-							className="text-base"
+							className={cn("text-base py-8 rounded-none w-full lg:min-w-[150px] shadow-none -mb-[0.5px] border-b-2", activeTab === "active" ? "border-primary hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
 							onClick={() => setActiveTab("active")}
 						>
-							Active
+							Open 
 						</Button>
 						<Button
 							variant={activeTab === "closed" ? "secondary" : "outline"}
 							size="default"
-							className="text-base"
+							className={cn("text-base py-8 rounded-none w-full lg:min-w-[150px] shadow-none -mb-[0.5px] border-b-2", activeTab === "closed" ? "border-primary hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
 							onClick={() => setActiveTab("closed")}
 						>
 							Closed
 						</Button>
 					</div>
-					{/* Filter Header */}
-					<div className="flex flex-col gap-3 p-4 border-b">
-						<div className="flex items-center space-x-2">
+						<div className="flex items-center space-x-4">
+							<div className="flex-1 flex items-center relative max-w-md">
+								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
 							<Input
-								className="flex-1 text-base"
+								className="flex-1 text-base rounded-full pl-11"
 								placeholder="Search by Order # or Table #"
 								value={search}
 								onChange={(e) => setSearch(e.target.value)}
 							/>
-							<Select
-								value={categoryFilter || "all"}
-								onValueChange={(value) =>
-									setCategoryFilter(value === "all" ? null : value)
-								}
-							>
-								<SelectTrigger className="w-36 text-base">
-									<SelectValue placeholder="All Categories" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All</SelectItem>
-									{categories.map((cat) => (
-										<SelectItem key={cat.id} value={String(cat.id)}>
-											{cat.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+							</div>
 							{/* Date Filter */}
 							<div className="flex items-center space-x-2">
 								<Select value={dateFilter} onValueChange={setDateFilter}>
@@ -512,8 +496,9 @@ export const Orders: React.FC = () => {
 							</div>
 						</div>
 					</div>
+					
 					{/* Order List - Responsive Grid */}
-					<div className="flex-1 bg-white overflow-y-auto p-4">
+					<div className="flex-1 overflow-y-auto p-4 bg-muted">
 						{loading ?
 							<div className="p-4 text-center text-gray-500 text-lg">
 								Loading...
@@ -523,9 +508,16 @@ export const Orders: React.FC = () => {
 								{error}
 							</div>
 						: filteredOrders.length === 0 ?
-							<div className="p-4 text-center text-gray-400 text-lg">
-								No orders found.
-							</div>
+							<div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+
+	<h3 className="text-lg font-semibold text-gray-700">
+		No orders yet
+	</h3>
+
+	<p className="mt-1 max-w-sm text-sm text-gray-400">
+		Orders will appear here once customers start placing them.
+	</p>
+</div>
 						:	<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 								{filteredOrders.map((order) => {
 									const isOpen = order.status === "open";
@@ -766,7 +758,7 @@ export const Orders: React.FC = () => {
 									onValueChange={(value) => {
 										setSelectedOrder({
 											...selectedOrder,
-											payment_mode: value as "cash" | "momo" | "bank",
+											payment_mode: value as "cash" | "momo" | "card",
 										});
 									}}
 									>
@@ -776,7 +768,7 @@ export const Orders: React.FC = () => {
 										<SelectContent>
 											<SelectItem value="cash">Cash</SelectItem>
 											<SelectItem value="momo">Momo</SelectItem>
-											<SelectItem value="bank">Bank</SelectItem>
+											<SelectItem value="card">Card</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
@@ -882,7 +874,7 @@ export const Orders: React.FC = () => {
 							{/* Actions Section */}
 							<div className="flex flex-col gap-2">
 								{/* show this button only if there are food items in the order */}
-								{selectedOrder?.status === "open" && selectedOrder?.items?.filter((item: any) => item.item_type === "food").length > 0 && selectedOrder && (
+								{selectedOrder.status === "open" && (selectedOrder.items?.filter((item: any) => item.item_type === "food")?.length ?? 0) > 0 && (
 									<Button
 										variant="outline"
 										onClick={() => printKitchenOrder(selectedOrder)}
@@ -947,16 +939,6 @@ export const Orders: React.FC = () => {
 			/>
 
 			{/* Receipt Share Dialog */}
-			<EditOrderItemsDialog
-				open={editItemsDialogOpen}
-				onClose={() => setEditItemsDialogOpen(false)}
-				order={selectedOrder}
-				onOrderUpdated={async (updatedOrder) => {
-					setSelectedOrder(updatedOrder);
-					setEditItemsDialogOpen(false);
-					await fetchOrders();
-				}}
-			/>
 			<ReceiptShareDialog
 				order={selectedOrder}
 				open={shareDialogOpen}

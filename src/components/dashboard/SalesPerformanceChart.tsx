@@ -42,9 +42,6 @@ export const SalesPerformanceChart: React.FC<SalesPerformanceChartProps> = ({
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Sales Performance</CardTitle>
-        </CardHeader>
         <CardContent>
           <div className="h-64 bg-gray-200 rounded animate-pulse"></div>
         </CardContent>
@@ -64,9 +61,6 @@ export const SalesPerformanceChart: React.FC<SalesPerformanceChartProps> = ({
   if (chartData.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Sales Performance</CardTitle>
-        </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center text-gray-400">
             <p>No sales data available for the selected period</p>
@@ -79,7 +73,9 @@ export const SalesPerformanceChart: React.FC<SalesPerformanceChartProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sales Performance</CardTitle>
+        <CardTitle>
+          Overview
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>

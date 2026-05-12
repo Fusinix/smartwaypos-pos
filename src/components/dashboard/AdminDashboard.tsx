@@ -14,6 +14,7 @@ import {
 	Database,
 	Activity,
 	AlertTriangle,
+	Info,
 } from "lucide-react";
 import { StatsCard } from "./StatsCard";
 import { StockAlerts } from "../StockAlerts";
@@ -94,12 +95,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
 			{/* Stock Alerts - Critical inventory management */}
 			<div className="space-y-4">
-				<h2 className="text-lg font-medium text-gray-900">Stock Alerts</h2>
+				<h2 className="text-xl font-medium text-gray-900">Stock Alerts</h2>
 				<StockAlerts />
 			</div>
 
 			{/* Sales Performance - Strategic trend analysis */}
+			<div className="space-y-4">
+				<h2 className="text-xl font-medium text-gray-900">
+			Sales Performance
+				</h2>
 			<SalesPerformanceChart data={salesData} isLoading={analyticsLoading} />
+			</div>
 
 			{/* Product & Category Performance - Strategic insights */}
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -127,124 +133,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 			/>
 
 			{/* Admin Control Panel */}
-			<div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg p-6">
-				<h3 className="text-lg font-medium text-red-900 mb-4 flex items-center">
-					<Shield className="w-5 h-5 mr-2" />
+			<div className=" bg-background rounded-lg p-6 py-8">
+				<h3 className="text-lg font-semibold mb-4 flex items-center">
 					Administrative Controls
 				</h3>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-red-800">
-					<div className="flex items-start space-x-2">
-						<Users className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+					<div className="flex items-start space-x-4">
+						<Users className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
-							<p className="font-medium">User Management</p>
-							<p className="text-red-600">
+							<p className="font-semibold">User Management</p>
+							<p className="text-muted-foreground/80">
 								Manage staff accounts and permissions
 							</p>
 						</div>
 					</div>
-					<div className="flex items-start space-x-2">
-						<Database className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+					<div className="flex items-start space-x-4">
+						<Database className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
-							<p className="font-medium">System Settings</p>
-							<p className="text-red-600">
+							<p className="font-semibold">System Settings</p>
+							<p className="text-muted-foreground/80">
 								Configure POS and business settings
 							</p>
 						</div>
 					</div>
-					<div className="flex items-start space-x-2">
-						<Activity className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+					<div className="flex items-start space-x-4">
+						<Activity className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
-							<p className="font-medium">Activity Logs</p>
-							<p className="text-red-600">
+							<p className="font-semibold">Activity Logs</p>
+							<p className="text-muted-foreground/80">
 								Monitor system activity and security
 							</p>
 						</div>
 					</div>
-					<div className="flex items-start space-x-2">
-						<BarChart3 className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+					<div className="flex items-start space-x-4">
+						<BarChart3 className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
-							<p className="font-medium">Business Intelligence</p>
-							<p className="text-red-600">Access comprehensive analytics</p>
+							<p className="font-semibold">Business Intelligence</p>
+							<p className="text-muted-foreground/80">Access comprehensive analytics</p>
 						</div>
 					</div>
-					<div className="flex items-start space-x-2">
-						<Settings className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+					<div className="flex items-start space-x-4">
+						<Settings className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
-							<p className="font-medium">System Configuration</p>
-							<p className="text-red-600">
+							<p className="font-semibold">System Configuration</p>
+							<p className="text-muted-foreground/80">
 								Advanced system settings and maintenance
 							</p>
 						</div>
 					</div>
-					<div className="flex items-start space-x-2">
-						<AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+					<div className="flex items-start space-x-4">
+						<AlertTriangle className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
-							<p className="font-medium">Security Monitoring</p>
-							<p className="text-red-600">Track security events and access</p>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			{/* Strategic Insights Section */}
-			<div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6">
-				<h3 className="text-lg font-medium text-indigo-900 mb-4 flex items-center">
-					<Target className="w-5 h-5 mr-2" />
-					Strategic Business Insights
-				</h3>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-indigo-800">
-					<div className="flex items-start space-x-2">
-						<TrendingUp className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-						<div>
-							<p className="font-medium">Revenue Growth</p>
-							<p className="text-indigo-600">
-								Analyze trends and growth opportunities
-							</p>
-						</div>
-					</div>
-					<div className="flex items-start space-x-2">
-						<ShoppingCart className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-						<div>
-							<p className="font-medium">Inventory Optimization</p>
-							<p className="text-indigo-600">
-								Optimize stock levels and turnover
-							</p>
-						</div>
-					</div>
-					<div className="flex items-start space-x-2">
-						<Clock className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-						<div>
-							<p className="font-medium">Operational Efficiency</p>
-							<p className="text-indigo-600">
-								Streamline processes and workflows
-							</p>
-						</div>
-					</div>
-					<div className="flex items-start space-x-2">
-						<DollarSign className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-						<div>
-							<p className="font-medium">Financial Performance</p>
-							<p className="text-indigo-600">
-								Monitor profitability and cash flow
-							</p>
-						</div>
-					</div>
-					<div className="flex items-start space-x-2">
-						<Users className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-						<div>
-							<p className="font-medium">Team Performance</p>
-							<p className="text-indigo-600">
-								Track staff productivity and efficiency
-							</p>
-						</div>
-					</div>
-					<div className="flex items-start space-x-2">
-						<BarChart3 className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-						<div>
-							<p className="font-medium">Market Analysis</p>
-							<p className="text-indigo-600">
-								Understand customer behavior and preferences
-							</p>
+							<p className="font-semibold">Security Monitoring</p>
+							<p className="text-muted-foreground/80">Track security events and access</p>
 						</div>
 					</div>
 				</div>

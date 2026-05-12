@@ -22,7 +22,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   const formatValue = (val: string | number) => {
     if (typeof val === 'number') {
       if (title.toLowerCase().includes('revenue') || title.toLowerCase().includes('value')) {
-        return `GHS ${val.toFixed(2)}`;
+        return `${val.toFixed(2)}`;
       }
       return val.toLocaleString();
     }
@@ -42,17 +42,17 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   };
 
   return (
-    <Card className={`shadow-none hover:shadow-md${className}`}>
+    <Card className={`shadow-none hover:shadow-md border-0 ${className}`}>
       <CardContent className="p-4 relative ">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-600">{title}</p>
             <div className="mt-2 h-full">
               {isLoading ? (
-                <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 bg-gray-200 rounded animate-pulse">-</div>
               ) : (
-                <p className="text-xl font-bold text-gray-900">
-                  {formatValue(value)}
+                <p className="text-3xl font-bold text-gray-900 line-clamp-1">
+                  <span className='text-sm font-black'>GHS </span>{formatValue(value)}
                 </p>
               )}
             </div>

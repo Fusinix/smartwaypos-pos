@@ -26,7 +26,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTables } from "@/hooks/useTables";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
-import { X, Eye, ChevronLeft } from "lucide-react";
+import { Eye, ChevronLeft, Search, Salad, Wine, Trash2, UtensilsCrossed, ShoppingBag, CircleUser, Banknote, Smartphone, CreditCard } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { FoodItemSelectionDialog } from "@/components/orders/FoodItemSelectionDialog";
 import { AlertWithActions } from "@/components/alerts/alert-with-actions";
@@ -34,6 +34,48 @@ import { useReceipt } from "@/hooks/useReceipt";
 import type { Order } from "@/types";
 import { useNavigate } from "react-router-dom";
 import { useKeyboard } from "@/context/KeyboardContext";
+import { Textarea } from "@/components/ui/textarea";
+import { History, Save, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
+
+const orderTypes = [
+
+	{
+		value: "customer",
+		label: "Cashier",
+		icon: CircleUser,
+	},
+	{
+		value: "table",
+		label: "Dine-in",
+		icon: UtensilsCrossed,
+	},
+	{
+		value: "takeout",
+		label: "Take-Out",
+		icon: ShoppingBag,
+	},
+
+];
+
+const paymentModes = [
+	{
+		value: "cash",
+		label: "Cash",
+		icon: Banknote,
+	},
+	{
+		value: "momo",
+		label: "Mobile Money",
+		icon: Smartphone,
+	},
+	{
+		value: "card",
+		label: "Card",
+		icon: CreditCard,
+	},
+
+];
 
 export const CreateOrder: React.FC = () => {
 	const { products, loading: productsLoading, fetchProducts } = useProducts();
@@ -46,7 +88,7 @@ export const CreateOrder: React.FC = () => {
 	const { format: formatCurrency } = useCurrency();
 	const { tables, getTables } = useTables();
 	const { createOrder, orders, fetchOrders, loading } = useOrders();
-	const { printReceipt, printKitchenOrder } = useReceipt();
+	const { printReceipt } = useReceipt();
 	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [activeTab, setActiveTab] = useState<"drinks" | "food">("drinks");
@@ -62,7 +104,7 @@ export const CreateOrder: React.FC = () => {
 	const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
 	const [orderType, setOrderType] = useState<"customer" | "table" | "takeout">("customer");
 	const [tableNumber, setTableNumber] = useState("");
-	const [paymentMode, setPaymentMode] = useState<"cash" | "momo" | "bank">(
+	const [paymentMode, setPaymentMode] = useState<"cash" | "momo" | "card">(
 		"cash"
 	);
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
@@ -70,6 +112,88 @@ export const CreateOrder: React.FC = () => {
 	const [amountTendered, setAmountTendered] = useState("");
 	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
+	const [drafts, setDrafts] = useState<any[]>([]);
+	const [showDraftsDialog, setShowDraftsDialog] = useState(false);
+
+	// Load drafts on mount
+	useEffect(() => {
+		const savedDrafts = localStorage.getItem("pos_drafts");
+		if (savedDrafts) {
+			try {
+				setDrafts(JSON.parse(savedDrafts));
+			} catch (e) {
+				console.error("Failed to parse drafts", e);
+			}
+		}
+	}, []);
+
+	// Load persisted cart on mount
+	useEffect(() => {
+		const savedCart = localStorage.getItem("pos_current_cart");
+		if (savedCart) {
+			try {
+				const data = JSON.parse(savedCart);
+				if (data.cart) setCart(data.cart);
+				if (data.orderType) setOrderType(data.orderType);
+				if (data.tableNumber) setTableNumber(data.tableNumber);
+				if (data.paymentMode) setPaymentMode(data.paymentMode);
+				if (data.notes) setNotes(data.notes);
+				if (data.amountTendered) setAmountTendered(data.amountTendered);
+			} catch (e) {
+				console.error("Failed to load cart from localStorage", e);
+			}
+		}
+	}, []);
+
+	// Save cart to localStorage whenever it changes
+	useEffect(() => {
+		const data = { cart, orderType, tableNumber, paymentMode, notes, amountTendered };
+		localStorage.setItem("pos_current_cart", JSON.stringify(data));
+	}, [cart, orderType, tableNumber, paymentMode, notes, amountTendered]);
+
+	const saveDraft = () => {
+		if (cart.length === 0) {
+			toast.error("Cart is empty");
+			return;
+		}
+		const newDraft = {
+			id: Date.now(),
+			timestamp: new Date().toISOString(),
+			cart,
+			orderType,
+			tableNumber,
+			paymentMode,
+			notes,
+			subtotal
+		};
+		const updatedDrafts = [newDraft, ...drafts];
+		setDrafts(updatedDrafts);
+		localStorage.setItem("pos_drafts", JSON.stringify(updatedDrafts));
+		toast.success("Order saved to drafts");
+	};
+
+	const loadDraft = (draft: any) => {
+		setCart(draft.cart);
+		setOrderType(draft.orderType);
+		setTableNumber(draft.tableNumber || "");
+		setPaymentMode(draft.paymentMode || "cash");
+		setNotes(draft.notes || "");
+		setShowDraftsDialog(false);
+		toast.success("Draft restored");
+	};
+
+	const deleteDraft = (id: number) => {
+		const updatedDrafts = drafts.filter((d) => d.id !== id);
+		setDrafts(updatedDrafts);
+		localStorage.setItem("pos_drafts", JSON.stringify(updatedDrafts));
+		toast.success("Draft deleted");
+	};
+
+	const clearCart = () => {
+		resetState();
+		localStorage.removeItem("pos_current_cart");
+		toast.success("Cart cleared");
+	};
 
 	useEffect(() => {
 			fetchProducts();
@@ -250,6 +374,7 @@ export const CreateOrder: React.FC = () => {
     setSearch("");
     setActiveTab("drinks");
     setSelectedFoodItem(null);
+    localStorage.removeItem("pos_current_cart");
   };
 
   const onOrderCreated = (newOrder: Order) => {
@@ -327,11 +452,12 @@ export const CreateOrder: React.FC = () => {
 
 	return (
 		<>
-			<div className="w-full h-[100vh] p-0 overflow-hidden !relative">
-					<div className="flex h-full min-h-0">
+			<div className="w-full h-[calc(100%-1px)] p-0 !overflow-hidden !relative">
+					<div className="flex h-full min-h-0 !overflow-hidden">
 						{/* Left: Product/Food selection */}
-						<div className="flex-1 border-r bg-muted/50 flex flex-col min-h-0">
-						<div className="p-2 py-4 bg-white flex gap-4 items-center justify-start ">
+						<div className="flex-1 border-r flex flex-col min-h-0 overflow-y-auto">
+							<div className="bg-white">
+						<div className="p-2 pr-8 py-2 bg-white flex gap-4 items-center justify-start border-b">
 
 								<Button
 									variant={"ghost"}
@@ -340,26 +466,29 @@ export const CreateOrder: React.FC = () => {
 								>
 									<ChevronLeft />
 								</Button>
-								<h2 className="font-bold text-2xl">Create New Order</h2>
-							</div>
-							{/* Tabs */}
-							<div className="flex border-b p-4">
+								<h2 className="font-bold text-2xl capitalize">Create {activeTab} Order</h2>
 								<Button
-									variant={activeTab === "drinks" ? "default" : "ghost"}
-									onClick={() => setActiveTab("drinks")}
+								variant="outline"
+								className="ml-auto hover:bg-primary/10 text-primary border-primary"
+									onClick={() => setActiveTab(activeTab === "drinks" ? "food" : "drinks")}
 								>
-									Drinks
+									{
+										activeTab === "drinks" ? (
+											<Salad />
+										):(
+											<Wine />
+										)
+									}
+									{activeTab === "drinks" ? "Food" : "Drinks"} Order
 								</Button>
-								<Button
-									variant={activeTab === "food" ? "default" : "ghost"}
-									onClick={() => setActiveTab("food")}
-								>
-									Food
-								</Button>
+								
 							</div>
 
-							<div className="p-4 border-b flex space-x-2">
-								<Input
+							<div className="px-6 py-2 border-b flex space-x-4">
+								<div className="flex-1 flex items-center relative max-w-md">
+								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
+							<Input
+								className="flex-1 text-base rounded-full pl-11"
 									id="order-search"
 									name="order-search"
 									placeholder={
@@ -369,8 +498,8 @@ export const CreateOrder: React.FC = () => {
 									}
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
-									className="flex-1"
 								/>
+								</div>
 								{activeTab === "drinks" ?
 									<Select value={category} onValueChange={setCategory}>
 										<SelectTrigger className="w-36">
@@ -400,19 +529,38 @@ export const CreateOrder: React.FC = () => {
 									</Select>
 								}
 							</div>
+							</div>
 
 							{/* Product/Food Grid */}
 							<div className="flex-1 overflow-y-auto px-6 py-6">
-								<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
+								<div
+	className={cn(
+		"grid gap-6",
+		isKeyboardOpen || cart.length > 0
+			? activeTab === "drinks"
+				? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+				: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+			: activeTab === "drinks"
+				? "grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+				: "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+	)}
+
+>
 									{activeTab === "drinks" ?
 										productsLoading ?
 											<div className="col-span-full text-center text-gray-400 py-20 text-lg">
 												Loading products...
 											</div>
 										: filteredProducts.length === 0 ?
-											<div className="col-span-full text-center text-gray-400 py-20 text-lg">
-												No products found.
-											</div>
+											<div className="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
+	<h3 className="text-lg font-semibold text-gray-700">
+		No {activeTab} yet
+	</h3>
+	<p className="mt-1 max-w-sm text-sm text-gray-400">
+		{activeTab} will appear here once you start adding them.
+	</p>
+
+</div>
 										:	filteredProducts.map((product) => {
 												const isOutOfStock = product.stock <= 0;
 												const isInCart = alreadyInCart(product?.id);
@@ -422,7 +570,7 @@ export const CreateOrder: React.FC = () => {
 													<div
 														key={product.id}
 														className={cn(
-															"bg-white rounded-lg overflow-hidden shadow-sm transition-all",
+															"bg-white rounded-lg overflow-hidden shadow-sm transition-all p-1",
 															isDisabled ?
 																"opacity-50 cursor-not-allowed"
 															:	"cursor-pointer hover:shadow-md hover:scale-[1.02]"
@@ -434,7 +582,7 @@ export const CreateOrder: React.FC = () => {
 														}}
 													>
 														{/* Product Image */}
-														<div className="w-full aspect-square bg-gray-100 overflow-hidden relative">
+														<div className="w-full h-[200px] bg-gray-100 overflow-hidden relative">
 															<div className="bg-muted/50 h-full w-full">
 																{product.image ?
 																	<img
@@ -453,17 +601,17 @@ export const CreateOrder: React.FC = () => {
 																</div>
 															)}
 															{isInCart && !isOutOfStock && (
-																<div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+																<div className="absolute top-2 left-24 bg-blue-500 text-white text-xs px-2 py-1 rounded">
 																	In Cart
 																</div>
 															)}
 														</div>
 														{/* Product Info */}
-														<div className="p-3">
+														<div className="p-3 text-center">
 															<div className="font-semibold text-base text-gray-900 mb-1 line-clamp-2">
 																{product.name}
 															</div>
-															<div className="text-lg font-bold text-gray-900">
+															<div className="text-lg font-bold text-primary">
 																{formatCurrency(product.price)}
 															</div>
 														</div>
@@ -479,30 +627,33 @@ export const CreateOrder: React.FC = () => {
 											return (
 												<div
 													key={foodItem.id}
-													className="bg-white rounded-lg overflow-hidden shadow-sm transition-all cursor-pointer hover:shadow-md hover:scale-[1.02]"
+													className="bg-white rounded-xl overflow-hidden shadow-sm transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] p-1"
 													onClick={() => setSelectedFoodItem(foodItem)}
 												>
 													{/* Food Item Image */}
-													<div className="w-full aspect-square bg-gray-100 overflow-hidden relative">
-														<div className="bg-muted/50 h-full w-full">
+													<div className="w-full aspect-square bg-gray-100 overflow-hidden relative  rounded-lg">
+														<div className="bg-muted/50 h-full w-full rounded-xl">
 															{foodItem.image ?
 																<img
 																	src={foodItem.image}
 																	alt={foodItem.name}
-																	className="w-full h-full object-cover"
+																	className="w-full h-full object-cover rounded-xl"
 																/>
-															:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+															:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl rounded-xl">
 																	🍽️
 																</div>
 															}
 														</div>
 													</div>
 													{/* Food Item Info */}
-													<div className="p-3">
-														<div className="font-semibold text-base text-gray-900 mb-1 line-clamp-2">
+													<div className="p-3 text-center">
+														<div className="font-semibold text-base mb-1 line-clamp-2">
 															{foodItem.name}
 														</div>
-														<div className="text-lg font-bold text-gray-900">
+														<div className="text-sm text-muted-foreground mb-1 line-clamp-2">
+															{foodItem.description}
+														</div>
+														<div className="text-lg font-bold text-primary">
 															{formatCurrency(foodItem.price)}
 														</div>
 													</div>
@@ -514,12 +665,38 @@ export const CreateOrder: React.FC = () => {
 							</div>
 						</div>
 						{/* Right: Cart and finalization */}
-						<div className={cn("w-1/3 bg-white flex flex-col border-l border-gray-100 h-full min-h-0", cart.length === 0 && "hidden")}>
+						<div className={cn("w-1/3 bg-white flex flex-col h-full min-h-0", cart.length === 0 && "hidden")}>
 							{/* Cart Header */}
-							<div className="px-6 py-5 border-b border-gray-100 flex-shrink-0">
-								<h2 className="text-xl font-bold text-gray-900">
-									Cart ({cart.length})
-								</h2>
+							<div className="px-6 py-2 border-b flex-shrink-0 flex justify-between items-center">
+								<div>
+									<h2 className="text-lg font-bold text-gray-900">
+										Current Order
+									</h2>
+									<p className="text-gray-500 text-xs">
+										Total items: {cart.length}
+									</p>
+								</div>
+								<div className="flex gap-2">
+									<Button 
+										variant="ghost" 
+										size="icon" 
+										className="size-9 rounded-full hover:bg-primary/10" 
+										onClick={() => setShowDraftsDialog(true)}
+										title="Draft History"
+									>
+										<History className="size-5" />
+									</Button>
+									<Button 
+										variant="ghost" 
+										size="icon" 
+										className="size-9 rounded-full hover:bg-primary/10" 
+										onClick={saveDraft}
+										disabled={cart.length === 0}
+										title="Save as Draft"
+									>
+										<Save className="size-5" />
+									</Button>
+								</div>
 							</div>
 
 							{/* Cart Items - Scrollable */}
@@ -539,233 +716,199 @@ export const CreateOrder: React.FC = () => {
 											Add products to get started
 										</div>
 									</div>
-								:	<ul className="divide-y divide-gray-100 px-6 py-4">
-										{cart.map((item, index) => {
-											if (item.itemType === "drink") {
-												return (
-													<li
-														key={`drink-${item.product.id}`}
-														className="flex items-center gap-4 py-4"
-													>
-														<div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-															{item?.product.image ?
-																<img
-																	src={item?.product.image}
-																	alt={item?.product.name}
-																	className="w-full h-full object-cover"
-																/>
-															:	<div className="w-full h-full flex items-center justify-center text-2xl">
-																	🍺
-																</div>
-															}
-														</div>
-														<div className="flex-1 min-w-0">
-															<div className="font-semibold text-base text-gray-900 mb-1">
-																{item.product.name}
-															</div>
-															<div className="text-base font-bold text-gray-900">
-																{formatCurrency(item.product.price)}
-															</div>
-															<div className="flex items-center gap-2 mt-3">
-																<Button
-																	size="icon"
-																	variant="outline"
-																	className="size-12 rounded-lg border-primary"
-																	onClick={() =>
-																		updateCartQty(
-																			item.product.id,
-																			"drink",
-																			Math.max(1, item.quantity - 1)
-																		)
-																	}
-																>
-																	-
-																</Button>
-																<Input
-																	type="number"
-																	min={1}
-																	max={item.product.stock}
-																	value={item.quantity}
-																	onChange={(e) =>
-																		updateCartQty(
-																			item.product.id,
-																			"drink",
-																			Math.max(1, Number(e.target.value))
-																		)
-																	}
-																	className="w-20 h-12 text-center flex-1"
-																/>
-																<Button
-																	size="icon"
-																	variant="outline"
-																	className="size-12 rounded-lg border-primary"
-																	onClick={() =>
-																		updateCartQty(
-																			item.product.id,
-																			"drink",
-																			item.quantity + 1
-																		)
-																	}
-																	disabled={item.quantity >= item.product.stock}
-																>
-																	+
-																</Button>
-																<Button
-																	size="icon"
-																	variant="ghost"
-																	className="size-12 rounded-lg border-primary ml-4"
-																	onClick={() =>
-																		removeFromCart(item.product.id, "drink")
-																	}
-																>
-																	<X />
-																</Button>
-																{item.quantity >= item.product.stock && (
-																	<span className="text-xs text-red-600">
-																		Max
-																	</span>
-																)}
-															</div>
-														</div>
-													</li>
-												);
-											} else {
-												const itemExtras = foodExtras.filter((e) =>
-													item.extraIds?.includes(e.id)
-												);
-												const itemPrice =
-													item.foodItem.price +
-													(itemExtras.reduce((sum, e) => sum + e.price, 0) ||
-														0);
+								:	
+								<ul className="divide-y divide-gray-100 px-6 py-4  h-[35%] overflow-y-auto">
+	{cart.map((item, index) => {
+		const isDrink = item.itemType === "drink";
 
-												return (
-													<li
-														key={`food-${index}`}
-														className="flex items-start gap-4 py-4 border-b"
-													>
-														<div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-															{item?.foodItem.image ?
-																<img
-																	src={item?.foodItem.image}
-																	alt={item?.foodItem.name}
-																	className="w-full h-full object-cover"
-																/>
-															:	<div className="w-full h-full flex items-center justify-center text-2xl">
-																	🍽️
-																</div>
-															}
-														</div>
-														<div className="flex-1 min-w-0">
-															<div
-																className="font-semibold text-base text-gray-900 mb-1 cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
-																onClick={() =>
-																	setViewingCartFoodItem({ item, index })
-																}
-															>
-																{item.foodItem.name}
-																<Eye className="h-4 w-4 text-gray-400" />
-															</div>
-															{itemExtras.length > 0 && (
-																<div className="text-xs text-gray-500 mb-1">
-																	Extras:{" "}
-																	{itemExtras.map((e) => e.name).join(", ")}
-																</div>
-															)}
-															{item.notes && (
-																<div className="text-xs text-gray-500 mb-1">
-																	Note: {item.notes}
-																</div>
-															)}
-															<div className="text-base font-bold text-gray-900">
-																{formatCurrency(itemPrice)} × {item.quantity}
-															</div>
-															<div className="flex items-center gap-2 mt-3">
-																<Button
-																	size="icon"
-																	variant="outline"
-																	className="size-12 rounded-lg border-primary"
-																	onClick={() =>
-																		updateCartQty(
-																			index,
-																			"food",
-																			Math.max(1, item.quantity - 1)
-																		)
-																	}
-																>
-																	-
-																</Button>
-																<Input
-																	type="number"
-																	min={1}
-																	value={item.quantity}
-																	onChange={(e) =>
-																		updateCartQty(
-																			index,
-																			"food",
-																			Math.max(1, Number(e.target.value))
-																		)
-																	}
-																	className="w-20 h-12 text-center flex-1"
-																/>
-																<Button
-																	size="icon"
-																	variant="outline"
-																	className="size-12 rounded-lg border-primary"
-																	onClick={() =>
-																		updateCartQty(
-																			index,
-																			"food",
-																			item.quantity + 1
-																		)
-																	}
-																>
-																	+
-																</Button>
-																<Button
-																	size="icon"
-																	variant="ghost"
-																	className="size-12 rounded-lg border-primary ml-4"
-																	onClick={() => removeFromCart(index, "food")}
-																>
-																	<X />
-																</Button>
-															</div>
-														</div>
-													</li>
-												);
-											}
-										})}
-									</ul>
+		const product = isDrink ? item.product : item.foodItem;
+		const image = product?.image;
+		const name = product?.name;
+
+		const itemExtras =
+			!isDrink ?
+				foodExtras.filter((e) => item.extraIds?.includes(e.id))
+			:	[];
+
+		const itemPrice =
+			isDrink ?
+				product.price
+			:	product.price +
+				(itemExtras.reduce((sum, e) => sum + e.price, 0) || 0);
+
+		const itemKey =
+			isDrink ? `drink-${product.id}` : `food-${index}`;
+
+		const currentQty = item.quantity;
+
+		return (
+			<li
+				key={itemKey}
+				className={cn(
+					"flex items-start gap-4 py-4",
+					!isDrink && "border-b"
+				)}
+			>
+				<div
+					className={cn(
+						"w-16 h-16 rounded-lg overflow-hidden flex-shrink-0",
+						isDrink ? "bg-muted p-0.5" : "bg-gray-100"
+					)}
+				>
+					{image ?
+						<img
+							src={image}
+							alt={name}
+							className={cn(
+								"w-full h-full object-cover",
+								isDrink && "rounded-md"
+							)}
+						/>
+					:	<div className="w-full h-full flex items-center justify-center text-2xl">
+							{isDrink ? "🍺" : "🍽️"}
+						</div>
+					}
+				</div>
+
+				<div className="flex-1 min-w-0">
+					<div
+						className={cn(
+							"font-semibold text-base text-gray-900 mb-1",
+							!isDrink &&
+								"cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
+						)}
+						onClick={() => {
+							if (!isDrink) {
+								setViewingCartFoodItem({ item, index });
+							}
+						}}
+					>
+						{name}
+
+						{!isDrink && (
+							<Eye className="h-4 w-4 text-gray-400" />
+						)}
+					</div>
+
+					{!isDrink && itemExtras.length > 0 && (
+						<div className="text-xs text-gray-500 mb-1">
+							Extras:{" "}
+							{itemExtras.map((e) => e.name).join(", ")}
+						</div>
+					)}
+
+					{!isDrink && item.notes && (
+						<div className="text-xs text-gray-500 mb-1">
+							Note: {item.notes}
+						</div>
+					)}
+
+					<div className="text-base font-bold text-gray-900">
+						{formatCurrency(itemPrice)}
+						{!isDrink && ` × ${currentQty}`}
+					</div>
+
+					<div className="flex items-center gap-2 mt-3">
+						<Button
+							size="icon"
+							variant={isDrink ? "ghost" : "outline"}
+							className={cn(
+								"size-12 rounded-lg bg-muted"
+							)}
+							onClick={() =>
+								updateCartQty(
+									isDrink ? product.id : index,
+									isDrink ? "drink" : "food",
+									Math.max(1, currentQty - 1)
+								)
+							}
+						>
+							-
+						</Button>
+
+						<Input
+							type="number"
+							min={1}
+							max={isDrink ? product.stock : undefined}
+							value={currentQty}
+							onChange={(e) =>
+								updateCartQty(
+									isDrink ? product.id : index,
+									isDrink ? "drink" : "food",
+									Math.max(1, Number(e.target.value))
+								)
+							}
+							className="w-20 h-12 text-center flex-1"
+						/>
+
+						<Button
+							size="icon"
+							variant={isDrink ? "ghost" : "outline"}
+							className={cn(
+								"size-12 rounded-lg bg-muted"
+							)}
+							onClick={() =>
+								updateCartQty(
+									isDrink ? product.id : index,
+									isDrink ? "drink" : "food",
+									currentQty + 1
+								)
+							}
+							disabled={
+								isDrink && currentQty >= product.stock
+							}
+						>
+							+
+						</Button>
+
+						<Button
+							size="icon"
+							variant="ghost"
+							className="bg-destructive/10 size-12 rounded-lg ml-4 text-destructive hover:bg-destructive/20 hover:text-destructive"
+							onClick={() =>
+								removeFromCart(
+									isDrink ? product.id : index,
+									isDrink ? "drink" : "food"
+								)
+							}
+						>
+							<Trash2 />
+						</Button>
+
+						{isDrink &&
+							currentQty >= product.stock && (
+								<span className="text-xs text-red-600">
+									Max
+								</span>
+							)}
+					</div>
+				</div>
+			</li>
+		);
+	})}
+</ul>
 								}
 							{/* Order finalization */}
-							<div className={cn("px-6 py-5 space-y-4 border-t border-gray-100 bg-gray-50 flex-shrink-0", cart.length === 0 ? "hidden" : "block")}>
+							<div className={cn("px-6 py-5 space-y-4 border-t-[0.5px] flex-shrink-0", cart.length === 0 ? "hidden" : "block")}>
 								<div className="space-y-2">
 									<span className="text-sm font-medium text-gray-700">
 										Order Type:
 									</span>
 									<div className="flex gap-2 overflow-x-auto">
-										<Button
-											className="flex-1 h-11 text-base"
-											variant={orderType === "customer" ? "default" : "outline"}
-											onClick={() => setOrderType("customer")}
-										>
-											Cashier
-										</Button>
-										<Button
-											className="flex-1 h-11 text-base"
-											variant={orderType === "table" ? "default" : "outline"}
-											onClick={() => setOrderType("table")}
-										>
-											Table
-										</Button>
-										<Button
-											className="flex-1 h-11 text-base"
-											variant={orderType === "takeout" ? "default" : "outline"}
-											onClick={() => setOrderType("takeout")}
-										>
-											Take-Out
-										</Button>
-									</div>
+
+	{orderTypes.map(({ value, label, icon: Icon }) => (
+		<Button
+			key={value}
+			className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+			variant={orderType === value ? "default" : "outline"}
+			onClick={() => setOrderType(value as any)}
+		>
+			<Icon className="!size-4" />
+			{label}
+		</Button>
+	))}
+
+</div>
 								</div>
 								{orderType === "table" && (
 									<div className="space-y-2">
@@ -830,28 +973,30 @@ export const CreateOrder: React.FC = () => {
 									</div>
 								)}
 								<div className="space-y-2">
-									<span className="text-sm font-medium text-gray-700">
+									<p className="text-sm font-medium text-gray-700">
 										Payment:
-									</span>
-									<Select
-										value={paymentMode}
-										onValueChange={(v) => setPaymentMode(v as any)}
-									>
-										<SelectTrigger className="w-full h-11 text-base">
-											<SelectValue placeholder="Payment Mode" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="cash">Cash</SelectItem>
-											<SelectItem value="momo">Momo</SelectItem>
-											<SelectItem value="bank">Bank</SelectItem>
-										</SelectContent>
-									</Select>
+									</p>
+<div className="flex gap-2 overflow-x-auto">
+
+	{paymentModes.map(({ value, label, icon: Icon }) => (
+		<Button
+			key={value}
+			className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+			variant={paymentMode === value ? "default" : "outline"}
+			onClick={() => setPaymentMode(value as any)}
+		>
+			<Icon className="!size-4" />
+			{label}
+		</Button>
+	))}
+
+</div>
 								</div>
 
 								{paymentMode === "cash" && orderType === "customer" && (
-									<div className="space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/10">
+									<div className="space-y-3">
+										<p className="text-sm font-medium text-gray-700">Cash Received</p>
 										<div className="space-y-2">
-											<Label className="text-primary font-semibold">Cash Received</Label>
 											<Input
 												id="amount-tendered"
 												name="amount-tendered"
@@ -882,20 +1027,23 @@ export const CreateOrder: React.FC = () => {
 								)}
 
 								<div className="space-y-2">
-									<span className="text-sm font-medium text-gray-700">
-										Notes:
-									</span>
-									<Input
+									<p className="text-sm font-medium text-gray-700">
+										Order Notes:
+									</p>
+									<Textarea
 										id="order-notes"
 										name="order-notes"
 										value={notes}
 										onChange={(e) => setNotes(e.target.value)}
 										placeholder="Order notes..."
-										className="w-full h-11 text-base"
+										className="w-full h-20 text-base resize-none rounded-xl bg-muted"
 									/>
 								</div>
 
 								<div className="space-y-3 pt-3 border-t border-gray-200">
+									<p className="text-md font-semibold">
+										Payment Summary:
+									</p>
 									<div className="flex justify-between text-base text-gray-600">
 										<span>Subtotal</span>
 										<span className="font-medium">
@@ -917,10 +1065,10 @@ export const CreateOrder: React.FC = () => {
 									<Button
 										type="button"
 										variant="outline"
-										onClick={resetState}
-										className="flex-1 h-12 text-base"
+										onClick={clearCart}
+										className="flex-1 h-12 text-base border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
 									>
-										Cancel
+										Clear Cart
 									</Button>
 									<Button
 										type="button"
@@ -955,7 +1103,74 @@ export const CreateOrder: React.FC = () => {
 			/>
 				</div>
 
-			
+			{/* View Cart Food Item Details Dialog */}
+			<ViewDialog open={showDraftsDialog} onOpenChange={setShowDraftsDialog}>
+				<ViewDialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+					<DialogHeader>
+						<DialogTitle className="text-2xl font-bold flex items-center gap-2">
+							<History className="size-6" />
+							Draft Orders
+						</DialogTitle>
+					</DialogHeader>
+					<div className="flex-1 overflow-y-auto py-4">
+						{drafts.length === 0 ?
+							<div className="text-center py-12 text-gray-500">
+								<History className="size-12 mx-auto mb-4 opacity-20" />
+								<p className="text-lg font-medium">No saved drafts</p>
+								<p className="text-sm">Drafts you save will appear here.</p>
+							</div>
+						:	<div className="space-y-4">
+								{drafts.map((draft) => (
+									<div 
+										key={draft.id}
+										className="border rounded-xl p-4 hover:border-primary/50 transition-colors bg-white shadow-sm"
+									>
+										<div className="flex justify-between items-start mb-3">
+											<div>
+												<p className="font-bold text-lg">
+													{new Date(draft.timestamp).toLocaleString()}
+												</p>
+												<p className="text-sm text-gray-500">
+													{draft.cart.length} items • {draft.orderType}
+												</p>
+											</div>
+											<div className="text-right">
+												<p className="font-bold text-xl text-primary">
+													{formatCurrency(draft.subtotal || 0)}
+												</p>
+											</div>
+										</div>
+										<div className="flex gap-2">
+											<Button 
+												variant="default" 
+												size="sm" 
+												className="flex-1 gap-2"
+												onClick={() => loadDraft(draft)}
+											>
+												<RotateCcw className="size-4" />
+												Restore Draft
+											</Button>
+											<Button 
+												variant="ghost" 
+												size="sm" 
+												className="text-red-600 hover:bg-red-50 hover:text-red-700"
+												onClick={() => deleteDraft(draft.id)}
+											>
+												<Trash2 className="size-4" />
+											</Button>
+										</div>
+									</div>
+								))}
+							</div>
+						}
+					</div>
+					<ViewDialogFooter>
+						<Button variant="outline" onClick={() => setShowDraftsDialog(false)}>
+							Close
+						</Button>
+					</ViewDialogFooter>
+				</ViewDialogContent>
+			</ViewDialog>
 
 			{/* View Cart Food Item Details Dialog */}
 			{viewingCartFoodItem && (

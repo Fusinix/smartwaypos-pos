@@ -10,7 +10,6 @@ import {
 	Beer,
 	ClipboardList,
 	Clock,
-	FolderKanban,
 	LayoutDashboard,
 	LogOut,
 	Menu,
@@ -27,9 +26,9 @@ import {
 	Maximize,
   Timer,
 	Utensils,
+	BarChart,
 } from "lucide-react";
 import { useShifts } from "../../hooks/useShifts";
-import { defaultValues } from "@/data/lang";
 import { Logo } from "../ui/logo";
 import { cn } from "@/lib/utils";
 import {
@@ -177,31 +176,31 @@ export const Layout: React.FC = () => {
 		{ path: "/food", icon: Utensils, label: "Food" },
 		...(isAdmin ?
 			[
-				{ path: "/settings", icon: Settings, label: "Settings" },
-				{ path: "/accounting", icon: FolderKanban, label: "Accounting" }
+				{ path: "/accounting", icon: BarChart, label: "Accounting" },
+				{ path: "/settings", icon: Settings, label: "Settings" }
 			]
 		:	[]),
 	];
 
 	return (
-		<div className="h-screen bg-gray-50 flex w-full">
+		<div className="h-screen bg-background flex w-full">
 			{/* Left Sidebar */}
 			<aside
 				className={`${
 					sidebarOpen ? "w-64" : "w-20"
-				} bg-muted/50 border-r transition-all duration-300 flex flex-col h-screen sticky top-0`}
+				} border-r transition-all duration-300 flex flex-col h-screen sticky top-0`}
 			>
 				{/* Logo/Brand */}
-				<div className="h-16 border-b flex items-center px-4 overflow-hidden">
+				<div className="h-16 flex items-center px-2 overflow-hidden">
 					<Logo 
-						size={sidebarOpen ? "sm" : "sm"} 
+						size="md"
 						showText={sidebarOpen} 
-						className={cn("transition-all duration-300", !sidebarOpen && "ml-1")}
+						className={cn("transition-all duration-300 mx-auto !border-none")}
 					/>
 				</div>
 
 				{/* Navigation Items */}
-				<nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+				<nav className="flex-1 py-4 overflow-y-auto">
 					{navItems.map((item) => {
 						const Icon = item.icon;
 						const isActive = location.pathname === item.path;
@@ -209,14 +208,16 @@ export const Layout: React.FC = () => {
 							<Link
 								key={item.path}
 								to={item.path}
-								className={`flex items-center gap-3 px-3 py-2.5 rounded-full text-base font-medium transition-colors hover:bg-white ${
+								className={cn('flex items-center gap-3 px-4 py-4 text-base font-medium transition-colors hover:bg-white border-l-4',
 									isActive ?
-										"bg-primary/10 text-primary"
-									:	"text-gray-700 hover:bg-gray-100"
-								}`}
+										"bg-primary/10 text-primary !border-primary hover:bg-primary/20"
+									:	"text-gray-700 hover:bg-muted/70 border-transparent",
+
+									sidebarOpen ? "px-6":"justify-center"
+								)}
 							>
-								<Icon className="size-5 flex-shrink-0" />
-								{sidebarOpen && <span>{item.label}</span>}
+								<Icon className="size-6 flex-shrink-0" />
+								{sidebarOpen && <span className="ml-4">{item.label}</span>}
 							</Link>
 						);
 					})}
@@ -260,36 +261,93 @@ export const Layout: React.FC = () => {
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col min-w-0 " >
 				{/* Top Header Bar */}
-				<header className="bg-white border-b h-16 flex items-center justify-between px-6 sticky top-0 z-10 gap-4">
+				<header className="bg-primary/90 border-b h-14 flex items-center justify-between px-6 sticky top-0 z-10 gap-4">
 					<div className="flex items-center gap-4 flex-1">
 						<Button
 							variant="ghost"
 							size="icon"
+							className="text-white"
 							onClick={() => setSidebarOpen(!sidebarOpen)}
 						>
 							<Menu className="size-5" />
 						</Button>
-						<div className="relative flex-1 max-w-md">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
-							<Input
-								placeholder="Search here..."
-								className="pl-10 h-9 text-base rounded-full bg-muted border-0"
-							/>
+						<div className="font-mono font-medium text-gray-600 text-sm tabular-nums px-3 py-1.5 bg-white/10 rounded-md flex items-center gap-2 text-white">
+							<Clock className="size-4" />
+							<span>{time}</span>
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
-						<div className="font-mono font-medium text-gray-600 text-sm tabular-nums px-3 py-1.5 border rounded-md flex items-center gap-2">
-							<Clock className="size-4" />
-							<span>{time}</span>
+						{/* Quick Actions Menu */}
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="ghost" size="icon" className="text-white">
+									<MoreVertical className="size-5" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem onClick={() => navigate("/orders")}>
+									<ClipboardList className="size-4 mr-2" />
+									New Order
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => navigate("/products")}>
+									<Beer className="size-4 mr-2" />
+									Manage Inventory
+								</DropdownMenuItem>
+								{isAdmin && (
+									<>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem onClick={() => navigate("/settings")}>
+											<Settings className="size-4 mr-2" />
+											Settings
+										</DropdownMenuItem>
+									</>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+								{/* Shift Clock In/Out */}
+						<div className="flex items-center gap-3">
+							{activeShift ? (
+								<div className="flex items-center gap-3 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
+									<div className="flex flex-col items-end">
+										<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight leading-none mb-0.5">Active Shift</span>
+										<span className="text-xs font-mono font-bold text-emerald-700">{shiftTimer}</span>
+									</div>
+									<Button 
+										onClick={() => clockOut()} 
+										variant="ghost" 
+										size="sm" 
+										className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold text-xs"
+									>
+										Clock Out
+									</Button>
+								</div>
+							) : (
+								<Button 
+									onClick={() => clockIn()} 
+									variant="outline" 
+									size="sm" 
+									className="h-9 px-4 border-primary/20 text-primary font-bold flex items-center gap-2"
+								>
+									<Timer className="size-4" />
+									Clock In
+								</Button>
+							)}
 						</div>
 
 						{/* Notifications Dropdown */}
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon" className="relative">
+								<Button
+							variant="ghost"
+							size="icon"
+							className="text-white bg-white/20 relative">
 									<Bell className="size-5" />
 									{notificationCount > 0 && (
-										<span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+										<span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
+											{notificationCount > 9 ? "9+" : notificationCount}
+										</span>
 									)}
 								</Button>
 							</DropdownMenuTrigger>
@@ -377,112 +435,16 @@ export const Layout: React.FC = () => {
 							</DropdownMenuContent>
 						</DropdownMenu>
 
-						{/* Language Switcher */}
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon">
-									<Globe className="size-5" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuLabel>Language</DropdownMenuLabel>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									onClick={() => setLanguage("en")}
-									className={language === "en" ? "bg-primary/10" : ""}
-								>
-									English
-								</DropdownMenuItem>
-								{/* <DropdownMenuItem
-									onClick={() => setLanguage("es")}
-									className={language === "es" ? "bg-primary/10" : ""}
-								>
-									Español
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => setLanguage("fr")}
-									className={language === "fr" ? "bg-primary/10" : ""}
-								>
-									Français
-								</DropdownMenuItem> */}
-							</DropdownMenuContent>
-						</DropdownMenu>
-
-						{/* Shift Clock In/Out */}
-						<div className="flex items-center gap-3">
-							{activeShift ? (
-								<div className="flex items-center gap-3 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
-									<div className="flex flex-col items-end">
-										<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight leading-none mb-0.5">Active Shift</span>
-										<span className="text-xs font-mono font-bold text-emerald-700">{shiftTimer}</span>
-									</div>
-									<Button 
-										onClick={() => clockOut()} 
-										variant="ghost" 
-										size="sm" 
-										className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold text-xs"
-									>
-										Clock Out
-									</Button>
-								</div>
-							) : (
-								<Button 
-									onClick={() => clockIn()} 
-									variant="outline" 
-									size="sm" 
-									className="h-9 px-4 border-primary/20 text-primary hover:bg-primary/5 font-bold flex items-center gap-2"
-								>
-									<Timer className="size-4" />
-									Clock In
-								</Button>
-							)}
-						</div>
-
-						{/* Quick Actions Menu */}
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon">
-									<MoreVertical className="size-5" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={() => navigate("/orders")}>
-									<ClipboardList className="size-4 mr-2" />
-									New Order
-								</DropdownMenuItem>
-								<DropdownMenuItem onClick={() => navigate("/products")}>
-									<Beer className="size-4 mr-2" />
-									Manage Inventory
-								</DropdownMenuItem>
-								{isAdmin && (
-									<>
-										<DropdownMenuSeparator />
-										<DropdownMenuItem onClick={() => navigate("/settings")}>
-											<Settings className="size-4 mr-2" />
-											Settings
-										</DropdownMenuItem>
-									</>
-								)}
-							</DropdownMenuContent>
-						</DropdownMenu>
-
 						{/* User Menu */}
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<button className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center relative hover:bg-primary/20 transition-colors">
-									{user?.role === "admin" ?
-										<ShieldCheck className="size-5 text-primary" />
-									: user?.role === "manager" ?
-										<BarChart3 className="size-5 text-primary" />
-									:	<User className="size-5 text-primary" />}
-									{notificationCount > 0 && (
-										<span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
-											{notificationCount > 9 ? "9+" : notificationCount}
-										</span>
-									)}
-								</button>
+								<Button
+							variant="ghost"
+							size="icon"
+							className="text-white bg-white/20">
+									<User className="size-5"/>
+									
+								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end" className="w-56">
 								<DropdownMenuLabel>
@@ -524,10 +486,10 @@ export const Layout: React.FC = () => {
 						</DropdownMenu>
 
 						{/* add minimize button that only shows when fullscreen mode is enabled */}
-
 						<Button
 							variant="ghost"
 							size="icon"
+							className="text-white bg-white/20"
 							onClick={() =>{
 								window.electron.invoke('set-fullscreen', !isFullScreen)
 								setIsFullScreen(!isFullScreen)
@@ -541,7 +503,7 @@ export const Layout: React.FC = () => {
 				</header>
 
 				{/* Page Content */}
-				<main className="flex-1 overflow-y-auto bg-white">
+				<main className="flex-1 overflow-y-auto bg-muted">
 					<Outlet />
 				</main>
 			</div>
