@@ -18,7 +18,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useCategory } from "@/hooks/useCategory";
-import { useOrders } from "@/hooks/useOrders";
+import { orderTypes, paymentModes, useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { useFood } from "@/hooks/useFood";
 import { useFoodExtras } from "@/hooks/useFoodExtras";
@@ -37,45 +37,8 @@ import { useKeyboard } from "@/context/KeyboardContext";
 import { Textarea } from "@/components/ui/textarea";
 import { History, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-
-const orderTypes = [
-
-	{
-		value: "customer",
-		label: "Cashier",
-		icon: CircleUser,
-	},
-	{
-		value: "table",
-		label: "Dine-in",
-		icon: UtensilsCrossed,
-	},
-	{
-		value: "takeout",
-		label: "Take-Out",
-		icon: ShoppingBag,
-	},
-
-];
-
-const paymentModes = [
-	{
-		value: "cash",
-		label: "Cash",
-		icon: Banknote,
-	},
-	{
-		value: "momo",
-		label: "Mobile Money",
-		icon: Smartphone,
-	},
-	{
-		value: "card",
-		label: "Card",
-		icon: CreditCard,
-	},
-
-];
+import { Icon } from "@radix-ui/react-select";
+import { OrderTypeIcons, PaymentModeIcons, type OrderTypes, type PaymentModes } from "@/components/Icons";
 
 export const CreateOrder: React.FC = () => {
 	const { products, loading: productsLoading, fetchProducts } = useProducts();
@@ -896,8 +859,9 @@ export const CreateOrder: React.FC = () => {
 									</span>
 									<div className="flex gap-2 overflow-x-auto">
 
-	{orderTypes.map(({ value, label, icon: Icon }) => (
-		<Button
+	{orderTypes.map(({ value, label }) => {
+		const Icon = OrderTypeIcons[value as OrderTypes]
+		return (<Button
 			key={value}
 			className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
 			variant={orderType === value ? "default" : "outline"}
@@ -905,8 +869,9 @@ export const CreateOrder: React.FC = () => {
 		>
 			<Icon className="!size-4" />
 			{label}
-		</Button>
-	))}
+		</Button>)
+	}
+	)}
 
 </div>
 								</div>
@@ -978,7 +943,9 @@ export const CreateOrder: React.FC = () => {
 									</p>
 <div className="flex gap-2 overflow-x-auto">
 
-	{paymentModes.map(({ value, label, icon: Icon }) => (
+	{paymentModes.map(({ value, label }) => {
+		const Icon = PaymentModeIcons[value as PaymentModes]
+		return(
 		<Button
 			key={value}
 			className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
@@ -988,7 +955,7 @@ export const CreateOrder: React.FC = () => {
 			<Icon className="!size-4" />
 			{label}
 		</Button>
-	))}
+	)})}
 
 </div>
 								</div>
@@ -1108,7 +1075,6 @@ export const CreateOrder: React.FC = () => {
 				<ViewDialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
 					<DialogHeader>
 						<DialogTitle className="text-2xl font-bold flex items-center gap-2">
-							<History className="size-6" />
 							Draft Orders
 						</DialogTitle>
 					</DialogHeader>

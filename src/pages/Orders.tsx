@@ -11,12 +11,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCategory } from "@/hooks/useCategory";
-import { useOrders } from "@/hooks/useOrders";
+import { paymentModes, useOrders } from "@/hooks/useOrders";
 import { useSettings } from "@/hooks/useSettings";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
 import type { Order } from "@/types";
-import { Plus, Search, Share2, Upload } from "lucide-react";
+import { Clock, Lock, Plus, Search, Share2, Upload, X } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
 import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
@@ -29,19 +29,19 @@ import { useAuth } from "@/context/AuthContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { FileText, Archive, Receipt } from "lucide-react";
+import { FileText, Receipt } from "lucide-react";
 import { DailyReportDialog } from "@/components/dialogs/daily-report-dialog";
 import { ExpensesDialog } from "@/components/dialogs/expenses-dialog";
+import { OrderTypeIcons, PaymentModeIcons, type PaymentModes } from "@/components/Icons";
 
 export const Orders: React.FC = () => {
 	const { orders, loading, error, fetchOrders, getOrderById, updateOrder } =
 		useOrders();
 		const navigate = useNavigate();
-	const { categories, fetchCategories } = useCategory();
+	const { fetchCategories } = useCategory();
 	const { settings } = useSettings();
 	const [activeTab, setActiveTab] = useState<"active" | "closed">("active");
 	const [search, setSearch] = useState("");
-	const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 	const [dateFilter, setDateFilter] = useState<string>("today"); // "all", "today", "week", "month", "custom"
 	const [customDateStart, setCustomDateStart] = useState<string>("");
 	const [customDateEnd, setCustomDateEnd] = useState<string>("");
@@ -379,6 +379,8 @@ export const Orders: React.FC = () => {
 		}
 	};
 
+	const OrderTypeIcon = selectedOrder?  OrderTypeIcons[selectedOrder.order_type] : null;
+
 	return (
 		<div className="h-full flex flex-col flex-1">
 			{/* Page Header */}
@@ -407,7 +409,7 @@ export const Orders: React.FC = () => {
 						<Button
 							variant="outline"
 							size="default"
-							className="text-base flex items-center gap-2 text-red-700 hover:bg-red-50 hover:border-red-100 hover:text-red-500 shadow-none"
+							className="text-base flex items-center gap-2 bg-red-50 border-red-100 text-red-700 hover:bg-red-50 hover:border-red-100 hover:text-red-500 shadow-none"
 							onClick={() => setExpensesDialogOpen(true)}
 						>
 							<Receipt className="h-5 w-5" />
@@ -432,22 +434,24 @@ export const Orders: React.FC = () => {
 				{/* Left Panel */}
 				<div className="flex-1 h-full border-r bg-white flex flex-col">
 					{/* Filter Header */}
-					<div className="flex items-center gap-3 px-8 border-b">
-						<div className="flex border-b mr-auto">
+					<div className="flex items-center gap-3 px-8 py-1 border-b">
+						<div className="flex mr-auto">
 						<Button
 							variant={activeTab === "active" ? "secondary" : "outline"}
 							size="default"
-							className={cn("text-base py-8 rounded-none w-full lg:min-w-[150px] shadow-none -mb-[0.5px] border-b-2", activeTab === "active" ? "border-primary hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
+							className={cn("text-base py-6 rounded-xl w-full lg:min-w-[150px] shadow-none -mb-[0.5px]", activeTab === "active" ? "hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
 							onClick={() => setActiveTab("active")}
 						>
+							<FileText />
 							Open 
 						</Button>
 						<Button
 							variant={activeTab === "closed" ? "secondary" : "outline"}
 							size="default"
-							className={cn("text-base py-8 rounded-none w-full lg:min-w-[150px] shadow-none -mb-[0.5px] border-b-2", activeTab === "closed" ? "border-primary hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
+							className={cn("text-base py-6 rounded-xl w-full lg:min-w-[150px] shadow-none -mb-[0.5px]", activeTab === "closed" ? "hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
 							onClick={() => setActiveTab("closed")}
 						>
+							<Lock />
 							Closed
 						</Button>
 					</div>
@@ -518,43 +522,54 @@ export const Orders: React.FC = () => {
 		Orders will appear here once customers start placing them.
 	</p>
 </div>
-						:	<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
+						:	<div className={cn("grid gap-4 px-4 py-2", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 								{filteredOrders.map((order) => {
 									const isOpen = order.status === "open";
+									const PaymentIcon = PaymentModeIcons[order.payment_mode]
 									return (
 										<div
 											key={order.id}
 											className={cn(
-												"bg-white border rounded-lg p-4 cursor-pointer transition-all relative",
+												"bg-card rounded-lg p-4 cursor-pointer transition-all relative",
 												selectedOrder?.id === order.id ?
-													"ring-2 ring-primary bg-primary/5"
+													"ring-2 ring-primary"
 												:	"hover:shadow-md hover:border-primary/50",
-												isOpen ?
-													"border-red-200 bg-red-50/30"
-												:	"border-transparent bg-muted/50"
+												// isOpen ?
+												// 	"bg-card"
+												// :	"border-transparent"
 											)}
 											onClick={() => handleOrderSelect(order)}
 										>
-											{isOpen && (
-												<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink"></div>
-											)}
+											{isOpen ? 
+												<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink" />
+												:
+												<div className="absolute top-3 right-3 text-muted-foreground/60">
+<Lock strokeWidth={3} />
+												</div>
+											}
 											<div className="space-y-3">
-												<div className="flex items-start justify-between">
-													<div className="flex-1">
-														<div className="font-bold text-xl text-gray-900">
+												<div className="">
+													<div className="flex-1 pb-2 space-y-1">
+														<div className="font-bold text-2xl text-gray-900">
 															Order #{order.order_number ?? order.id}
 														</div>
+														<p className="text-sm text-gray-900 line-clamp-2">
+															{order.notes}
+														</p>
 														<div className="mt-1 flex items-center gap-2 flex-wrap">
-															<span
+															<div
 																className={cn(
-																	"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+																	"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
 																	isOpen ?
-																		"bg-red-100 text-red-800"
-																	:	"bg-green-100 text-green-800"
+																		"bg-primary/10 text-primary"
+																	:	"bg-muted text-muted-foreground"
 																)}
 															>
+																{isOpen && (
+												<div className={cn("w-2 h-2 mr-2 bg-primary rounded-full animate-blink")} />
+											)}
 																{order.status}
-															</span>
+															</div>
 															{order.order_type === "table" &&
 																order.table_number && (
 																	<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -571,17 +586,19 @@ export const Orders: React.FC = () => {
 													</div>
 												</div>
 
-												<div className="pt-2 border-t border-gray-200">
-													<div className="flex items-baseline justify-between flex-wrap">
-														<p className="text-sm text-gray-500">Total</p>
+												<div className="py-3 border-y border-gray-200">
+													<div className="flex items-center justify-between flex-wrap gap-2">
+														<PaymentIcon className="text-muted-foreground/60 size-4" />
+														<p className="text-sm text-gray-500 mr-auto">Total</p>
 														<p className="font-bold text-sm text-gray-900">
 															{formatCurrency(order.amount ?? 0)}
 														</p>
 													</div>
 												</div>
 
-												<div className="text-xs text-gray-400 pt-1">
-													{order.created_at ?
+												<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
+													<Clock className="size-4 text-muted-foreground/60" />
+													{order.created_at ? 
 														new Date(order.created_at).toLocaleString()
 													:	"N/A"}
 												</div>
@@ -594,9 +611,12 @@ export const Orders: React.FC = () => {
 					</div>
 				</div>
 				{/* Right Panel: Order Details */}
-				<div className={cn("min-w-[200px] max-w-[450px] w-full bg-white flex flex-col border-l h-full overflow-y-auto", !selectedOrder && "hidden")}>
-					<div className="flex items-center justify-between p-6 py-4 border-b">
-						<h2 className="text-3xl font-semibold py-0.5">Order Details</h2>
+				<div className={cn("min-w-[200px] max-w-[450px] w-full bg-white flex flex-col h-full overflow-y-auto", !selectedOrder && "hidden")}>
+					<div className="flex items-center justify-between p-6 py-3 border-b">
+						<h2 className="text-2xl font-semibold">Order Details</h2>
+						<Button variant="ghost" size="icon" onClick={()=>setSelectedOrder(null)}>
+							<X />
+						</Button>
 					</div>
 					{!selectedOrder ?
 						<div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20">
@@ -611,15 +631,15 @@ export const Orders: React.FC = () => {
 								details here.
 							</div>
 						</div>
-					:	<div className="flex-1 flex flex-col p-6 space-y-6">
+					:	<div className="flex-1 flex flex-col pt-1 space-y-6">
 							{/* Cart Section */}
-							<div className="border-b pb-6">
-								<div className="text-xl font-semibold mb-4">Cart</div>
+							<div className="border-b p-6 pb-12 h-[40%] overflow-y-auto">
 								{selectedOrderLoading ?
 									<div className="py-2 text-base text-gray-400">
 										Loading order details...
 									</div>
-								:	<ul className="divide-y">
+								:	
+								<ul className="divide-y space-y-2">
 										{selectedOrder.items && selectedOrder.items.length > 0 ?
 											selectedOrder.items.map((item: any, index: number) => {
 												const itemName =
@@ -661,16 +681,16 @@ export const Orders: React.FC = () => {
 												return (
 													<li
 														key={itemKey}
-														className="flex items-center justify-between py-3 text-base"
+														className="flex items-start justify-between py-3 pt-4 text-base"
 													>
-														<div className="flex items-center gap-3 flex-1 min-w-0">
+														<div className="flex items-start gap-3 flex-1 min-w-0">
 															{itemImage ?
 																<img
 																	src={itemImage}
 																	alt={itemName}
-																	className="w-20 h-20 object-cover rounded border flex-shrink-0"
+																	className="w-14 h-14 object-cover rounded-xl border flex-shrink-0"
 																/>
-															:	<div className="w-20 h-20 flex items-center justify-center text-3xl bg-gray-100 rounded border flex-shrink-0">
+															:	<div className="w-14 h-14 flex items-center justify-center text-3xl bg-gray-100 rounded-xl border flex-shrink-0">
 																	{item.item_type === "food" ? "🍽️" : "🍺"}
 																</div>
 															}
@@ -685,7 +705,7 @@ export const Orders: React.FC = () => {
 																	item.extras &&
 																	item.extras.length > 0 && (
 																		<div className="text-xs text-gray-500 mt-1 space-y-1">
-																			<div>Extras:</div>
+																			<div className="font-semibold text-foreground">Extras:</div>
 																			{item.extras.map(
 																				(e: any, extraIndex: number) => {
 																					const extraQty = e.quantity || 1;
@@ -713,9 +733,13 @@ export const Orders: React.FC = () => {
 																			</div>
 																		</div>
 																	)}
+																
 																{item.notes && (
 																	<div className="text-xs text-gray-500 mt-1">
-																		Note: {item.notes}
+																		<span className="font-semibold text-foreground">Note: </span>
+																		<div className="black p-2 bg-muted/50 rounded-xl">
+																			{item.notes}
+																			</div>
 																	</div>
 																)}
 															</div>
@@ -734,12 +758,14 @@ export const Orders: React.FC = () => {
 								}
 							</div>
 							{/* Order Info Section */}
-							<div className="space-y-3 pb-2">
-								<div className="text-xl font-semibold">Order Info</div>
+							<div className="space-y-4 p-6 py-0">
+								<div className="text-base font-semibold">Payment Info</div>
 								<div className="flex items-center justify-between gap-x-2">
-									<span className="text-base text-gray-500">Type:</span>
-									<span className="capitalize text-base font-medium">
-										{selectedOrder.order_type === "takeout" ? "Take-Out" : selectedOrder.order_type === "table" ? "Table" : "Customer"}{" "}
+									<span className="text-base text-gray-500">Order Type:</span>
+									
+									<span className="capitalize text-base font-medium flex items-center gap-2">
+										{OrderTypeIcon ? <OrderTypeIcon className="text-muted-foreground/80 size-4" />:null}
+										{selectedOrder.order_type === "takeout" ? "Take-Out" : selectedOrder.order_type === "table" ? "Table" : "Cushier"}{" "}
 										{selectedOrder.order_type === "table" && selectedOrder.table_number && (
 											<span className="ml-2 text-gray-500">
 												(#{selectedOrder.table_number})
@@ -752,37 +778,32 @@ export const Orders: React.FC = () => {
 										)}
 									</span>
 								</div>
-								<div className="flex items-center justify-between gap-x-2">
+								<div className="">
 									<span className="text-base text-gray-500">Payment:</span>
-									<Select value={selectedOrder.payment_mode} 
-									onValueChange={(value) => {
-										setSelectedOrder({
+									<div className="flex items-center justify-between gap-x-2">
+									{paymentModes.map(({ value, label }) => {
+											const Icon = PaymentModeIcons[value as PaymentModes]
+											return(
+											<Button
+												key={value}
+												className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+												variant={selectedOrder?.payment_mode === value ? "default" : "outline"}
+												onClick={() => setSelectedOrder({
 											...selectedOrder,
-											payment_mode: value as "cash" | "momo" | "card",
-										});
-									}}
-									>
-										<SelectTrigger className="w-[140px] text-base h-12 min-h-0 px-3 py-2">
-											<SelectValue placeholder="Payment Mode" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="cash">Cash</SelectItem>
-											<SelectItem value="momo">Momo</SelectItem>
-											<SelectItem value="card">Card</SelectItem>
-										</SelectContent>
-									</Select>
+											payment_mode: value as PaymentModes,
+										})}
+											>
+												<Icon className="!size-4" />
+												{label}
+											</Button>
+										)})}
+										</div>
 								</div>
-								<div className="flex items-center justify-between gap-x-2">
-									<span className="text-base text-gray-500">Tax:</span>
-									<span className="text-base font-medium">
-										{selectedOrder.tax}%
-									</span>
-								</div>
-								<div className="flex items-start gap-x-4">
+								<div className="">
 									<span className="text-base text-gray-500">Notes:</span>
 									{selectedOrder.status === "open" ?
 										<Textarea
-											className="border resize-none min-h-20 rounded px-3 py-2 text-base flex-1"
+											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
 											defaultValue={selectedOrder.notes || ""}
 											placeholder="Order notes..."
 										/>
@@ -823,7 +844,7 @@ export const Orders: React.FC = () => {
 									const changeDue = Math.max(0, parseFloat(amountTendered || "0") - total);
 									
 									return (
-										<div className="space-y-4">
+										<div className="space-y-4 px-6">
 											<div className="space-y-2">
 												<div className="flex justify-between text-base">
 													<span>Subtotal</span>
@@ -848,23 +869,31 @@ export const Orders: React.FC = () => {
 													<div className="space-y-2">
 														<Label className="text-sm font-semibold text-gray-700">Cash Received</Label>
 														<div className="relative">
-															<span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
+															<span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">GHS</span>
 															<Input
 																type="number"
 																placeholder="0.00"
-																className="pl-8 text-xl font-bold h-12 bg-green-50 border-green-200 focus:ring-green-500"
+																className="pl-14 text-xl font-bold h-12  focus:ring-green-500"
 																value={amountTendered}
 																onChange={(e) => setAmountTendered(e.target.value)}
 															/>
 														</div>
 													</div>
 													
-													{parseFloat(amountTendered || "0") >= total && (
-														<div className="bg-blue-600 text-white p-4 rounded-lg shadow-lg animate-in fade-in zoom-in duration-300">
-															<div className="text-xs uppercase tracking-wider font-semibold opacity-80">Change Due</div>
-															<div className="text-4xl font-black">{formatCurrency(changeDue)}</div>
-														</div>
-													)}
+													{parseFloat(amountTendered) > 0 && (
+																<div className={cn(
+																									"p-4 rounded-lg shadow-lg animate-in fade-in zoom-in duration-300",
+																									parseFloat(amountTendered) - total < 0 ? "bg-red-500" : "bg-blue-600",
+																									"text-white"
+																								)}>
+																									<div className="text-xs uppercase tracking-wider font-semibold opacity-80">
+																										{parseFloat(amountTendered) - total < 0 ? "Amount Remaining" : "Change Due"}
+																									</div>
+																									<div className="text-4xl font-black">
+																										{formatCurrency(Math.abs(parseFloat(amountTendered) - total))}
+																									</div>
+																								</div>
+																							)}
 												</div>
 											)}
 										</div>
@@ -872,7 +901,7 @@ export const Orders: React.FC = () => {
 								})()}
 							</div>
 							{/* Actions Section */}
-							<div className="flex flex-col gap-2">
+							<div className="flex flex-col gap-2 px-6 pb-6">
 								{/* show this button only if there are food items in the order */}
 								{selectedOrder.status === "open" && (selectedOrder.items?.filter((item: any) => item.item_type === "food")?.length ?? 0) > 0 && (
 									<Button

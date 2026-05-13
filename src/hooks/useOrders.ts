@@ -4,6 +4,39 @@ import { showToast } from '@/lib/toast';
 import type { Order } from '../types';
 import { useCallback } from 'react';
 
+export const orderTypes = [
+
+  {
+    value: "customer",
+    label: "Cashier",
+  },
+  {
+    value: "table",
+    label: "Dine-in",
+  },
+  {
+    value: "takeout",
+    label: "Take-Out",
+  },
+
+];
+
+export const paymentModes = [
+  {
+    value: "cash",
+    label: "Cash",
+  },
+  {
+    value: "momo",
+    label: "Mobile Money",
+  },
+  {
+    value: "card",
+    label: "Card",
+  },
+
+];
+
 export function useOrders() {
   const { user } = useAuth();
   const store = useOrderStore();
