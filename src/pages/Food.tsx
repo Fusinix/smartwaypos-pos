@@ -423,12 +423,7 @@ export default function Food() {
 								>
 									{/* Add some dummy items */}
 									{/* eslint-disable */}
-									{[
-										...filteredFoodItems,
-										...filteredFoodItems,
-										...filteredFoodItems,
-										...filteredFoodItems,
-									].map((item) => {
+									{filteredFoodItems.map((item) => {
 										const category = foodCategories.find(
 											(c) => c.id === item.category_id,
 										);
