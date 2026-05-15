@@ -1602,7 +1602,7 @@ ipcMain.handle(
         low_stock_threshold,
         status,
         image
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
 				[
 					product.name,

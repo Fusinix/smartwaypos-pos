@@ -1400,7 +1400,7 @@ electron_1.ipcMain.handle("add-product", async (_, product, payload = {}) => {
         low_stock_threshold,
         status,
         image
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
             product.name,
             product.description,
