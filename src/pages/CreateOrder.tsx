@@ -26,8 +26,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTables } from "@/hooks/useTables";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
-import { Eye, ChevronLeft, Search, Salad, Wine, Trash2, UtensilsCrossed, ShoppingBag, CircleUser, Banknote, Smartphone, CreditCard } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { Eye, ChevronLeft, Search, Salad, Wine, Trash2, ShoppingBasket, Beer, X } from "lucide-react";
 import { FoodItemSelectionDialog } from "@/components/orders/FoodItemSelectionDialog";
 import { AlertWithActions } from "@/components/alerts/alert-with-actions";
 import { useReceipt } from "@/hooks/useReceipt";
@@ -37,8 +36,14 @@ import { useKeyboard } from "@/context/KeyboardContext";
 import { Textarea } from "@/components/ui/textarea";
 import { History, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { Icon } from "@radix-ui/react-select";
 import { OrderTypeIcons, PaymentModeIcons, type OrderTypes, type PaymentModes } from "@/components/Icons";
+
+export const CategoryComponent =({cat, activeCategory, setActiveCategory}:{cat: any, activeCategory:any, setActiveCategory:(val:any)=>void})=>{
+	return <div key={cat.id} className={cn("p-4 h-18 border rounded-xl flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group", cat.id == activeCategory ? "bg-primary border-primary text-primary-foreground ":"" )} onClick={()=>setActiveCategory(cat?.id as any)}>
+													<ShoppingBasket className={cn("size-6 text-muted-foreground/60", (cat.id as any) == activeCategory ? "text-primary-foreground":"", "group-hover:text-primary")}/>
+													{cat.name}
+												</div>
+}
 
 export const CreateOrder: React.FC = () => {
 	const { products, loading: productsLoading, fetchProducts } = useProducts();
@@ -176,10 +181,10 @@ export const CreateOrder: React.FC = () => {
 
 	const filteredFoodItems = foodItems.filter((item) => {
 		const matchesSearch = item.name
-			.toLowerCase()
-			.includes(search.toLowerCase());
+		.toLowerCase()
+		.includes(search.toLowerCase());
 		const matchesCategory =
-			foodCategory === "all" || item.category_id.toString() === foodCategory;
+		foodCategory === "all" || item.category_id.toString() == foodCategory;
 		return matchesSearch && matchesCategory && item.status === "active";
 	});
 
@@ -210,12 +215,6 @@ export const CreateOrder: React.FC = () => {
 		selectedExtras: number[],
 		notes: string
 	) => {
-		console.log("addFoodToCart called with:", {
-			foodItem: foodItem.name,
-			selectedExtras,
-			notes,
-			extrasCount: selectedExtras.length,
-		});
 		setCart((prev) => {
 			if (editingCartIndex !== null) {
 				// Update existing item
@@ -236,7 +235,6 @@ export const CreateOrder: React.FC = () => {
 				extraIds: selectedExtras || [],
 				notes: notes || undefined,
 			};
-			console.log("New cart item:", newCartItem);
 			return [...prev, newCartItem];
 		});
 	};
@@ -368,14 +366,6 @@ export const CreateOrder: React.FC = () => {
 						extraIds: Array.isArray(item.extraIds) ? item.extraIds : [],
 						notes: item.notes || undefined,
 					};
-					console.log(
-						"Food item payload:",
-						foodPayload,
-						"extraIds type:",
-						typeof item.extraIds,
-						"isArray:",
-						Array.isArray(item.extraIds)
-					);
 					return foodPayload;
 				}
 			}),
@@ -390,7 +380,6 @@ export const CreateOrder: React.FC = () => {
 		try {
 			// Trigger cash drawer ONLY for in-house orders being paid with cash immediately
 			if (orderType === "customer" && paymentMode.toLowerCase() === "cash") {
-				console.log("Triggering cash drawer for in-house order...");
 				try {
 					await window.electron.invoke("trigger-cash-drawer");
 				} catch (drawerError) {
@@ -413,6 +402,8 @@ export const CreateOrder: React.FC = () => {
 		}
 	};
 
+	const CategoriesToUse = activeTab === "drinks" ? categories:foodCategories
+
 	return (
 		<>
 			<div className="w-full h-[calc(100%-1px)] p-0 !overflow-hidden !relative">
@@ -424,8 +415,9 @@ export const CreateOrder: React.FC = () => {
 
 								<Button
 									variant={"ghost"}
+									size="icon"
 									onClick={() => navigate(-1)}
-									className="w-fit"
+									// className="w-fit"
 								>
 									<ChevronLeft />
 								</Button>
@@ -447,11 +439,52 @@ export const CreateOrder: React.FC = () => {
 								
 							</div>
 
-							<div className="px-6 py-2 border-b flex space-x-4">
-								<div className="flex-1 flex items-center relative max-w-md">
+							
+							</div>
+
+							{/* Product/Food Grid */}
+							<div className="flex-1 flex flex-row overflow-y-auto">
+								<div className="w-[250px] border-r overflow-y-auto bg-white h-full">
+									<div className="h-16 border-b flex items-center justify-between px-4">
+										<h2 className="font-semibold text-md">
+											Categories
+										</h2>
+										{
+											(category != "all" || foodCategory != "all") && 
+										<Button variant="ghost" className="h-9 gap-1 px-2.5 rounded-lg text-xs bg-muted" onClick={()=>(activeTab === "drinks" ? setCategory : setFoodCategory)?.("all") }>
+											<X className="!size-3" /> Clear
+										</Button>
+										}
+									</div>
+									<div className="flex-1 h-full overflow-y-auto p-4 space-y-4">
+										{
+											CategoriesToUse.map((cat) => <CategoryComponent key={cat.id} cat={cat} activeCategory={activeTab === "drinks" ? category:foodCategory} setActiveCategory={activeTab === "drinks" ? setCategory : setFoodCategory} />)
+										}
+									</div>
+								</div>
+								<div className="flex-1">
+									<div className="px-4 py-2 border-b flex items-center space-x-4 bg-card h-16">
+										<Button
+								variant={activeTab === "drinks"?"default":"outline"}
+								className={cn("hover:bg-primary/10 text-primary shadow-none", activeTab === "drinks"?"text-primary-foreground hover:bg-primary":"text-muted-foreground")}
+									onClick={() => setActiveTab("drinks")}
+								>
+									
+											<Beer />
+									Drinks
+								</Button>
+								<Button
+								variant={activeTab === "food"?"default":"outline"}
+								className={cn("hover:bg-primary/10 text-primary shadow-none", activeTab === "food"?"text-primary-foreground hover:bg-primary":"text-muted-foreground")}
+									onClick={() => setActiveTab("food")}
+								>
+									<Salad />
+									Food
+								</Button>
+								<div className="flex-1 flex items-center relative !ml-auto max-w-lg">
 								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
 							<Input
-								className="flex-1 text-base rounded-full pl-11"
+								className="flex-1 text-base rounded-md pl-11 bg-muted/80 h-10"
 									id="order-search"
 									name="order-search"
 									placeholder={
@@ -463,48 +496,16 @@ export const CreateOrder: React.FC = () => {
 									onChange={(e) => setSearch(e.target.value)}
 								/>
 								</div>
-								{activeTab === "drinks" ?
-									<Select value={category} onValueChange={setCategory}>
-										<SelectTrigger className="w-36">
-											<SelectValue placeholder="All Categories" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											{categories.map((cat) => (
-												<SelectItem key={cat.id} value={String(cat.id)}>
-													{cat.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								:	<Select value={foodCategory} onValueChange={setFoodCategory}>
-										<SelectTrigger className="w-36">
-											<SelectValue placeholder="All Categories" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											{foodCategories.map((cat) => (
-												<SelectItem key={cat.id} value={String(cat.id)}>
-													{cat.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								}
 							</div>
-							</div>
-
-							{/* Product/Food Grid */}
-							<div className="flex-1 overflow-y-auto px-6 py-6">
 								<div
 	className={cn(
-		"grid gap-6",
+		"grid gap-6 p-6",
 		isKeyboardOpen || cart.length > 0
 			? activeTab === "drinks"
 				? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
 				: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
 			: activeTab === "drinks"
-				? "grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+				? "grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6"
 				: "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
 	)}
 
@@ -564,7 +565,7 @@ export const CreateOrder: React.FC = () => {
 																</div>
 															)}
 															{isInCart && !isOutOfStock && (
-																<div className="absolute top-2 left-24 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+																<div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
 																	In Cart
 																</div>
 															)}
@@ -583,9 +584,15 @@ export const CreateOrder: React.FC = () => {
 											})
 
 									: filteredFoodItems.length === 0 ?
-										<div className="col-span-full text-center text-gray-400 py-20 text-lg">
-											No food items found.
-										</div>
+									<div className="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
+	<h3 className="text-lg font-semibold text-gray-700">
+		No food items found{foodCategory ? ` under ${foodCategories?.find(c=>c.id as any == foodCategory)?.name} category`:""}.
+	</h3>
+	<p className="mt-1 max-w-sm text-sm text-gray-400 capitalize">
+		{activeTab} will appear here once you start adding them.
+	</p>
+
+</div>
 									:	filteredFoodItems.map((foodItem) => {
 											return (
 												<div
@@ -625,10 +632,11 @@ export const CreateOrder: React.FC = () => {
 										})
 									}
 								</div>
+								</div>
 							</div>
 						</div>
 						{/* Right: Cart and finalization */}
-						<div className={cn("w-1/3 bg-white flex flex-col h-full min-h-0", cart.length === 0 && "hidden")}>
+						<div className={cn("w-1/4 bg-white flex flex-col h-full min-h-0", cart.length === 0 && "hidden")}>
 							{/* Cart Header */}
 							<div className="px-6 py-2 border-b flex-shrink-0 flex justify-between items-center">
 								<div>

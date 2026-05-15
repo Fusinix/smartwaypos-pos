@@ -24,9 +24,10 @@ import { useSettings } from "@/hooks/useSettings";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
 import type { Order, OrderItemDetail } from "@/types";
-import { X, Eye } from "lucide-react";
+import { X, Eye, Salad, Beer, Search, Trash2 } from "lucide-react";
 import { FoodItemSelectionDialog } from "./FoodItemSelectionDialog";
 import { EditFoodItemDialog } from "./EditFoodItemDialog";
+import { CategoryComponent } from "@/pages/CreateOrder";
 
 interface EditOrderItemsDialogProps {
 	open: boolean;
@@ -102,7 +103,7 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 			.toLowerCase()
 			.includes(search.toLowerCase());
 		const matchesCategory =
-			foodCategory === "all" || item.category_id.toString() === foodCategory;
+			foodCategory === "all" || item.category_id.toString() == foodCategory;
 		return matchesSearch && matchesCategory && item.status === "active";
 	});
 
@@ -298,30 +299,55 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 
 	const { subtotal, taxAmount, total } = calculateTotals();
 
+	const CategoriesToUse = activeTab === "drinks" ? categories:foodCategories
+
 	return (
 		<>
 			<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
 				<DialogContent className="max-w-[90vw] h-[90vh] w-full p-0 overflow-hidden">
 					<div className="flex h-full min-h-0">
 						{/* Left: Product/Food selection */}
-						<div className="w-1/2 border-r bg-muted/50 flex flex-col min-h-0">
+						<div className="flex flex-1">
+							<div className="w-[250px] border-r overflow-y-auto bg-white h-full">
+																<div className="h-16 border-b flex items-center justify-between px-4">
+																	<h2 className="font-semibold text-md">
+																		Categories
+																	</h2>
+																	{
+																		(category != "all" || foodCategory != "all") && 
+																	<Button variant="ghost" className="h-9 gap-1 px-2.5 rounded-lg text-xs bg-muted" onClick={()=>(activeTab === "drinks" ? setCategory : setFoodCategory)?.("all") }>
+																		<X className="!size-3" /> Clear
+																	</Button>
+																	}
+																</div>
+																<div className="flex-1 h-full overflow-y-auto p-4 space-y-4">
+																	{
+																		CategoriesToUse.map((cat) => <CategoryComponent key={cat.id} cat={cat} activeCategory={activeTab === "drinks" ? category:foodCategory} setActiveCategory={activeTab === "drinks" ? setCategory : setFoodCategory} />)
+																	}
+																</div>
+															</div>
+						<div className="flex-1 border-r bg-muted/50 flex flex-col min-h-0">
 							{/* Tabs */}
-							<div className="flex border-b py-1">
+							<div className="flex border-b p-1 px-4 gap-4 bg-card h-16 items-center">
 								<Button
-									variant={activeTab === "drinks" ? "default" : "ghost"}
+									variant={activeTab === "drinks" ? "default" : "outline"}
 									onClick={() => setActiveTab("drinks")}
 								>
+									<Salad />
 									Drinks
 								</Button>
 								<Button
-									variant={activeTab === "food" ? "default" : "ghost"}
+									variant={activeTab === "food" ? "default" : "outline"}
 									onClick={() => setActiveTab("food")}
 								>
+									<Beer />
 									Food
 								</Button>
 							</div>
 
-							<div className="p-4 border-b flex space-x-2">
+							<div className="p-4 py-1 border-b flex space-x-2 h-14 items-center bg-card">
+								<div className="flex items-center relative flex-1">
+								<Search className="size-4 text-muted-foreground left-4 z-10 absolute " />
 								<Input
 									placeholder={
 										activeTab === "drinks" ? "Search drinks..." : (
@@ -330,36 +356,9 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 									}
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
-									className="flex-1"
+									className="flex-1 h-10 pl-10 bg-muted/80"
 								/>
-								{activeTab === "drinks" ?
-									<Select value={category} onValueChange={setCategory}>
-										<SelectTrigger className="w-36">
-											<SelectValue placeholder="All Categories" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											{categories.map((cat) => (
-												<SelectItem key={cat.id} value={String(cat.id)}>
-													{cat.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								:	<Select value={foodCategory} onValueChange={setFoodCategory}>
-										<SelectTrigger className="w-36">
-											<SelectValue placeholder="All Categories" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											{foodCategories.map((cat) => (
-												<SelectItem key={cat.id} value={String(cat.id)}>
-													{cat.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								}
+								</div>
 							</div>
 
 							{/* Product/Food Grid */}
@@ -401,11 +400,11 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 																/>
 															)}
 														</div>
-														<div className="pt-2 flex flex-col gap-1">
+														<div className="pt-2 flex flex-col gap-1 text-center">
 															<div className="font-normal text-sm">
 																{product.name}
 															</div>
-															<div className="text-base font-semibold text-foreground">
+															<div className="text-base font-semibold text-primary">
 																{formatCurrency(product.price)}
 															</div>
 															<div className="text-xs text-gray-500">
@@ -417,7 +416,7 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 																)}
 																{isInOrder && (
 																	<span className="text-blue-600 ml-1">
-																		(In Order)
+																		(In Cart)
 																	</span>
 																)}
 															</div>
@@ -434,11 +433,11 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 											return (
 												<div
 													key={foodItem.id}
-													className="bg-white rounded-lg overflow-hidden shadow-sm transition-all cursor-pointer hover:shadow-md hover:scale-[1.02]"
+													className="p-1 bg-white rounded-lg overflow-hidden shadow-sm transition-all cursor-pointer hover:shadow-md hover:scale-[1.02]"
 													onClick={() => setSelectedFoodItem(foodItem)}
 												>
-													<div className="w-full aspect-square bg-gray-100 overflow-hidden relative">
-														<div className="bg-muted/50 h-full w-full">
+													<div className="w-full aspect-square bg-gray-100 overflow-hidden relative rounded-md">
+														<div className="bg-muted/50 h-full w-full ">
 															{foodItem.image ?
 																<img
 																	src={foodItem.image}
@@ -451,11 +450,11 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 															}
 														</div>
 													</div>
-													<div className="p-3">
-														<div className="font-semibold text-base text-gray-900 mb-1 line-clamp-2">
+													<div className="p-3 text-center">
+														<div className="font-medium text-base text-gray-900 mb-1 line-clamp-2">
 															{foodItem.name}
 														</div>
-														<div className="text-lg font-bold text-gray-900">
+														<div className="text-lg font-bold text-primary">
 															{formatCurrency(foodItem.price)}
 														</div>
 													</div>
@@ -466,11 +465,12 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 								</div>
 							</div>
 						</div>
+						</div>
 
 						{/* Right: Order items and totals */}
-						<div className="w-1/2 flex flex-col h-full min-h-0">
+						<div className="w-1/3 flex flex-col h-full min-h-0">
 							<div className="border-b flex-1 flex flex-col min-h-0">
-								<div className="flex items-center justify-between p-4 py-5 border-b">
+								<div className="flex items-center justify-between p-4 h-16 py-1 border-b">
 									<h2 className="text-lg font-semibold py-0.5">
 										Order Items ({editingItems.length})
 									</h2>
@@ -493,9 +493,9 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 												return (
 													<li
 														key={`drink-${item.product_id}-${index}`}
-														className="flex items-center justify-between py-2 gap-3"
+														className="flex items-start justify-between py-6 gap-3"
 													>
-														<div className="size-12 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+														<div className="size-14 rounded-xl overflow-hidden bg-muted flex-shrink-0 p-1">
 															{item.image ?
 																<img
 																	src={item.image}
@@ -507,19 +507,19 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 																</div>
 															}
 														</div>
-														<div className="flex-1 min-w-0">
-															<div className="font-normal text-sm">
+														<div className="flex-1 min-w-0 flex-col">
+															<div className="font-semibold text-base flex items-start gap-2 justify-between">
 																{item.product_name}
-															</div>
-															<div className="text-base font-semibold">
+																<div className="text-base font-semibold">
 																{formatCurrency(item.price)}
 															</div>
-														</div>
-														<div className="flex items-center space-x-2 flex-shrink-0">
+															</div>
+														
+														<div className="flex items-center justify-end space-x-2 flex-shrink-0 mt-4">
 															<Button
 																size="icon"
-																variant="outline"
-																className="size-8"
+																variant="ghost"
+																className="bg-muted rounded-md"
 																onClick={() =>
 																	updateItemQuantity(
 																		item.product_id,
@@ -546,12 +546,12 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 																		Number(e.target.value)
 																	)
 																}
-																className="w-16 h-9"
+																className="flex-1 h-11 max-w-[100px]"
 															/>
 															<Button
 																size="icon"
-																variant="outline"
-																className="size-8"
+																variant="ghost"
+																className="bg-muted rounded-md"
 																onClick={() =>
 																	updateItemQuantity(
 																		item.product_id,
@@ -579,13 +579,12 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 															<Button
 																size="icon"
 																variant="ghost"
-																className="size-8"
-																onClick={() =>
-																	removeFromOrder(item.product_id, "drink")
-																}
+																className="bg-destructive/10 hover:bg-destructive/20 rounded-md !ml-12"
+																onClick={() => removeFromOrder(item.product_id, "drink")}
 															>
-																<X />
+																<Trash2 className="text-destructive" />
 															</Button>
+														</div>
 														</div>
 													</li>
 												);
@@ -601,9 +600,9 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 												return (
 													<li
 														key={`food-${item.food_item_id}-${index}`}
-														className="flex items-start justify-between py-2 gap-3"
+														className="flex items-start justify-between py-6 gap-3"
 													>
-														<div className="size-12 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+														<div className="size-14 rounded-xl overflow-hidden bg-muted flex-shrink-0">
 															{item.image ?
 																<img
 																	src={item.image}
@@ -615,19 +614,19 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 																</div>
 															}
 														</div>
-														<div className="flex-1 min-w-0">
+														<div className="flex-1 flex-col min-w-0">
 															<div
-																className="font-normal text-sm cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
-																onClick={() =>
-																	setEditingFoodItem({ item, index })
-																}
+																className="font-semibold text-base cursor-pointer flex justify-between"
+																
 															>
 																{item.food_item_name}
-																<Eye className="h-4 w-4 text-gray-400" />
+																<div className="text-base font-semibold mt-1">
+																{formatCurrency(itemPrice)}
+															</div>
 															</div>
 															{itemExtras.length > 0 && (
 																<div className="text-xs text-gray-500 mt-1 space-y-0.5">
-																	<div>Extras:</div>
+																	<div className="font-semibold text-foreground">Extras:</div>
 																	{itemExtras.map((e, extraIdx) => (
 																		<div key={extraIdx} className="pl-2">
 																			{e.name}
@@ -643,18 +642,26 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 															)}
 															{item.notes && (
 																<div className="text-xs text-gray-500 mt-1">
-																	Note: {item.notes}
+																	<span className="font-semibold text-foreground">Note: </span>
+																	<div className="p-2 bg-muted/60 rounded-md ml-2 mt-1">{item.notes}</div>
 																</div>
 															)}
-															<div className="text-base font-semibold mt-1">
-																{formatCurrency(itemPrice)} × {item.quantity}
-															</div>
-														</div>
-														<div className="flex items-center space-x-2 flex-shrink-0">
+															
+														<div className="flex items-center space-x-2 flex-shrink-0 mt-4">
 															<Button
 																size="icon"
-																variant="outline"
-																className="size-8"
+																variant="ghost"
+																className="bg-muted rounded-md mr-auto"
+																onClick={() =>
+																	setEditingFoodItem({ item, index })
+																}
+															>
+																<Eye />
+															</Button>
+															<Button
+																size="icon"
+																variant="ghost"
+																className="bg-muted rounded-md"
 																onClick={() =>
 																	updateItemQuantity(
 																		index,
@@ -676,12 +683,12 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 																		Math.max(1, Number(e.target.value))
 																	)
 																}
-																className="w-20 h-9"
+																className="flex-1 h-11 max-w-[100px]"
 															/>
 															<Button
 																size="icon"
-																variant="outline"
-																className="size-8"
+																variant="ghost"
+																className="bg-muted rounded-md"
 																onClick={() =>
 																	updateItemQuantity(
 																		index,
@@ -695,11 +702,12 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 															<Button
 																size="icon"
 																variant="ghost"
-																className="size-8"
-																onClick={() => removeFromOrder(index, "food")}
+																className="bg-destructive/10 hover:bg-destructive/20 rounded-md !ml-12"
+																onClick={() =>removeFromOrder(index, "food")}
 															>
-																<X />
+																<Trash2 className="text-destructive" />
 															</Button>
+														</div>
 														</div>
 													</li>
 												);
@@ -711,7 +719,7 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 
 							{/* Totals and actions */}
 							<div className="p-4 space-y-4 border-t flex-shrink-0">
-								<div className="space-y-3 border-t pt-3">
+								<div className="space-y-3">
 									<div className="flex justify-between text-sm">
 										<span>Subtotal</span>
 										<span>{formatCurrency(subtotal)}</span>
@@ -720,7 +728,7 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 										<span>Tax ({tax}%)</span>
 										<span>{formatCurrency(taxAmount)}</span>
 									</div>
-									<div className="flex justify-between font-semibold text-lg">
+									<div className="flex justify-between font-semibold text-lg border-y py-3">
 										<span>Total</span>
 										<span>{formatCurrency(total)}</span>
 									</div>

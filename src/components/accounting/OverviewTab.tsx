@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
-  Plus,
   FileText,
-  AlertCircle,
-  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -56,7 +53,7 @@ const OverviewTab: React.FC<any> = ({ stats, analytics, expenses = [], filters }
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Summary Cards */}
       <div>
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Summary</h2>
+        <h2 className="text-xs font-bold text-gray-500 mb-4">Summary</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
             title="Total revenue" 
@@ -88,7 +85,7 @@ const OverviewTab: React.FC<any> = ({ stats, analytics, expenses = [], filters }
 
       {/* P&L and Cost Analysis */}
       <div>
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">P&L & Cost Analysis</h2>
+        <h2 className="text-xs font-bold text-gray-500 mb-4">P&L & Cost Analysis</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Profit & Loss Statement */}
           <div className="bg-white border border-gray-100 rounded-2xl p-8 shadow-sm">
@@ -175,7 +172,7 @@ const OverviewTab: React.FC<any> = ({ stats, analytics, expenses = [], filters }
 
       {/* Expenses, Reconciliation & Tax */}
       <div>
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Expenses, Reconciliation & Tax</h2>
+        <h2 className="text-xs font-bold text-gray-500 mb-4">Expenses, Reconciliation & Tax</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Expense Breakdown */}
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
@@ -199,7 +196,7 @@ const OverviewTab: React.FC<any> = ({ stats, analytics, expenses = [], filters }
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-bold text-gray-900">Payment methods</h3>
-              <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Live</span>
+              <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wider">Live</span>
             </div>
             <div className="space-y-4">
               {analytics.paymentMethods?.map((pm: any) => (
@@ -218,7 +215,7 @@ const OverviewTab: React.FC<any> = ({ stats, analytics, expenses = [], filters }
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-bold text-gray-900">Tax & VAT ledger</h3>
-              <span className="bg-blue-500/10 text-blue-500 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Estimated</span>
+              <span className="bg-blue-500/10 text-blue-500 text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wider">Estimated</span>
             </div>
             <div className="space-y-4">
               <div className="flex justify-between text-xs py-2 border-b border-gray-50">

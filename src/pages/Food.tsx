@@ -41,7 +41,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import type { FoodItem, FoodCategory, FoodExtra, NewFoodExtra } from "@/types/food";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Utensils, Plus, Search } from "lucide-react";
+import { Utensils, Plus, Search, ShoppingBasket, Salad, Dessert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useKeyboard } from "@/context/KeyboardContext";
 
@@ -160,8 +160,8 @@ export default function Food() {
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
 			<div className="bg-white">
-				<div className="flex justify-between items-center border-b px-8 py-2">
-					<h1 className="text-3xl font-bold text-gray-900">Food Management</h1>
+				<div className="flex justify-between items-center border-b px-4 py-2">
+					<h1 className="text-3xl font-bold text-gray-900">Food Inventory</h1>
 					<div className="flex gap-2">
 						{canManageFood && activeTab === "items" && (
 							<Button onClick={() => setIsAddDialogOpen(true)} className="text-base">
@@ -181,22 +181,23 @@ export default function Food() {
 					</div>
 				</div>
 				{/* Tabs */}
-				<div className="flex gap-2 py-2 px-8">
-					<Button variant={activeTab === "items" ? "default" : "ghost"} onClick={() => setActiveTab("items")}>Food Items</Button>
+				<div className="flex gap-2 py-2 px-4">
+					<Button variant={activeTab === "items" ? "default" : "outline"} onClick={() => {setActiveTab("items"); setSearch("")}}>
+						<Salad /> Food Items</Button>
 					{canManageFood && (
-						<Button variant={activeTab === "categories" ? "default" : "ghost"} onClick={() => setActiveTab("categories")}>Categories</Button>
+						<Button variant={activeTab === "categories" ? "default" : "outline"} onClick={() => {setActiveTab("categories"); setCategorySearch("")}}><ShoppingBasket />Categories</Button>
 					)}
 					{canManageFood && (
-						<Button variant={activeTab === "extras" ? "default" : "ghost"} onClick={() => setActiveTab("extras")}>Extras</Button>
+						<Button variant={activeTab === "extras" ? "default" : "outline"} onClick={() => {setActiveTab("extras"); setExtrasSearch("")}}><Dessert />Extras</Button>
 					)}
 				</div>
-				<div className="py-2 px-8 border-t flex items-center gap-4">
+				<div className={cn("py-2 px-4 border-t flex items-center gap-4")}>
 					<div className="flex-1 w-full max-w-lg flex items-center relative">
-						<Search className="absolute left-2 h-4 w-4 text-muted-foreground" />
-						<Input className="pl-8 rounded-full" placeholder="Search food items..." value={search} onChange={(e) => setSearch(e.target.value)} />
+						<Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
+						<Input className="pl-8 rounded-md h-10 bg-muted/80" placeholder={`Search ${activeTab === "items"? "food items" : activeTab}...`} value={activeTab === "items" ? search : activeTab==="categories" ? categorySearch : extrasSearch } onChange={(e) => (activeTab === "items" ? setSearch:activeTab==="categories"?setCategorySearch:setExtrasSearch)(e.target.value)} />
 					</div>
 						
-							{foodCategories?.length ? (
+							{activeTab === "items" && foodCategories?.length ? (
 								<Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value)}>
 									<SelectTrigger className="w-fit"><SelectValue placeholder="Select category" /></SelectTrigger>
 									<SelectContent>
@@ -212,7 +213,7 @@ export default function Food() {
 			</div>
 
 			{/* Main Content */}
-			<div className="flex-1 px-8 py-6 overflow-y-auto">
+			<div className="flex-1 p-4 overflow-y-auto">
 				<SimpleAlert open={!!error} onOpenChange={() => setError(null)} message={error || ""} />
 
 				{/* ── ITEMS TAB ── */}
@@ -263,38 +264,38 @@ export default function Food() {
 									const category = foodCategories.find((c) => c.id === item.category_id);
 									const itemExtras = foodExtras.filter((e) => item.extras?.some((ie) => ie.id === e.id));
 									return (
-										<div key={item.id} className="bg-white border rounded-lg overflow-hidden hover:shadow-lg transition-all h-fit">
-											<div className="w-full aspect-square bg-gray-100 relative overflow-hidden">
+										<div key={item.id} className="bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all h-fit p-1">
+											<div className="w-full aspect-square bg-gray-100 rounded-md relative overflow-hidden">
 												{item.image ? (
 													<img src={item.image} alt={item.name} className="w-full h-full object-cover" />
 												) : (
 													<div className="w-full h-full flex items-center justify-center text-gray-400 text-6xl">🍽️</div>
 												)}
 												<div className="absolute top-2 right-2">
-													<span className={`px-2 py-1 inline-flex text-xs font-semibold rounded-full ${item.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+													<span className={`px-2 py-1 inline-flex text-xs font-semibold capitalize rounded-full ${item.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
 														{item.status}
 													</span>
 												</div>
 											</div>
-											<div className="p-4 space-y-3">
-												<div>
+											<div className="">
+												<div className="p-3">
 													<h3 className="font-bold text-lg text-gray-900 line-clamp-2">
 														{item.name} - <span className="font-bold text-sm text-gray-900">({formatCurrency(Number(item?.price) || 0)})</span>
 													</h3>
-													<p className="text-sm text-gray-500 capitalize mt-1">{category?.name || "Uncategorized"}</p>
+													<p className="text-sm text-gray-500 capitalize mt-1 flex items-center gap-2 bg-primary/10 p-1 px-2 rounded-full w-fit">
+														<ShoppingBasket className="size-4" /> {category?.name || "Uncategorized"}</p>
 												</div>
-												{itemExtras.length > 0 && (
-													<div className="pt-2 border-t border-gray-200">
+												<div className="p-3 border-t border-gray-200">
 														<p className="text-xs text-gray-500 mb-1">Available Extras:</p>
 														<div className="flex flex-wrap gap-1">
-															{itemExtras.map((extra) => (
+															{itemExtras.length > 0 ? itemExtras.map((extra) => (
 																<span key={extra.id} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{extra.name}</span>
-															))}
+															)) : <span className="text-xs text-muted-foreground/80 italic">No extras added</span>}
 														</div>
 													</div>
-												)}
+												
 												{canManageFood && (
-													<div className="flex gap-2 pt-3 border-t border-gray-200 flex-wrap">
+													<div className="flex gap-2 p-3 border-t border-gray-200 flex-wrap">
 														<Button variant="outline" size="sm" onClick={() => setEditingFoodItem(item)} className="flex-1 text-base">Edit</Button>
 														<Button variant="destructive" size="sm" onClick={() => setFoodItemToDelete(item)} className="flex-1 text-base">Delete</Button>
 													</div>
@@ -329,9 +330,6 @@ export default function Food() {
 				{/* ── CATEGORIES TAB ── */}
 				{activeTab === "categories" && (
 					<>
-						<div className="mb-6">
-							<Input placeholder="Search categories..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} />
-						</div>
 						{loading ? (
 							<div className="text-center py-4 text-lg">Loading...</div>
 						) : filteredCategories.length === 0 ? (
@@ -406,9 +404,6 @@ export default function Food() {
 								</Card>
 							</div>
 						)}
-						<div className="mb-6">
-							<Input placeholder="Search extras..." value={extrasSearch} onChange={(e) => setExtrasSearch(e.target.value)} />
-						</div>
 						{extrasLoading ? (
 							<div className="text-center py-4 text-lg">Loading...</div>
 						) : filteredExtras.length === 0 ? (

@@ -93,7 +93,7 @@ export default function AddEditProductDialog({
 
     return (
         <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{product ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                 </DialogHeader>

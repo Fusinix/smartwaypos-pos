@@ -4,7 +4,6 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import {
 	BarChart3,
 	Beer,
@@ -13,20 +12,18 @@ import {
 	LayoutDashboard,
 	LogOut,
 	Menu,
-	Search,
 	Settings,
 	ShieldCheck,
 	User,
 	Bell,
-	Globe,
 	Package,
 	AlertTriangle,
 	MoreVertical,
 	Minimize,
 	Maximize,
-  Timer,
-	Utensils,
-	BarChart,
+	Timer,
+	PieChart,
+	Salad,
 } from "lucide-react";
 import { useShifts } from "../../hooks/useShifts";
 import { Logo } from "../ui/logo";
@@ -55,9 +52,7 @@ export const Layout: React.FC = () => {
 		getLowStockProducts,
 		getOutOfStockProducts,
 	} = useStock();
-	const {
-		settings,
-	  } = useSettings();
+	const { settings } = useSettings();
 	const { orders, fetchOrders } = useOrders();
 	const { activeShift, clockIn, clockOut } = useShifts();
 	const [shiftTimer, setShiftTimer] = useState("00:00:00");
@@ -89,10 +84,10 @@ export const Layout: React.FC = () => {
 			};
 			loadNotifications();
 
-			if(settings?.pos?.fullscreen){
-				setIsFullScreen(true)
-			}else{
-				setIsFullScreen(false)
+			if (settings?.pos?.fullscreen) {
+				setIsFullScreen(true);
+			} else {
+				setIsFullScreen(false);
 			}
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,12 +110,12 @@ export const Layout: React.FC = () => {
 	// Calculate notification counts (memoized to prevent unnecessary recalculations)
 	const activeOrdersCount = useMemo(
 		() => orders.filter((order) => order.status === "open").length,
-		[orders]
+		[orders],
 	);
 	const notificationCount = useMemo(
 		() =>
 			lowStockProducts.length + outOfStockProducts.length + activeOrdersCount,
-		[lowStockProducts.length, outOfStockProducts.length, activeOrdersCount]
+		[lowStockProducts.length, outOfStockProducts.length, activeOrdersCount],
 	);
 
 	const isAdmin = user?.role === "admin";
@@ -143,7 +138,7 @@ export const Layout: React.FC = () => {
 					hour: "2-digit",
 					minute: "2-digit",
 					second: "2-digit",
-				})
+				}),
 			);
 
 			if (activeShift?.clock_in) {
@@ -153,7 +148,7 @@ export const Layout: React.FC = () => {
 				const mins = Math.floor((diff % 3600000) / 60000);
 				const secs = Math.floor((diff % 60000) / 1000);
 				setShiftTimer(
-					`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+					`${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`,
 				);
 			}
 		}, 1000);
@@ -173,11 +168,11 @@ export const Layout: React.FC = () => {
 			[{ path: "/orders", icon: ClipboardList, label: "Orders" }]
 		:	[]),
 		{ path: "/products", icon: Beer, label: "Drinks" },
-		{ path: "/food", icon: Utensils, label: "Food" },
+		{ path: "/food", icon: Salad, label: "Food" },
 		...(isAdmin ?
 			[
-				{ path: "/accounting", icon: BarChart, label: "Accounting" },
-				{ path: "/settings", icon: Settings, label: "Settings" }
+				{ path: "/accounting", icon: PieChart, label: "Accounting" },
+				{ path: "/settings", icon: Settings, label: "Settings" },
 			]
 		:	[]),
 	];
@@ -192,9 +187,9 @@ export const Layout: React.FC = () => {
 			>
 				{/* Logo/Brand */}
 				<div className="h-16 flex items-center px-2 overflow-hidden">
-					<Logo 
+					<Logo
 						size="md"
-						showText={sidebarOpen} 
+						showText={sidebarOpen}
 						className={cn("transition-all duration-300 mx-auto !border-none")}
 					/>
 				</div>
@@ -208,12 +203,13 @@ export const Layout: React.FC = () => {
 							<Link
 								key={item.path}
 								to={item.path}
-								className={cn('flex items-center gap-3 px-4 py-4 text-base font-medium transition-colors hover:bg-white border-l-4',
+								className={cn(
+									"flex items-center gap-3 px-4 py-4 text-base font-medium transition-colors hover:bg-white border-l-4",
 									isActive ?
 										"bg-primary/10 text-primary !border-primary hover:bg-primary/20"
 									:	"text-gray-700 hover:bg-muted/70 border-transparent",
 
-									sidebarOpen ? "px-6":"justify-center"
+									sidebarOpen ? "px-6" : "justify-center",
 								)}
 							>
 								<Icon className="size-6 flex-shrink-0" />
@@ -259,9 +255,9 @@ export const Layout: React.FC = () => {
 			</aside>
 
 			{/* Main Content Area */}
-			<div className="flex-1 flex flex-col min-w-0 " >
+			<div className="flex-1 flex flex-col min-w-0 ">
 				{/* Top Header Bar */}
-				<header className="bg-primary/90 border-b h-14 flex items-center justify-between px-6 sticky top-0 z-10 gap-4">
+				<header className="bg-primary border-b h-14 flex items-center justify-between px-6 sticky top-0 z-10 gap-4">
 					<div className="flex items-center gap-4 flex-1">
 						<Button
 							variant="ghost"
@@ -306,43 +302,47 @@ export const Layout: React.FC = () => {
 								)}
 							</DropdownMenuContent>
 						</DropdownMenu>
-								{/* Shift Clock In/Out */}
+						{/* Shift Clock In/Out */}
 						<div className="flex items-center gap-3">
-							{activeShift ? (
+							{activeShift ?
 								<div className="flex items-center gap-3 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
 									<div className="flex flex-col items-end">
-										<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight leading-none mb-0.5">Active Shift</span>
-										<span className="text-xs font-mono font-bold text-emerald-700">{shiftTimer}</span>
+										<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight leading-none mb-0.5">
+											Active Shift
+										</span>
+										<span className="text-xs font-mono font-bold text-emerald-700">
+											{shiftTimer}
+										</span>
 									</div>
-									<Button 
-										onClick={() => clockOut()} 
-										variant="ghost" 
-										size="sm" 
+									<Button
+										onClick={() => clockOut()}
+										variant="ghost"
+										size="sm"
 										className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold text-xs"
 									>
 										Clock Out
 									</Button>
 								</div>
-							) : (
-								<Button 
-									onClick={() => clockIn()} 
-									variant="outline" 
-									size="sm" 
+							:	<Button
+									onClick={() => clockIn()}
+									variant="outline"
+									size="sm"
 									className="h-9 px-4 border-primary/20 text-primary font-bold flex items-center gap-2"
 								>
 									<Timer className="size-4" />
 									Clock In
 								</Button>
-							)}
+							}
 						</div>
 
 						{/* Notifications Dropdown */}
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
-							variant="ghost"
-							size="icon"
-							className="text-white bg-white/20 relative">
+									variant="ghost"
+									size="icon"
+									className="text-white bg-white/20 relative"
+								>
 									<Bell className="size-5" />
 									{notificationCount > 0 && (
 										<span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
@@ -439,11 +439,11 @@ export const Layout: React.FC = () => {
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
-							variant="ghost"
-							size="icon"
-							className="text-white bg-white/20">
-									<User className="size-5"/>
-									
+									variant="ghost"
+									size="icon"
+									className="text-white bg-white/20"
+								>
+									<User className="size-5" />
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end" className="w-56">
@@ -461,7 +461,7 @@ export const Layout: React.FC = () => {
 								<DropdownMenuItem
 									onClick={() =>
 										navigate(
-											user?.role === "cashier" ? "/profile" : "/settings"
+											user?.role === "cashier" ? "/profile" : "/settings",
 										)
 									}
 								>
@@ -490,14 +490,14 @@ export const Layout: React.FC = () => {
 							variant="ghost"
 							size="icon"
 							className="text-white bg-white/20"
-							onClick={() =>{
-								window.electron.invoke('set-fullscreen', !isFullScreen)
-								setIsFullScreen(!isFullScreen)
+							onClick={() => {
+								window.electron.invoke("set-fullscreen", !isFullScreen);
+								setIsFullScreen(!isFullScreen);
 							}}
 						>
-							{
-								isFullScreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />
-							}
+							{isFullScreen ?
+								<Minimize className="size-5" />
+							:	<Maximize className="size-5" />}
 						</Button>
 					</div>
 				</header>

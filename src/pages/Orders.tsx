@@ -380,13 +380,14 @@ export const Orders: React.FC = () => {
 	};
 
 	const OrderTypeIcon = selectedOrder?  OrderTypeIcons[selectedOrder.order_type] : null;
+	const PaymentIcon = selectedOrder?  PaymentModeIcons[selectedOrder.payment_mode] : null;
 
 	return (
 		<div className="h-full flex flex-col flex-1">
 			{/* Page Header */}
-			<div className="bg-white border-b px-8 py-2">
+			<div className="bg-white border-b px-4 py-2">
 				<div className="flex justify-between items-center">
-					<h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
+					<h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
 					<div className="flex gap-3">
 						<Button
 							variant="ghost"
@@ -434,32 +435,32 @@ export const Orders: React.FC = () => {
 				{/* Left Panel */}
 				<div className="flex-1 h-full border-r bg-white flex flex-col">
 					{/* Filter Header */}
-					<div className="flex items-center gap-3 px-8 py-1 border-b">
-						<div className="flex mr-auto">
+					<div className="flex items-center gap-3 px-4 py-2 border-b">
+						<div className="flex mr-auto gap-2">
 						<Button
-							variant={activeTab === "active" ? "secondary" : "outline"}
+							variant={activeTab === "active" ? "default" : "outline"}
 							size="default"
-							className={cn("text-base py-6 rounded-xl w-full lg:min-w-[150px] shadow-none -mb-[0.5px]", activeTab === "active" ? "hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
+							className={cn("text-base w-full shadow-none -mb-[0.5px]", activeTab === "active" ? "":" hover:bg-muted/20 text-muted-foreground")}
 							onClick={() => setActiveTab("active")}
 						>
-							<FileText />
+							<FileText className="!size-4" />
 							Open 
 						</Button>
 						<Button
-							variant={activeTab === "closed" ? "secondary" : "outline"}
+							variant={activeTab === "closed" ? "default" : "outline"}
 							size="default"
-							className={cn("text-base py-6 rounded-xl w-full lg:min-w-[150px] shadow-none -mb-[0.5px]", activeTab === "closed" ? "hover:bg-primary/10":"border-transparent hover:bg-muted/20")}
+							className={cn("text-base w-full shadow-none -mb-[0.5px]", activeTab === "closed" ? "":" hover:bg-muted/20 text-muted-foreground")}
 							onClick={() => setActiveTab("closed")}
 						>
-							<Lock />
+							<Lock className="!size-4" />
 							Closed
 						</Button>
 					</div>
-						<div className="flex items-center space-x-4">
-							<div className="flex-1 flex items-center relative max-w-md">
+						<div className="flex items-center justify-end space-x-2 flex-1">
+							<div className="flex-1 flex items-center relative w-full max-w-lg">
 								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
 							<Input
-								className="flex-1 text-base rounded-full pl-11"
+								className="w-full flex-1 text-base rounded-md pl-11 h-10 bg-muted/80"
 								placeholder="Search by Order # or Table #"
 								value={search}
 								onChange={(e) => setSearch(e.target.value)}
@@ -522,7 +523,7 @@ export const Orders: React.FC = () => {
 		Orders will appear here once customers start placing them.
 	</p>
 </div>
-						:	<div className={cn("grid gap-4 px-4 py-2", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
+						:	<div className={cn("grid gap-4 px-0", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
 								{filteredOrders.map((order) => {
 									const isOpen = order.status === "open";
 									const PaymentIcon = PaymentModeIcons[order.payment_mode]
@@ -633,7 +634,7 @@ export const Orders: React.FC = () => {
 						</div>
 					:	<div className="flex-1 flex flex-col pt-1 space-y-6">
 							{/* Cart Section */}
-							<div className="border-b p-6 pb-12 h-[40%] overflow-y-auto">
+							<div className="border-b p-6 pt-0 pb-12 h-[40%] overflow-y-auto">
 								{selectedOrderLoading ?
 									<div className="py-2 text-base text-gray-400">
 										Loading order details...
@@ -778,8 +779,17 @@ export const Orders: React.FC = () => {
 										)}
 									</span>
 								</div>
-								<div className="">
-									<span className="text-base text-gray-500">Payment:</span>
+								<div className={cn("",selectedOrder.status === "closed" ? "flex items-center justify-between":"")}>
+									<div className="text-base text-gray-500">Payment:</div>
+									{
+										selectedOrder.status === "closed" ? 
+										<div className="capitalize text-base font-medium flex items-center gap-2 ">
+										{PaymentIcon ? <PaymentIcon className="text-muted-foreground/80 size-4" />:null}
+										<span className="capitalize">
+												{selectedOrder.payment_mode}
+											</span>
+									</div>
+										:
 									<div className="flex items-center justify-between gap-x-2">
 									{paymentModes.map(({ value, label }) => {
 											const Icon = PaymentModeIcons[value as PaymentModes]
@@ -798,18 +808,19 @@ export const Orders: React.FC = () => {
 											</Button>
 										)})}
 										</div>
+									}
 								</div>
-								<div className="">
-									<span className="text-base text-gray-500">Notes:</span>
+								<div className={cn("",selectedOrder.status === "closed" && !selectedOrder.notes ? "flex items-center justify-between":"")}>
+									<div className="text-base text-gray-500">Notes:</div>
 									{selectedOrder.status === "open" ?
 										<Textarea
 											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
 											defaultValue={selectedOrder.notes || ""}
 											placeholder="Order notes..."
 										/>
-									:	<span className="text-base">
-											{selectedOrder.notes || "—"}
-										</span>
+									:	<div className="text-base">
+											{selectedOrder.notes || "---"}
+										</div>
 									}
 								</div>
 							</div>
@@ -912,7 +923,7 @@ export const Orders: React.FC = () => {
 										Print Kitchen Order
 									</Button>
 								)}
-								<div className="flex space-x-2">
+								<div className="flex space-x-4">
 									{selectedOrder?.status === "open" ?
 										<>
 											<Button
@@ -933,15 +944,15 @@ export const Orders: React.FC = () => {
 										</>
 									:	<>
 											<Button
-												variant="default"
+												variant="outline"
 												onClick={() => setShareDialogOpen(true)}
-												className="text-base flex-1 flex items-center gap-2"
+												className="text-base flex-1"
 											>
 												<Share2 className="h-4 w-4" />
 												Share Receipt
 											</Button>
 											<Button
-												variant="outline"
+												variant="default"
 												onClick={() => printReceipt(selectedOrder, false)}
 												className="text-base flex-1"
 											>

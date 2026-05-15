@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Download, 
-  Calendar,
-  ChevronDown,
   FileText,
   TrendingUp,
   DollarSign,
@@ -22,7 +20,7 @@ import CashReconciliationTab from '@/components/accounting/CashReconciliationTab
 import TaxTab from '@/components/accounting/TaxTab';
 import ReportsTab from '@/components/accounting/ReportsTab';
 
-import { useDashboard, TimePeriod } from '@/hooks/useDashboard';
+import { useDashboard, type TimePeriod } from '@/hooks/useDashboard';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useUsers } from '@/hooks/useUsers';
@@ -45,10 +43,10 @@ const periodOptions: { label: string; value: TimePeriod }[] = [
 
 const Accounting: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const { filters, stats, updateFilters, isLoading: dashboardLoading } = useDashboard();
+  const { filters, stats, updateFilters } = useDashboard();
   const analytics = useAnalytics(filters);
-  const { expenses, isLoading: expensesLoading } = useExpenses(filters);
-  const { users, isLoading: usersLoading } = useUsers();
+  const { expenses } = useExpenses(filters);
+  const { users } = useUsers();
 
   const renderTabContent = () => {
     const props = { filters, stats, analytics, expenses, users };
@@ -67,7 +65,7 @@ const Accounting: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-white text-gray-900 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Accounting</h1>
           <p className="text-gray-500 text-sm mt-1 capitalize">{filters.timePeriod} 2026</p>
@@ -103,28 +101,26 @@ const Accounting: React.FC = () => {
       </div>
 
       {/* Sub-navigation */}
-      <div className="px-8 border-b border-gray-100 bg-white">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2">
+      <div className="px-4 border-b border-gray-100 bg-white">
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-2">
           {tabs.map((tab) => (
-            <button
+            <Button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              variant={activeTab === tab.id ? "default" : "outline"}
               className={cn(
-                "flex items-center gap-2 px-5 py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap",
-                activeTab === tab.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-200"
+                "shadow-none",
               )}
             >
               <tab.icon className="size-4" />
               {tab.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 no-scrollbar bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-muted">
         {renderTabContent()}
       </div>
     </div>

@@ -46,8 +46,21 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { getCategoryName } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { useEffect, useMemo, useState } from "react";
-import { Package, DollarSign, TrendingUp, AlertTriangle, LayoutGrid, List, ArrowDownUp, Search } from "lucide-react";
+import {
+	Package,
+	DollarSign,
+	TrendingUp,
+	AlertTriangle,
+	LayoutGrid,
+	List,
+	ArrowDownUp,
+	Search,
+	Beer,
+	ShoppingBasket,
+	X,
+} from "lucide-react";
 import { useKeyboard } from "@/context/KeyboardContext";
+import { CategoryComponent } from "./CreateOrder";
 
 export default function Products() {
 	const { user } = useAuth();
@@ -73,19 +86,23 @@ export default function Products() {
 	} = useCategory();
 	const { getStockStatus } = useStock();
 	const { format: formatCurrency, currency } = useCurrency();
-	const { isOpen:isKeyboardOpen } = useKeyboard();
+	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 	const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
 	// Category management state
-	const [activeTab, setActiveTab] = useState<"products" | "categories">("products");
+	const [activeTab, setActiveTab] = useState<"products" | "categories">(
+		"products",
+	);
 	const [categorySearchQuery, setCategorySearchQuery] = useState("");
-	const [selectedCategory, setSelectedCategory] = useState<any>();
+	const [selectedCategory, setSelectedCategory] = useState<any>(null);
 	const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
-	const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
-	const [isDeleteCategoryDialogOpen, setIsDeleteCategoryDialogOpen] = useState(false);
+	const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] =
+		useState(false);
+	const [isDeleteCategoryDialogOpen, setIsDeleteCategoryDialogOpen] =
+		useState(false);
 	const [categoryToDelete, setCategoryToDelete] = useState<any>(null);
 	const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
@@ -152,7 +169,9 @@ export default function Products() {
 	const filteredCategories = categories.filter(
 		(category) =>
 			category.name.toLowerCase().includes(categorySearchQuery.toLowerCase()) ||
-			category.description?.toLowerCase().includes(categorySearchQuery.toLowerCase())
+			category.description
+				?.toLowerCase()
+				.includes(categorySearchQuery.toLowerCase()),
 	);
 
 	const handleAddCategory = async (category: any) => {
@@ -165,6 +184,10 @@ export default function Products() {
 			await updateCategory(selectedCategory.id, category);
 			setIsEditCategoryDialogOpen(false);
 		}
+	};
+
+	const handleSelectCategory = (catId: any) => {
+		setFilters({ ...filters, category: catId });
 	};
 
 	const handleDeleteCategory = async () => {
@@ -234,9 +257,9 @@ export default function Products() {
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
 			<div className="bg-white border-b">
-					<div className="flex items-center justify-between px-8 py-2">
-						<h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
-						{canManageProducts && (
+				<div className="flex items-center justify-between px-4 py-2">
+					<h1 className="text-3xl font-bold text-gray-900">Drinks Inventory</h1>
+					{canManageProducts && (
 						<Button
 							onClick={() =>
 								activeTab === "products" ?
@@ -245,542 +268,608 @@ export default function Products() {
 							}
 							className="text-base"
 						>
-							{activeTab === "products" ? "+ Add Product" : "+ Add Category"}
+							{activeTab === "products" ? "+ Add Drinks" : "+ Add Category"}
 						</Button>
 					)}
-					</div>
-						<div className="flex border-t gap-4 px-8 py-2">
-							<button
-								onClick={() => setActiveTab("products")}
-								className={cn(
-									"px-4 py-2 text-sm font-medium rounded-md transition-colors",
-									activeTab === "products" ?
-										"bg-primary text-white"
-									:	"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-								)}
-							>
-								Products
-							</button>
-							<button
-								onClick={() => setActiveTab("categories")}
-								className={cn(
-									"px-4 py-2 text-sm font-medium rounded-md transition-colors",
-									activeTab === "categories" ?
-										"bg-primary text-white"
-									:	"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-								)}
-							>
-								Categories
-							</button>
-						</div>
-
-						<div className="border-t grid grid-cols-1 md:grid-cols-4 gap-4 px-8 py-2">
-							<div className="relative flex flex-1 max-w-lg items-center">
-								<Search className="h-4 w-4 absolute left-3 text-muted-foreground" />
-								<Input
-									placeholder={`Search ${activeTab}...`}
-									className="pl-8 rounded-full flex-1"
-									value={activeTab === "products" ? filters.search : categorySearchQuery}
-									onChange={(e) =>
-										activeTab === "products" ?
-											setFilters({ search: e.target.value })
-										: setCategorySearchQuery(e.target.value)
-									}
-								/>
-							</div>
-							{
-								activeTab === "products" ?
-								<>
-					{categories?.length ?
-						<Select
-							value={filters.category || "all"}
-							onValueChange={(value) =>
-								setFilters({ category: value === "All" ? null : value })
-							}
-						>
-							<SelectTrigger className="capitalize">
-								<SelectValue placeholder="Select category" />
-							</SelectTrigger>
-							<SelectContent>
-								{[{ id: "all", name: "all" }, ...categories].map(
-									(category: any, index) => (
-										<SelectItem
-											key={index}
-											value={category?.id}
-											className="capitalize"
-										>
-											{category?.name}
-										</SelectItem>
-									)
-								)}
-							</SelectContent>
-						</Select>
-					:	null}
-					<Select
-						value={filters.stockLevel || "all"}
-						onValueChange={(
-							value: "all" | "out-of-stock" | "low-stock" | "in-stock"
-						) => setFilters({ stockLevel: value })}
+				</div>
+				<div className="flex border-t gap-4 px-4 py-2">
+					<Button
+						variant={activeTab === "products" ? "default" : "outline"}
+						onClick={() => setActiveTab("products")}
+						className={cn(
+							"",
+							activeTab === "products" ? "text-white" : (
+								"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+							),
+						)}
 					>
-						<SelectTrigger>
-							<SelectValue placeholder="Filter by stock level" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Stock Levels</SelectItem>
-							<SelectItem value="out-of-stock">Out of Stock</SelectItem>
-							<SelectItem value="low-stock">Low Stock</SelectItem>
-							<SelectItem value="in-stock">In Stock</SelectItem>
-						</SelectContent>
-					</Select>
-					<div className="flex gap-2">
-						<Button
-							variant="outline"
-							className={cn(
-								"flex-1",
-								filters.sortBy === "stock" && "bg-primary/10 border-primary text-primary"
-							)}
-							onClick={() => handleSort("stock")}
-						>
-							<ArrowDownUp className="h-4 w-4 mr-2" />
-							By Stock {filters.sortBy === "stock" && (filters.sortOrder === "asc" ? "↑" : "↓")}
-						</Button>
-						<div className="flex items-center border rounded-md overflow-hidden">
-							<Button
-								variant="ghost"
-								size="icon"
-								className={cn(
-									"rounded-none h-full",
-									viewMode === "grid" && "bg-primary text-white hover:bg-primary hover:text-white"
-								)}
-								onClick={() => setViewMode("grid")}
-							>
-								<LayoutGrid className="h-4 w-4" />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								className={cn(
-									"rounded-none h-full",
-									viewMode === "list" && "bg-primary text-white hover:bg-primary hover:text-white"
-								)}
-								onClick={() => setViewMode("list")}
-							>
-								<List className="h-4 w-4" />
-							</Button>
-						</div>
-					</div>
-								</>
-									
-								: null
-							}
+						<Beer />
+						Drinks
+					</Button>
+					<Button
+						variant={activeTab === "categories" ? "default" : "outline"}
+						onClick={() => setActiveTab("categories")}
+						className={cn(
+							"",
+							activeTab === "categories" ? "text-white" : (
+								"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+							),
+						)}
+					>
+						<ShoppingBasket />
+						Categories
+					</Button>
 				</div>
 			</div>
 
 			{/* Main Content */}
-			<div className="flex-1 px-8 py-6 overflow-y-auto">
-				<SimpleAlert
-					open={error ? true : false}
-					onOpenChange={() => setError(null)}
-					message={error || ""}
-				/>
-
-				{activeTab === "products" ?
-					<>
-
-				{/* Stock Summary Section - Admin Only */}
-				{user?.role === "admin" && (
-					<>
-						<div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-							<Card className="bg-white">
-								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-									<CardTitle className="text-sm font-medium">
-										Total Products
-									</CardTitle>
-									<Package className="h-4 w-4 text-muted-foreground" />
-								</CardHeader>
-								<CardContent>
-									<div className="text-2xl font-bold">
-										{stockSummary.totalProducts?.toLocaleString()}
-									</div>
-									<p className="text-xs text-muted-foreground">
-										Active products in inventory
-									</p>
-								</CardContent>
-							</Card>
-
-							<Card className="bg-white">
-								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-									<CardTitle className="text-sm font-medium">
-										Total Cost Value
-									</CardTitle>
-									<DollarSign className="h-4 w-4 text-muted-foreground" />
-								</CardHeader>
-								<CardContent>
-									<div className="text-2xl font-bold">
-										{formatCurrency(stockSummary.totalCostValue)}
-									</div>
-									<p className="text-xs text-muted-foreground">
-										Investment in inventory
-									</p>
-								</CardContent>
-							</Card>
-
-							<Card className="bg-white">
-								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-									<CardTitle className="text-sm font-medium">
-										Potential Revenue
-									</CardTitle>
-									<TrendingUp className="h-4 w-4 text-muted-foreground" />
-								</CardHeader>
-								<CardContent>
-									<div className="text-2xl font-bold">
-										{formatCurrency(stockSummary.totalSellingValue)}
-									</div>
-									<p className="text-xs text-muted-foreground">
-										If all stock sold
-									</p>
-								</CardContent>
-							</Card>
-
-							<Card className="bg-white">
-								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-									<CardTitle className="text-sm font-medium">
-										Profit Potential
-									</CardTitle>
-									<TrendingUp className="h-4 w-4 text-green-600" />
-								</CardHeader>
-								<CardContent>
-									<div className="text-2xl font-bold text-green-600">
-										{formatCurrency(stockSummary.totalProfitPotential)}
-									</div>
-									<p className="text-xs text-muted-foreground">
-										{stockSummary.averageProfitMargin > 0 ?
-											`Avg margin: ${stockSummary.averageProfitMargin.toFixed(1)}%`
-										:	"Set cost prices to see margins"}
-									</p>
-								</CardContent>
-							</Card>
-						</div>
-
-						{/* Stock Alerts Summary */}
-						{(stockSummary.lowStockCount > 0 ||
-							stockSummary.outOfStockCount > 0) && (
-							<div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-								{stockSummary.outOfStockCount > 0 && (
-									<Card className="border-red-200 bg-red-50">
-										<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-											<CardTitle className="text-sm font-medium text-red-800">
-												Out of Stock
-											</CardTitle>
-											<AlertTriangle className="h-4 w-4 text-red-600" />
-										</CardHeader>
-										<CardContent>
-											<div className="text-2xl font-bold text-red-600">
-												{stockSummary.outOfStockCount}
-											</div>
-											<p className="text-xs text-red-700">
-												Products need restocking
-											</p>
-										</CardContent>
-									</Card>
-								)}
-
-								{stockSummary.lowStockCount > 0 && (
-									<Card className="border-yellow-200 bg-yellow-50">
-										<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-											<CardTitle className="text-sm font-medium text-yellow-800">
-												Low Stock
-											</CardTitle>
-											<AlertTriangle className="h-4 w-4 text-yellow-600" />
-										</CardHeader>
-										<CardContent>
-											<div className="text-2xl font-bold text-yellow-600">
-												{stockSummary.lowStockCount}
-											</div>
-											<p className="text-xs text-yellow-700">
-												Products below threshold
-											</p>
-										</CardContent>
-									</Card>
-								)}
-							</div>
+			<div className="flex flex-1">
+				<div
+					className={cn(
+						"w-[250px] border-r overflow-y-auto bg-white h-full",
+						activeTab !== "products" ? "hidden" : "",
+					)}
+				>
+					<div className="h-14 border-b flex items-center justify-between px-4">
+						<h2 className="font-semibold text-md">Categories</h2>
+						{filters.category !== "all" && (
+							<Button
+								variant="ghost"
+								className="h-9 gap-1 px-2.5 rounded-lg text-xs bg-muted"
+								onClick={() => handleSelectCategory("all")}
+							>
+								<X className="!size-3" /> Clear
+							</Button>
 						)}
-					</>
-				)}
-
-				
-
-				{loading ?
-					<div className="text-center py-4 text-lg">Loading...</div>
-				: filteredProducts.length === 0 ?
-					<div className="text-center py-12 text-gray-400 text-lg">
-						No products found.
 					</div>
-				: viewMode === "grid" ?
-					<div className={cn("grid gap-4", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
-						{filteredProducts.map((product) => {
-							const stockStatus = getStockStatus(product);
-							const profit =
-								(
-									product.cost_price &&
-									product.cost_price > 0 &&
-									product.price > 0
-								) ?
-									product.price - product.cost_price
-								:	0;
-							const margin =
-								profit > 0 && product.price > 0 ?
-									(profit / product.price) * 100
-								:	0;
-							const profitValue = profit * product.stock;
-
-							return (
-								<div
-									key={product.id}
-									className="bg-white border rounded-lg overflow-hidden hover:shadow-lg transition-all h-fit"
+					<div className="flex-1 h-full overflow-y-auto p-4 space-y-4">
+						{categories.map((cat) => (
+							<CategoryComponent
+								key={cat.id}
+								cat={cat}
+								activeCategory={filters?.category}
+								setActiveCategory={handleSelectCategory}
+							/>
+						))}
+					</div>
+				</div>
+				<div className="flex-1 overflow-y-auto">
+					<div className="h-14 flex items-center gap-4 px-4 py-2 bg-card border-b">
+						<div className="relative flex flex-1 max-w-lg items-center">
+							<Search className="h-4 w-4 absolute left-3 text-muted-foreground" />
+							<Input
+								placeholder={`Search ${activeTab}...`}
+								className="pl-8 rounded-md flex-1 h-10 bg-muted/80"
+								value={
+									activeTab === "products" ?
+										filters.search
+									:	categorySearchQuery
+								}
+								onChange={(e) =>
+									activeTab === "products" ?
+										setFilters({ search: e.target.value })
+									:	setCategorySearchQuery(e.target.value)
+								}
+							/>
+						</div>
+						{activeTab === "products" ?
+							<>
+								<Select
+									value={filters.stockLevel || "all"}
+									onValueChange={(
+										value: "all" | "out-of-stock" | "low-stock" | "in-stock",
+									) => setFilters({ stockLevel: value })}
 								>
-									{/* Product Image */}
-									<div className="w-full aspect-square bg-gray-100 relative overflow-hidden">
-										{product.image ?
-											<img
-												src={product.image}
-												alt={product.name}
-												className="w-full h-full object-cover"
-											/>
-										:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-6xl">
-												📦
-											</div>
-										}
-										{/* Status Badge - Top Right */}
-										<div className="absolute top-2 right-2 hidden">
-											<span
-												className={cn(
-													"px-2 py-1 inline-flex text-xs font-semibold rounded-full",
-													product.status === "active" ?
-														"bg-green-100 text-green-800"
-													:	"bg-red-100 text-red-800"
-												)}
-											>
-												{product.status}
-											</span>
-										</div>
-										{/* Stock Status Badge - Top Left */}
-										<div className="absolute top-2 left-2">
-											<span
-												className={cn(
-													"px-2 py-1 inline-flex text-xs font-semibold rounded-full",
-													stockStatus.status === "out-of-stock" ?
-														"bg-red-100 text-red-800"
-													: stockStatus.status === "low-stock" ?
-														"bg-yellow-100 text-yellow-800"
-													:	"bg-green-100 text-green-800"
-												)}
-											>
-												{stockStatus.label}
-											</span>
-										</div>
-									</div>
-
-									{/* Product Info */}
-									<div className="p-4 space-y-3">
-										{/* Product Name */}
-										<div>
-											<h3 className="font-bold text-lg text-gray-900 line-clamp-2">
-												{product.name} -
-												<span className="font-bold text-sm text-gray-900">
-													({formatCurrency(Number(product?.price) || 0)})
-												</span>
-											</h3>
-											<p className="text-sm text-gray-500 capitalize mt-1">
-												{product.category ?
-													getCategoryName(product.category as any, categories)
-												:	"Uncategorized"}
-											</p>
-										</div>
-
-										{/* Pricing, Stock & Profit Details - Accordion */}
-										{canManageProducts && (
-											<Accordion type="single" collapsible className="w-full">
-												<AccordionItem value="details" className="border-0">
-													<AccordionTrigger className="py-2 text-sm font-medium text-gray-700 hover:no-underline">
-														View Details
-													</AccordionTrigger>
-													<AccordionContent className="space-y-3 pt-2">
-														{/* Pricing Section */}
-														<div className="space-y-2 pt-2 border-t border-gray-200">
-															<div className="flex items-center justify-between">
-																<span className="text-sm text-gray-500">
-																	Selling Price
-																</span>
-																<span className="font-bold text-lg text-gray-900">
-																	{formatCurrency(Number(product?.price) || 0)}
-																</span>
-															</div>
-
-															{product.cost_price && product.cost_price > 0 ?
-																<>
-																	<div className="flex items-center justify-between">
-																		<span className="text-sm text-gray-500">
-																			Cost Price
-																		</span>
-																		<span className="text-base text-gray-700">
-																			{formatCurrency(
-																				Number(product.cost_price)
-																			)}
-																		</span>
-																	</div>
-																	{margin > 0 && (
-																		<div className="flex items-center justify-between pt-1 border-t border-gray-100">
-																			<span className="text-sm text-gray-500">
-																				Profit Margin
-																			</span>
-																			<span
-																				className={cn(
-																					"font-semibold text-base",
-																					margin >= 50 ? "text-green-600"
-																					: margin >= 30 ? "text-blue-600"
-																					: margin >= 10 ? "text-yellow-600"
-																					: "text-red-600"
-																				)}
-																			>
-																				{margin.toFixed(1)}%
-																			</span>
-																		</div>
-																	)}
-																</>
-															:	<div className="text-xs text-gray-400 italic">
-																	Cost price not set
-																</div>
-															}
-														</div>
-
-														{/* Stock Section */}
-														<div className="flex items-center justify-between pt-2 border-t border-gray-200">
-															<span className="text-sm text-gray-500">
-																Stock
-															</span>
-															<span className="font-semibold text-base text-gray-900">
-																{product.stock} units
-															</span>
-														</div>
-
-														{/* Profit Value (if cost price set) */}
-														{profitValue > 0 && (
-															<div className="pt-2 border-t border-gray-200">
-																<div className="flex items-center justify-between">
-																	<span className="text-xs text-gray-500">
-																		Total Profit Value
-																	</span>
-																	<span className="font-semibold text-sm text-green-600">
-																		{formatCurrency(profitValue)}
-																	</span>
-																</div>
-															</div>
-														)}
-													</AccordionContent>
-												</AccordionItem>
-											</Accordion>
+									<SelectTrigger className="w-fit">
+										<SelectValue placeholder="Filter by stock level" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">All Stock Levels</SelectItem>
+										<SelectItem value="out-of-stock">Out of Stock</SelectItem>
+										<SelectItem value="low-stock">Low Stock</SelectItem>
+										<SelectItem value="in-stock">In Stock</SelectItem>
+									</SelectContent>
+								</Select>
+								<div className="flex gap-2">
+									<Button
+										variant="outline"
+										className={cn(
+											"flex-1 rounded-md py-2 h-10",
+											filters.sortBy === "stock" &&
+												"bg-primary/10 border-primary text-primary",
 										)}
-
-										{/* Actions */}
-										{canManageProducts && (
-											<div className="flex gap-2 pt-3 border-t border-gray-200 flex-wrap">
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => setEditingProduct(product)}
-													className="flex-1 text-base"
-												>
-													Edit
-												</Button>
-												<Button
-													variant="destructive"
-													size="sm"
-													onClick={() => setProductToDelete(product)}
-													className="flex-1 text-base"
-												>
-													Delete
-												</Button>
-											</div>
-										)}
+										onClick={() => handleSort("stock")}
+									>
+										<ArrowDownUp className="h-4 w-4 mr-2" />
+										By Stock{" "}
+										{filters.sortBy === "stock" &&
+											(filters.sortOrder === "asc" ? "↑" : "↓")}
+									</Button>
+									<div className="flex items-center rounded-md overflow-hidden p-1 bg-muted">
+										<Button
+											variant="ghost"
+											size="icon"
+											className={cn(
+												"rounded-md h-full",
+												viewMode === "grid" &&
+													"text-primary bg-white hover:bg-white",
+											)}
+											onClick={() => setViewMode("grid")}
+										>
+											<LayoutGrid className="h-4 w-4" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon"
+											className={cn(
+												"rounded-md h-full",
+												viewMode === "list" &&
+													"text-primary bg-white hover:bg-white",
+											)}
+											onClick={() => setViewMode("list")}
+										>
+											<List className="h-4 w-4" />
+										</Button>
 									</div>
 								</div>
-							);
-						})}
+							</>
+						:	null}
 					</div>
-				:	<div className="border rounded-lg bg-white overflow-hidden">
-						<Table>
-							<TableHeader className="bg-gray-50">
-								<TableRow>
-									<TableHead className="w-[80px]">Image</TableHead>
-									<TableHead>Product Name</TableHead>
-									<TableHead>Category</TableHead>
-									<TableHead className="text-right">Selling Price</TableHead>
-									<TableHead className="text-right">Cost Price</TableHead>
-									<TableHead className="text-right">Stock</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead className="text-right">Actions</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{filteredProducts.map((product) => {
-									const stockStatus = getStockStatus(product);
-									return (
-										<TableRow key={product.id}>
-											<TableCell>
-												<div className="size-10 rounded overflow-hidden bg-gray-100">
+					<SimpleAlert
+						open={error ? true : false}
+						onOpenChange={() => setError(null)}
+						message={error || ""}
+					/>
+
+					{activeTab === "products" ?
+						<div className="p-4">
+							{/* Stock Summary Section - Admin Only */}
+							{user?.role === "admin" && (
+								<>
+									<div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Total Products
+												</CardTitle>
+												<Package className="h-4 w-4 text-muted-foreground" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{stockSummary.totalProducts?.toLocaleString()}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Active products in inventory
+												</p>
+											</CardContent>
+										</Card>
+
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Total Cost Value
+												</CardTitle>
+												<DollarSign className="h-4 w-4 text-muted-foreground" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{formatCurrency(stockSummary.totalCostValue)}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Investment in inventory
+												</p>
+											</CardContent>
+										</Card>
+
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Potential Revenue
+												</CardTitle>
+												<TrendingUp className="h-4 w-4 text-muted-foreground" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{formatCurrency(stockSummary.totalSellingValue)}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													If all stock sold
+												</p>
+											</CardContent>
+										</Card>
+
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Profit Potential
+												</CardTitle>
+												<TrendingUp className="h-4 w-4 text-primary" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold text-primary">
+													{formatCurrency(stockSummary.totalProfitPotential)}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													{stockSummary.averageProfitMargin > 0 ?
+														`Avg margin: ${stockSummary.averageProfitMargin.toFixed(1)}%`
+													:	"Set cost prices to see margins"}
+												</p>
+											</CardContent>
+										</Card>
+									</div>
+
+									{/* Stock Alerts Summary */}
+									{(stockSummary.lowStockCount > 0 ||
+										stockSummary.outOfStockCount > 0) && (
+										<div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+											{stockSummary.outOfStockCount > 0 && (
+												<Card className="border-red-200 bg-red-50">
+													<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+														<CardTitle className="text-sm font-medium text-red-800">
+															Out of Stock
+														</CardTitle>
+														<AlertTriangle className="h-4 w-4 text-red-600" />
+													</CardHeader>
+													<CardContent>
+														<div className="text-2xl font-bold text-red-600">
+															{stockSummary.outOfStockCount}
+														</div>
+														<p className="text-xs text-red-700">
+															Products need restocking
+														</p>
+													</CardContent>
+												</Card>
+											)}
+
+											{stockSummary.lowStockCount > 0 && (
+												<Card className="border-yellow-200 bg-yellow-50">
+													<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+														<CardTitle className="text-sm font-medium text-yellow-800">
+															Low Stock
+														</CardTitle>
+														<AlertTriangle className="h-4 w-4 text-yellow-600" />
+													</CardHeader>
+													<CardContent>
+														<div className="text-2xl font-bold text-yellow-600">
+															{stockSummary.lowStockCount}
+														</div>
+														<p className="text-xs text-yellow-700">
+															Products below threshold
+														</p>
+													</CardContent>
+												</Card>
+											)}
+										</div>
+									)}
+								</>
+							)}
+
+							{loading ?
+								<div className="text-center py-4 text-lg">Loading...</div>
+							: filteredProducts.length === 0 ?
+								<div className="text-center py-12 text-gray-400 text-lg">
+									No products found.
+								</div>
+							: viewMode === "grid" ?
+								<div
+									className={cn(
+										"grid gap-4",
+										isKeyboardOpen ?
+											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
+										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+									)}
+								>
+									{filteredProducts.map((product) => {
+										const stockStatus = getStockStatus(product);
+										const profit =
+											(
+												product.cost_price &&
+												product.cost_price > 0 &&
+												product.price > 0
+											) ?
+												product.price - product.cost_price
+											:	0;
+										const margin =
+											profit > 0 && product.price > 0 ?
+												(profit / product.price) * 100
+											:	0;
+										const profitValue = profit * product.stock;
+
+										return (
+											<div
+												key={product.id}
+												className="bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all h-fit p-1"
+											>
+												{/* Product Image */}
+												<div className="w-full aspect-square bg-gray-100 relative overflow-hidden">
 													{product.image ?
-														<img src={product.image} className="w-full h-full object-cover" />
-													:	<div className="w-full h-full flex items-center justify-center text-lg">📦</div>
+														<img
+															src={product.image}
+															alt={product.name}
+															className="w-full h-full object-cover"
+														/>
+													:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-6xl">
+															<Beer />
+														</div>
 													}
+													{/* Status Badge - Top Right */}
+													<div className="absolute top-2 right-2 hidden">
+														<span
+															className={cn(
+																"px-2 py-1 inline-flex text-xs font-semibold rounded-full",
+																product.status === "active" ?
+																	"bg-green-100 text-green-800"
+																:	"bg-red-100 text-red-800",
+															)}
+														>
+															{product.status}
+														</span>
+													</div>
+													{/* Stock Status Badge - Top Left */}
+													<div className="absolute top-2 left-2">
+														<span
+															className={cn(
+																"px-2 py-1 inline-flex text-xs font-semibold rounded-full",
+																stockStatus.status === "out-of-stock" ?
+																	"bg-red-100 text-red-800"
+																: stockStatus.status === "low-stock" ?
+																	"bg-yellow-100 text-yellow-800"
+																:	"bg-green-100 text-green-800",
+															)}
+														>
+															{stockStatus.label}
+														</span>
+													</div>
 												</div>
-											</TableCell>
-											<TableCell className="font-medium">{product.name}</TableCell>
-											<TableCell className="capitalize">
-												{product.category ?
-													getCategoryName(product.category as any, categories)
-												:	"Uncategorized"}
-											</TableCell>
-											<TableCell className="text-right font-semibold">
-												{formatCurrency(product.price)}
-											</TableCell>
-											<TableCell className="text-right text-gray-500">
-												{product.cost_price ? formatCurrency(product.cost_price) : "—"}
-											</TableCell>
-											<TableCell className="text-right">
-												<span className={cn(
-													"font-bold",
-													stockStatus.status === "out-of-stock" ? "text-red-600"
-													: stockStatus.status === "low-stock" ? "text-yellow-600"
-													: "text-green-600"
-												)}>
-													{product.stock}
-												</span>
-											</TableCell>
-											<TableCell>
-												<span className={cn(
-													"px-2 py-0.5 rounded-full text-xs font-medium",
-													product.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-												)}>
-													{product.status}
-												</span>
-											</TableCell>
-											<TableCell className="text-right">
-												<div className="flex justify-end gap-2">
-													<Button variant="ghost" size="sm" onClick={() => setEditingProduct(product)}>Edit</Button>
-													<Button variant="ghost" size="sm" className="text-red-600" onClick={() => setProductToDelete(product)}>Delete</Button>
+
+												{/* Product Info */}
+												<div className="border-t">
+													{/* Product Name */}
+													<div className="border-b p-3">
+														<h3 className="font-bold text-lg text-gray-900 line-clamp-1">
+															{product.name}
+														</h3>
+														<p className="text-sm text-gray-500 capitalize mt-1">
+															{product.category ?
+																getCategoryName(
+																	product.category as any,
+																	categories,
+																)
+															:	"Uncategorized"}
+														</p>
+													</div>
+
+													{/* Pricing, Stock & Profit Details - Accordion */}
+													{canManageProducts && (
+														<Accordion
+															type="single"
+															collapsible
+															className="w-full"
+														>
+															<AccordionItem
+																value="details"
+																className="border-0"
+															>
+																<AccordionTrigger className="py-2 px-3 text-sm font-medium text-gray-700 hover:no-underline">
+																	View Details
+																</AccordionTrigger>
+																<AccordionContent className="space-y-3 pt-0 px-3">
+																	{/* Pricing Section */}
+																	<div className="space-y-2 pt-2 border-t border-gray-200">
+																		<div className="flex items-center justify-between">
+																			<span className="text-sm text-gray-500">
+																				Selling Price
+																			</span>
+																			<span className="font-bold text-lg text-gray-900">
+																				{formatCurrency(
+																					Number(product?.price) || 0,
+																				)}
+																			</span>
+																		</div>
+
+																		{(
+																			product.cost_price &&
+																			product.cost_price > 0
+																		) ?
+																			<>
+																				<div className="flex items-center justify-between">
+																					<span className="text-sm text-gray-500">
+																						Cost Price
+																					</span>
+																					<span className="text-base text-gray-700">
+																						{formatCurrency(
+																							Number(product.cost_price),
+																						)}
+																					</span>
+																				</div>
+																				{margin > 0 && (
+																					<div className="flex items-center justify-between pt-1 border-t border-gray-100">
+																						<span className="text-sm text-gray-500">
+																							Profit Margin
+																						</span>
+																						<span
+																							className={cn(
+																								"font-semibold text-base",
+																								margin >= 50 ? "text-green-600"
+																								: margin >= 30 ? "text-blue-600"
+																								: margin >= 10 ?
+																									"text-yellow-600"
+																								:	"text-red-600",
+																							)}
+																						>
+																							{margin.toFixed(1)}%
+																						</span>
+																					</div>
+																				)}
+																			</>
+																		:	<div className="text-xs text-gray-400 italic">
+																				Cost price not set
+																			</div>
+																		}
+																	</div>
+
+																	{/* Stock Section */}
+																	<div className="flex items-center justify-between pt-2 border-t border-gray-200">
+																		<span className="text-sm text-gray-500">
+																			Stock
+																		</span>
+																		<span className="font-semibold text-base text-gray-900">
+																			{product.stock} units
+																		</span>
+																	</div>
+
+																	{/* Profit Value (if cost price set) */}
+																	{profitValue > 0 && (
+																		<div className="pt-2 border-t border-gray-200">
+																			<div className="flex items-center justify-between">
+																				<span className="text-xs text-gray-500">
+																					Total Profit Value
+																				</span>
+																				<span className="font-semibold text-sm text-green-600">
+																					{formatCurrency(profitValue)}
+																				</span>
+																			</div>
+																		</div>
+																	)}
+																</AccordionContent>
+															</AccordionItem>
+														</Accordion>
+													)}
+
+													{/* Actions */}
+													{canManageProducts && (
+														<div className="flex gap-2 p-3 border-t border-gray-200 flex-wrap">
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() => setEditingProduct(product)}
+																className="flex-1 text-base"
+															>
+																Edit
+															</Button>
+															<Button
+																variant="destructive"
+																size="sm"
+																onClick={() => setProductToDelete(product)}
+																className="flex-1 text-base"
+															>
+																Delete
+															</Button>
+														</div>
+													)}
 												</div>
-											</TableCell>
-										</TableRow>
-									);
-								})}
-							</TableBody>
-						</Table>
-					</div>
-				}
-			</>
-				:	<div className="space-y-6">
-						{/* <div className="mb-6">
+											</div>
+										);
+									})}
+								</div>
+							:	<div className="border rounded-lg bg-white overflow-hidden">
+									<Table>
+										<TableHeader className="bg-gray-50">
+											<TableRow>
+												<TableHead className="w-[80px]">Image</TableHead>
+												<TableHead>Product Name</TableHead>
+												<TableHead>Category</TableHead>
+												<TableHead className="text-right">
+													Selling Price
+												</TableHead>
+												<TableHead className="text-right">Cost Price</TableHead>
+												<TableHead className="text-right">Stock</TableHead>
+												<TableHead>Status</TableHead>
+												<TableHead className="text-right">Actions</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{filteredProducts.map((product) => {
+												const stockStatus = getStockStatus(product);
+												return (
+													<TableRow key={product.id}>
+														<TableCell>
+															<div className="size-10 rounded overflow-hidden bg-gray-100">
+																{product.image ?
+																	<img
+																		src={product.image}
+																		className="w-full h-full object-cover"
+																	/>
+																:	<div className="w-full h-full flex items-center justify-center text-lg">
+																		📦
+																	</div>
+																}
+															</div>
+														</TableCell>
+														<TableCell className="font-medium">
+															{product.name}
+														</TableCell>
+														<TableCell className="capitalize">
+															{product.category ?
+																getCategoryName(
+																	product.category as any,
+																	categories,
+																)
+															:	"Uncategorized"}
+														</TableCell>
+														<TableCell className="text-right font-semibold">
+															{formatCurrency(product.price)}
+														</TableCell>
+														<TableCell className="text-right text-gray-500">
+															{product.cost_price ?
+																formatCurrency(product.cost_price)
+															:	"—"}
+														</TableCell>
+														<TableCell className="text-right">
+															<span
+																className={cn(
+																	"font-bold",
+																	stockStatus.status === "out-of-stock" ?
+																		"text-red-600"
+																	: stockStatus.status === "low-stock" ?
+																		"text-yellow-600"
+																	:	"text-green-600",
+																)}
+															>
+																{product.stock}
+															</span>
+														</TableCell>
+														<TableCell>
+															<span
+																className={cn(
+																	"px-2 py-0.5 rounded-full text-xs font-medium",
+																	product.status === "active" ?
+																		"bg-green-100 text-green-800"
+																	:	"bg-gray-100 text-gray-800",
+																)}
+															>
+																{product.status}
+															</span>
+														</TableCell>
+														<TableCell className="text-right">
+															<div className="flex justify-end gap-2">
+																<Button
+																	variant="ghost"
+																	size="sm"
+																	onClick={() => setEditingProduct(product)}
+																>
+																	Edit
+																</Button>
+																<Button
+																	variant="ghost"
+																	size="sm"
+																	className="text-red-600"
+																	onClick={() => setProductToDelete(product)}
+																>
+																	Delete
+																</Button>
+															</div>
+														</TableCell>
+													</TableRow>
+												);
+											})}
+										</TableBody>
+									</Table>
+								</div>
+							}
+						</div>
+					:	<div className="space-y-6 p-4">
+							{/* <div className="mb-6">
 							<Input
 								placeholder="Search categories..."
 								value={categorySearchQuery}
@@ -789,170 +878,174 @@ export default function Products() {
 							/>
 						</div> */}
 
-						{isCategoriesLoading ?
-							<div className="flex items-center justify-center h-64">
-								<p className="text-lg">Loading categories...</p>
-							</div>
-						:	<div className="border rounded-lg bg-white">
-								<Table>
-									<TableHeader className="bg-gray-50">
-										<TableRow>
-											<TableHead className="text-base font-semibold">
-												Name
-											</TableHead>
-											<TableHead className="text-base font-semibold">
-												Description
-											</TableHead>
-											<TableHead className="text-base font-semibold">
-												Status
-											</TableHead>
-											{canManageProducts && (
-												<TableHead className="w-[100px] text-base font-semibold text-right">
-													Actions
+							{isCategoriesLoading ?
+								<div className="flex items-center justify-center h-64">
+									<p className="text-lg">Loading categories...</p>
+								</div>
+							:	<div className="border rounded-lg bg-white">
+									<Table>
+										<TableHeader className="bg-gray-50">
+											<TableRow>
+												<TableHead className="text-base font-semibold">
+													Name
 												</TableHead>
-											)}
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{filteredCategories.map((category) => (
-											<TableRow key={category.id}>
-												<TableCell className="font-medium text-base">
-													{category.name}
-												</TableCell>
-												<TableCell className="text-base">
-													{category.description || "-"}
-												</TableCell>
-												<TableCell>
-													<span
-														className={`px-3 py-1 rounded-full text-sm ${
-															category.status === "active" ?
-																"bg-green-100 text-green-800"
-															:	"bg-red-100 text-red-800"
-														}`}
-													>
-														{category.status}
-													</span>
-												</TableCell>
+												<TableHead className="text-base font-semibold">
+													Description
+												</TableHead>
+												<TableHead className="text-base font-semibold">
+													Status
+												</TableHead>
 												{canManageProducts && (
-													<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium ">
-														<Button
-															variant="outline"
-															size="default"
-															onClick={() => {
-																setSelectedCategory(category);
-																setIsEditCategoryDialogOpen(true);
-															}}
-															className="mr-2 text-base"
-														>
-															Edit
-														</Button>
-														<Button
-															variant="destructive"
-															size="default"
-															onClick={() => {
-																setCategoryToDelete(category);
-																setIsDeleteCategoryDialogOpen(true);
-															}}
-															className="text-base"
-														>
-															Delete
-														</Button>
-													</TableCell>
+													<TableHead className="w-[100px] text-base font-semibold text-right">
+														Actions
+													</TableHead>
 												)}
 											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							</div>
-						}
-					</div>
-				}
+										</TableHeader>
+										<TableBody>
+											{filteredCategories.map((category) => (
+												<TableRow key={category.id}>
+													<TableCell className="font-medium text-base">
+														{category.name}
+													</TableCell>
+													<TableCell className="text-base">
+														{category.description || "-"}
+													</TableCell>
+													<TableCell>
+														<span
+															className={`px-3 py-1 rounded-full text-sm ${
+																category.status === "active" ?
+																	"bg-green-100 text-green-800"
+																:	"bg-red-100 text-red-800"
+															}`}
+														>
+															{category.status}
+														</span>
+													</TableCell>
+													{canManageProducts && (
+														<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium ">
+															<Button
+																variant="outline"
+																size="default"
+																onClick={() => {
+																	setSelectedCategory(category);
+																	setIsEditCategoryDialogOpen(true);
+																}}
+																className="mr-2 text-base"
+															>
+																Edit
+															</Button>
+															<Button
+																variant="destructive"
+																size="default"
+																onClick={() => {
+																	setCategoryToDelete(category);
+																	setIsDeleteCategoryDialogOpen(true);
+																}}
+																className="text-base"
+															>
+																Delete
+															</Button>
+														</TableCell>
+													)}
+												</TableRow>
+											))}
+										</TableBody>
+									</Table>
+								</div>
+							}
+						</div>
+					}
 
-				{/* Dialogs */}
-				<AddEditProductDialog
-					open={isAddDialogOpen}
-					categories={categories}
-					onClose={() => setIsAddDialogOpen(false)}
-					onSave={addProduct}
-				/>
-
-				{editingProduct && (
+					{/* alerts and dialogs */}
+					{/* Dialogs */}
 					<AddEditProductDialog
-						product={editingProduct}
-						open={!!editingProduct}
+						open={isAddDialogOpen}
 						categories={categories}
-						onClose={() => setEditingProduct(null)}
-						onSave={(product, reason) => updateProduct(editingProduct.id, product, reason)}
+						onClose={() => setIsAddDialogOpen(false)}
+						onSave={addProduct}
 					/>
-				)}
 
-				<AddEditCategoryDialog
-					open={isAddCategoryDialogOpen}
-					onClose={() => setIsAddCategoryDialogOpen(false)}
-					onSave={handleAddCategory}
-				/>
+					{editingProduct && (
+						<AddEditProductDialog
+							product={editingProduct}
+							open={!!editingProduct}
+							categories={categories}
+							onClose={() => setEditingProduct(null)}
+							onSave={(product, reason) =>
+								updateProduct(editingProduct.id, product, reason)
+							}
+						/>
+					)}
 
-				<AddEditCategoryDialog
-					category={selectedCategory}
-					open={isEditCategoryDialogOpen}
-					onClose={() => {
-						setIsEditCategoryDialogOpen(false);
-						setSelectedCategory(undefined);
-					}}
-					onSave={handleEditCategory}
-				/>
+					<AddEditCategoryDialog
+						open={isAddCategoryDialogOpen}
+						onClose={() => setIsAddCategoryDialogOpen(false)}
+						onSave={handleAddCategory}
+					/>
 
-				<AlertDialog
-					open={!!productToDelete}
-					onOpenChange={(open) => !open && setProductToDelete(null)}
-				>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-							<AlertDialogDescription>
-								This action cannot be undone. This will permanently delete the
-								product "{productToDelete?.name}".
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel>Cancel</AlertDialogCancel>
-							<AlertDialogAction
-								onClick={() => {
-									if (productToDelete) {
-										deleteProduct(productToDelete.id);
-										setProductToDelete(null);
-									}
-								}}
-							>
-								Delete
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+					<AddEditCategoryDialog
+						category={selectedCategory}
+						open={isEditCategoryDialogOpen}
+						onClose={() => {
+							setIsEditCategoryDialogOpen(false);
+							setSelectedCategory(undefined);
+						}}
+						onSave={handleEditCategory}
+					/>
 
-				<AlertDialog
-					open={isDeleteCategoryDialogOpen}
-					onOpenChange={setIsDeleteCategoryDialogOpen}
-				>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-							<AlertDialogDescription>
-								This action cannot be undone. This will permanently delete the
-								category and remove it from our servers.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel>Cancel</AlertDialogCancel>
-							<AlertDialogAction
-								onClick={handleDeleteCategory}
-								className="bg-red-600 hover:bg-red-700"
-							>
-								Delete
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+					<AlertDialog
+						open={!!productToDelete}
+						onOpenChange={(open) => !open && setProductToDelete(null)}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Are you sure?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This action cannot be undone. This will permanently delete the
+									product "{productToDelete?.name}".
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={() => {
+										if (productToDelete) {
+											deleteProduct(productToDelete.id);
+											setProductToDelete(null);
+										}
+									}}
+								>
+									Delete
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+
+					<AlertDialog
+						open={isDeleteCategoryDialogOpen}
+						onOpenChange={setIsDeleteCategoryDialogOpen}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Are you sure?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This action cannot be undone. This will permanently delete the
+									category and remove it from our servers.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={handleDeleteCategory}
+									className="bg-red-600 hover:bg-red-700"
+								>
+									Delete
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				</div>
 			</div>
 		</div>
 	);

@@ -28,7 +28,7 @@ export const paymentModes = [
   },
   {
     value: "momo",
-    label: "Mobile Money",
+    label: "Momo",
   },
   {
     value: "card",
