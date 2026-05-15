@@ -54,13 +54,34 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(authReducer, initialState);
+  const [state, dispatch] = useReducer(authReducer, initialState, (initial) => {
+    // Try to recover session from localStorage on initialization
+    try {
+      const savedUser = localStorage.getItem('pos_user');
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        return {
+          ...initial,
+          user,
+          isAuthenticated: true
+        };
+      }
+    } catch (e) {
+      console.error('Failed to restore session:', e);
+    }
+    return initial;
+  });
 
   const login = async (username: string, password: string) => {
     try {
       dispatch({ type: 'LOGIN_START' });
       const user = await window.electron.invoke('login', username, password);
-      dispatch({ type: 'LOGIN_SUCCESS', payload: {username: user?.username, id: user?.id, role: user?.role} });
+      const userData = { username: user?.username, id: user?.id, role: user?.role };
+      
+      // Persist to localStorage
+      localStorage.setItem('pos_user', JSON.stringify(userData));
+      
+      dispatch({ type: 'LOGIN_SUCCESS', payload: userData });
     } catch (error) {
       dispatch({ type: 'LOGIN_FAILURE' });
       throw error;
@@ -75,6 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Optionally handle error
       }
     }
+    // Clear from localStorage
+    localStorage.removeItem('pos_user');
     dispatch({ type: 'LOGOUT' });
   };
 

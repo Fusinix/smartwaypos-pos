@@ -10,15 +10,28 @@ interface LicenseCheckProps {
 }
 
 export const LicenseCheck: React.FC<LicenseCheckProps> = ({ children, onLicenseValid }) => {
-  const [loading, setLoading] = useState(true);
-  const [licenseValid, setLicenseValid] = useState(false);
+  const [loading, setLoading] = useState(() => {
+    // If we've already validated this session, start as not loading
+    return sessionStorage.getItem('license_verified') !== 'true';
+  });
+  const [licenseValid, setLicenseValid] = useState(() => {
+    return sessionStorage.getItem('license_verified') === 'true';
+  });
   const [showActivationDialog, setShowActivationDialog] = useState(false);
   const [hardwareId, setHardwareId] = useState('');
   const [licenseInfo, setLicenseInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    checkLicense();
+    if (!licenseValid) {
+      checkLicense();
+    } else {
+      // Even if verified, we might want to refresh info silently
+      window.electron.invoke('get-license-info').then(info => {
+        setLicenseInfo(info);
+        if (onLicenseValid) onLicenseValid(info);
+      }).catch(console.error);
+    }
   }, []);
 
   const checkLicense = async () => {
@@ -37,9 +50,11 @@ export const LicenseCheck: React.FC<LicenseCheckProps> = ({ children, onLicenseV
         const info = await window.electron.invoke('get-license-info');
         setLicenseInfo(info);
         setLicenseValid(true);
+        sessionStorage.setItem('license_verified', 'true');
         onLicenseValid(info);
       } else {
         setLicenseValid(false);
+        sessionStorage.removeItem('license_verified');
         setShowActivationDialog(true);
       }
     } catch (err) {

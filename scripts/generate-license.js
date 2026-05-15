@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const readline = require('readline');
 
-const SECRET_KEY = 'your-secret-key-here'; // Change this to match your licensing manager
+const SECRET_KEY = 'EFX-POS-SECURE-7h9v2Xk5M8n1P4q8R3w6T9z0A2B5C8E1'; // Match licensing manager
 
 const rl = readline.createInterface({
   input: process.stdin,

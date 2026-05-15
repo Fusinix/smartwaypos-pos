@@ -69,6 +69,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 					value={stats.revenue}
 					change={stats.revenueChange}
 					isLoading={isLoading}
+					isMoney={true}
 					icon={<DollarSign className="size-6 text-primary" />}
 				/>
 				<StatsCard
@@ -89,6 +90,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 					value={stats.averageOrderValue}
 					change={stats.averageOrderChange}
 					isLoading={isLoading}
+					isMoney={true}
 					icon={<TrendingUp className="size-6 text-primary" />}
 				/>
 			</div>
@@ -101,10 +103,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
 			{/* Sales Performance - Strategic trend analysis */}
 			<div className="space-y-4">
-				<h2 className="text-xl font-medium text-gray-900">
-			Sales Performance
-				</h2>
-			<SalesPerformanceChart data={salesData} isLoading={analyticsLoading} />
+				<h2 className="text-xl font-medium text-gray-900">Sales Performance</h2>
+				<SalesPerformanceChart data={salesData} isLoading={analyticsLoading} />
 			</div>
 
 			{/* Product & Category Performance - Strategic insights */}
@@ -169,7 +169,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 						<BarChart3 className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
 							<p className="font-semibold">Business Intelligence</p>
-							<p className="text-muted-foreground/80">Access comprehensive analytics</p>
+							<p className="text-muted-foreground/80">
+								Access comprehensive analytics
+							</p>
 						</div>
 					</div>
 					<div className="flex items-start space-x-4">
@@ -185,7 +187,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 						<AlertTriangle className="w-4 h-4  mt-0.5 flex-shrink-0" />
 						<div>
 							<p className="font-semibold">Security Monitoring</p>
-							<p className="text-muted-foreground/80">Track security events and access</p>
+							<p className="text-muted-foreground/80">
+								Track security events and access
+							</p>
 						</div>
 					</div>
 				</div>

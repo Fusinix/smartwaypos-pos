@@ -42,7 +42,7 @@ const path = __importStar(require("path"));
 class LicensingManager {
     constructor() {
         this.licenseInfo = null;
-        this.SECRET_KEY = 'your-secret-key-here'; // Change this!
+        this.SECRET_KEY = 'EFX-POS-SECURE-7h9v2Xk5M8n1P4q8R3w6T9z0A2B5C8E1'; // Secure random key
         // Offline configuration
         this.OFFLINE_GRACE_PERIOD_DAYS = 30; // Days license can work offline
         this.REQUIRE_ONLINE_ACTIVATION = true; // Must activate online first
@@ -136,14 +136,33 @@ class LicensingManager {
         try {
             // Use the live Smartway Portal URL
             const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app/api/validate';
-            // Allow localhost for development
+            // Try local server first if in dev, but fallback to production
             const isDev = !electron_1.app.isPackaged || process.env.NODE_ENV === 'development';
-            const activeUrl = isDev ? 'http://localhost:3000/api/validate' : licenseServerUrl;
+            let activeUrl = licenseServerUrl;
+            if (isDev) {
+                try {
+                    // Check if local portal is running
+                    const localResponse = await fetch('http://localhost:3000/api/validate', {
+                        method: 'OPTIONS',
+                        signal: AbortSignal.timeout(500)
+                    }).catch(() => null);
+                    if (localResponse) {
+                        activeUrl = 'http://localhost:3000/api/validate';
+                        console.log('Using local validation server');
+                    }
+                    else {
+                        console.log('Local server not found, using production:', licenseServerUrl);
+                    }
+                }
+                catch {
+                    console.log('Using production validation server');
+                }
+            }
             const response = await fetch(activeUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    license_key: licenseKey,
+                    license_key: licenseKey.trim(),
                     device_id: this.hardwareId,
                     appVersion: electron_1.app.getVersion(),
                     timestamp: Date.now()
@@ -161,6 +180,7 @@ class LicensingManager {
                 const infoToSave = result.licenseInfo || {
                     licenseKey: licenseKey,
                     hardwareId: this.hardwareId,
+                    issuedDate: result.issued_date || new Date().toISOString(),
                     expiryDate: result.expires_at || result.expiry_date,
                     isLifetime: result.is_lifetime || false,
                     activatedAt: new Date().toISOString()
