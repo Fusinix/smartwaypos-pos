@@ -257,7 +257,7 @@ export const Layout: React.FC = () => {
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col min-w-0 ">
 				{/* Top Header Bar */}
-				<header className="bg-primary border-b h-14 flex items-center justify-between px-6 sticky top-0 z-10 gap-4">
+				<header className="bg-primary border-b h-14 flex items-center justify-between px-4 sticky top-0 z-10 gap-4">
 					<div className="flex items-center gap-4 flex-1">
 						<Button
 							variant="ghost"

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { parseJSONString } from "@/lib/utils";
+import { cn, parseJSONString } from "@/lib/utils";
 import {
 	Code,
 	LayoutPanelTop,
@@ -39,6 +39,7 @@ import type {
 } from "../types/settings";
 import { Switch } from "@/components/ui/switch";
 import type { User as UserType } from "@/types";
+import { ClassStyles } from "@/components/classnames";
 
 interface SystemLog {
 	id: number;
@@ -385,7 +386,7 @@ export const Settings: React.FC = () => {
 				<Button
 					onClick={() => setActiveTab("general")}
 					variant={activeTab === "general" ? "default" : "outline"}
-					className="shadow-none"
+					className={cn("", ClassStyles.tabButton)}
 				>
 					<UserCog2 />
 					General
@@ -394,7 +395,7 @@ export const Settings: React.FC = () => {
 					<Button
 						onClick={() => setActiveTab("pos")}
 						variant={activeTab === "pos" ? "default" : "outline"}
-						className="shadow-none"
+						className={cn("", ClassStyles.tabButton)}
 					>
 						<MonitorDot />
 						POS Settings
@@ -404,7 +405,7 @@ export const Settings: React.FC = () => {
 					<Button
 						onClick={() => setActiveTab("tables")}
 						variant={activeTab === "tables" ? "default" : "outline"}
-						className="shadow-none"
+						className={cn("", ClassStyles.tabButton)}
 					>
 						<LayoutPanelTop />
 						Tables
@@ -414,7 +415,7 @@ export const Settings: React.FC = () => {
 					<Button
 						onClick={() => setActiveTab("users")}
 						variant={activeTab === "users" ? "default" : "outline"}
-						className="shadow-none"
+						className={cn("", ClassStyles.tabButton)}
 					>
 						<Users />
 						Users
@@ -424,7 +425,7 @@ export const Settings: React.FC = () => {
 					<Button
 						onClick={() => setActiveTab("backup")}
 						variant={activeTab === "backup" ? "default" : "outline"}
-						className="shadow-none"
+						className={cn("", ClassStyles.tabButton)}
 					>
 						<UploadCloud />
 						Backup & Restore
@@ -434,7 +435,7 @@ export const Settings: React.FC = () => {
 					<Button
 						onClick={() => setActiveTab("logs")}
 						variant={activeTab === "logs" ? "default" : "outline"}
-						className="shadow-none"
+						className={cn("", ClassStyles.tabButton)}
 					>
 						<List />
 						Logs
@@ -443,7 +444,7 @@ export const Settings: React.FC = () => {
 			</div>
 
 			{/* Main Content */}
-			<div className="flex-1 p-4 py-6 overflow-y-auto">
+			<div className="flex-1 p-4 py-6 overflow-y-auto space-y-8 ">
 				<SimpleAlert
 					open={showErrorDialog}
 					onOpenChange={setShowErrorDialog}
@@ -481,30 +482,12 @@ export const Settings: React.FC = () => {
 
 				{activeTab === "general" && (
 					<SectionCard title="General Settings">
-						<div className="space-y-6">
-							<div>
-								<Label className="block text-sm font-medium text-gray-700">
-									Business Name
-								</Label>
-								<Input
-									type="text"
-									value={localGeneralSettings.businessName}
-									onChange={(e) =>
-										setLocalGeneralSettings({
-											...localGeneralSettings,
-											businessName: e.target.value,
-										})
-									}
-									placeholder="Enter business name"
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
-								/>
-							</div>
-
-							<div className="space-y-2">
+						<div className="space-y-6 grid md:grid-cols-4 gap-8">
+							<div className="space-y-2 p-6">
 								<Label>Business Logo</Label>
-								<div className="flex items-center space-x-4">
+								<div className="flex flex-col space-y-4">
 									{localGeneralSettings.businessLogo && (
-										<div className="h-16 w-16 border rounded bg-gray-50 flex items-center justify-center p-1">
+										<div className="h-32 w-32 border rounded bg-gray-50 flex items-center justify-center p-1">
 											<img
 												src={localGeneralSettings.businessLogo}
 												alt="Logo"
@@ -528,8 +511,11 @@ export const Settings: React.FC = () => {
 												reader.readAsDataURL(file);
 											}
 										}}
-										className="flex-1 cursor-pointer"
+										className="cursor-pointer flex-1"
 									/>
+									<p className="text-xs text-gray-400">
+										This logo will appear at the top of your printed receipts.
+									</p>
 									{localGeneralSettings.businessLogo && (
 										<Button
 											variant="ghost"
@@ -540,51 +526,65 @@ export const Settings: React.FC = () => {
 													businessLogo: "",
 												})
 											}
-											className="text-red-500 hover:text-red-700"
+											className="text-red-500 hover:text-red-700 w-fit bg-destructive/10"
 										>
 											Clear
 										</Button>
 									)}
 								</div>
-								<p className="text-xs text-gray-400">
-									This logo will appear at the top of your printed receipts.
-								</p>
 							</div>
+							<div className="flex-1 space-y-6 md:border-l md:pl-8">
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Business Name
+									</Label>
+									<Input
+										type="text"
+										value={localGeneralSettings.businessName}
+										onChange={(e) =>
+											setLocalGeneralSettings({
+												...localGeneralSettings,
+												businessName: e.target.value,
+											})
+										}
+										placeholder="Enter business name"
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									/>
+								</div>
 
-							<div>
-								<Label className="block text-sm font-medium text-gray-700">
-									Default Currency
-								</Label>
-								<select
-									value={localGeneralSettings.defaultCurrency}
-									onChange={(e) =>
-										setLocalGeneralSettings({
-											...localGeneralSettings,
-											defaultCurrency: e.target.value,
-										})
-									}
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
-								>
-									<option value="GHS">GHS</option>
-								</select>
-							</div>
-							<div className="flex items-center hidden">
-								<Input
-									type="checkbox"
-									checked={localGeneralSettings.printReceipts}
-									onChange={(e) =>
-										setLocalGeneralSettings({
-											...localGeneralSettings,
-											printReceipts: e.target.checked,
-										})
-									}
-									className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/90"
-								/>
-								<Label className="ml-2 block text-sm text-gray-900">
-									Print Receipts
-								</Label>
-							</div>
-							<div className="flex justify-end">
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Default Currency
+									</Label>
+									<select
+										value={localGeneralSettings.defaultCurrency}
+										onChange={(e) =>
+											setLocalGeneralSettings({
+												...localGeneralSettings,
+												defaultCurrency: e.target.value,
+											})
+										}
+										className="mt-1 block w-[100px] rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									>
+										<option value="GHS">GHS</option>
+									</select>
+								</div>
+								<div className="flex items-center hidden">
+									<Input
+										type="checkbox"
+										checked={localGeneralSettings.printReceipts}
+										onChange={(e) =>
+											setLocalGeneralSettings({
+												...localGeneralSettings,
+												printReceipts: e.target.checked,
+											})
+										}
+										className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/90"
+									/>
+									<Label className="ml-2 block text-sm text-gray-900">
+										Print Receipts
+									</Label>
+								</div>
 								<Button
 									onClick={handleSaveGeneralSettings}
 									className="bg-primary text-white hover:bg-primary"
@@ -597,322 +597,313 @@ export const Settings: React.FC = () => {
 				)}
 
 				{activeTab === "pos" && (
-					<SectionCard title="POS Settings">
-						<div className="space-y-6">
-							<div>
-								<Label className="block text-sm font-medium text-gray-700">
-									Default Tax Rate (%)
-								</Label>
-								<Input
-									type="number"
-									value={localPosSettings.defaultTaxRate}
-									onChange={(e) =>
-										setLocalPosSettings({
-											...localPosSettings,
-											defaultTaxRate: parseFloat(e.target.value) || 0,
-										})
-									}
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
-								/>
+					<>
+						<SectionCard title="POS Settings">
+							<div className="space-y-6">
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Default Tax Rate (%)
+									</Label>
+									<Input
+										type="number"
+										value={localPosSettings.defaultTaxRate}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												defaultTaxRate: parseFloat(e.target.value) || 0,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									/>
+								</div>
+								<div className="flex items-center hidden">
+									<Input
+										type="checkbox"
+										checked={localPosSettings.showTaxOnReceipt}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												showTaxOnReceipt: e.target.checked,
+											})
+										}
+										className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/90"
+									/>
+									<Label className="ml-2 block text-sm text-gray-900">
+										Show Tax on Receipt
+									</Label>
+								</div>
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Auto Logout Timeout (minutes)
+									</Label>
+									<Input
+										type="number"
+										value={localPosSettings.autoLogoutTimeout}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												autoLogoutTimeout: parseInt(e.target.value) || 30,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									/>
+								</div>
+								<div className="hidden">
+									<Label className="block text-sm font-medium text-gray-700">
+										Receipt Footer Note
+									</Label>
+									<Input
+										type="text"
+										value={localPosSettings.receiptFooterNote}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												receiptFooterNote: e.target.value,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									/>
+								</div>
 							</div>
-							<div className="flex items-center hidden">
-								<Input
-									type="checkbox"
-									checked={localPosSettings.showTaxOnReceipt}
-									onChange={(e) =>
-										setLocalPosSettings({
-											...localPosSettings,
-											showTaxOnReceipt: e.target.checked,
-										})
-									}
-									className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/90"
-								/>
-								<Label className="ml-2 block text-sm text-gray-900">
-									Show Tax on Receipt
-								</Label>
-							</div>
-							<div>
-								<Label className="block text-sm font-medium text-gray-700">
-									Auto Logout Timeout (minutes)
-								</Label>
-								<Input
-									type="number"
-									value={localPosSettings.autoLogoutTimeout}
-									onChange={(e) =>
-										setLocalPosSettings({
-											...localPosSettings,
-											autoLogoutTimeout: parseInt(e.target.value) || 30,
-										})
-									}
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
-								/>
-							</div>
-							<div className="hidden">
-								<Label className="block text-sm font-medium text-gray-700">
-									Receipt Footer Note
-								</Label>
-								<Input
-									type="text"
-									value={localPosSettings.receiptFooterNote}
-									onChange={(e) =>
-										setLocalPosSettings({
-											...localPosSettings,
-											receiptFooterNote: e.target.value,
-										})
-									}
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
-								/>
+						</SectionCard>
+						<SectionCard title="Cash Drawer Settings">
+							<div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
+								<p className="text-sm text-blue-800">
+									<strong>Note:</strong> If your drawer is connected{" "}
+									<strong>to the printer</strong> (RJ11 cable), select your
+									printer below. If it's <strong>directly USB</strong>, select a
+									COM port.
+								</p>
 							</div>
 
-							<div className="pt-4 border-t border-gray-100">
-								<h4 className="text-sm font-semibold text-gray-900 mb-4">
-									Cash Drawer Integration
-								</h4>
-
-								<div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
-									<p className="text-sm text-blue-800">
-										<strong>Note:</strong> If your drawer is connected{" "}
-										<strong>to the printer</strong> (RJ11 cable), select your
-										printer below. If it's <strong>directly USB</strong>, select
-										a COM port.
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Printer Connection (RJ11)
+									</Label>
+									<select
+										value={localPosSettings.receiptPrinter || ""}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												receiptPrinter: e.target.value,
+												cashDrawerPort:
+													e.target.value ? "" : localPosSettings.cashDrawerPort,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
+									>
+										<option value="">Select printer...</option>
+										{availablePrinters.map((printer) => (
+											<option key={printer.name} value={printer.name}>
+												{printer.name} {printer.isDefault ? "(Default)" : ""}
+											</option>
+										))}
+									</select>
+									<p className="mt-1 text-xs text-gray-500">
+										For drawers plugged into the thermal printer.
 									</p>
 								</div>
 
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-									<div>
-										<Label className="block text-sm font-medium text-gray-700">
-											Printer Connection (RJ11)
-										</Label>
-										<select
-											value={localPosSettings.receiptPrinter || ""}
-											onChange={(e) =>
-												setLocalPosSettings({
-													...localPosSettings,
-													receiptPrinter: e.target.value,
-													cashDrawerPort:
-														e.target.value ?
-															""
-														:	localPosSettings.cashDrawerPort,
-												})
-											}
-											className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
-										>
-											<option value="">Select printer...</option>
-											{availablePrinters.map((printer) => (
-												<option key={printer.name} value={printer.name}>
-													{printer.name} {printer.isDefault ? "(Default)" : ""}
-												</option>
-											))}
-										</select>
-										<p className="mt-1 text-xs text-gray-500">
-											For drawers plugged into the thermal printer.
-										</p>
-									</div>
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Direct COM Port (USB)
+									</Label>
+									<select
+										value={localPosSettings.cashDrawerPort || ""}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												cashDrawerPort: e.target.value,
+												receiptPrinter:
+													e.target.value ? "" : localPosSettings.receiptPrinter,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
+									>
+										<option value="">Select port...</option>
+										{availablePorts.map((port) => (
+											<option key={port.path} value={port.path}>
+												{port.path}{" "}
+												{port.friendlyName ? `- ${port.friendlyName}` : ""}
+											</option>
+										))}
+									</select>
+									<p className="mt-1 text-xs text-gray-500">
+										For drawers plugged directly into the PC.
+									</p>
+								</div>
 
-									<div>
-										<Label className="block text-sm font-medium text-gray-700">
-											Direct COM Port (USB)
-										</Label>
-										<select
-											value={localPosSettings.cashDrawerPort || ""}
-											onChange={(e) =>
-												setLocalPosSettings({
-													...localPosSettings,
-													cashDrawerPort: e.target.value,
-													receiptPrinter:
-														e.target.value ?
-															""
-														:	localPosSettings.receiptPrinter,
-												})
-											}
-											className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
-										>
-											<option value="">Select port...</option>
-											{availablePorts.map((port) => (
-												<option key={port.path} value={port.path}>
-													{port.path}{" "}
-													{port.friendlyName ? `- ${port.friendlyName}` : ""}
-												</option>
-											))}
-										</select>
-										<p className="mt-1 text-xs text-gray-500">
-											For drawers plugged directly into the PC.
-										</p>
-									</div>
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Kick Code
+									</Label>
+									<Input
+										type="text"
+										placeholder="e.g. 0x07"
+										value={localPosSettings.cashDrawerKickCode || ""}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												cashDrawerKickCode: e.target.value,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									/>
+								</div>
+							</div>
 
-									<div>
-										<Label className="block text-sm font-medium text-gray-700">
-											Kick Code
-										</Label>
-										<Input
-											type="text"
-											placeholder="e.g. 0x07"
-											value={localPosSettings.cashDrawerKickCode || ""}
-											onChange={(e) =>
-												setLocalPosSettings({
-													...localPosSettings,
-													cashDrawerKickCode: e.target.value,
-												})
-											}
-											className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
-										/>
+							<div className="mt-6 flex items-center gap-3">
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={handleTestDrawer}
+									disabled={
+										isTestingDrawer ||
+										(!localPosSettings.cashDrawerPort &&
+											!localPosSettings.receiptPrinter)
+									}
+									className="text-blue-600 border-blue-200 hover:bg-blue-50"
+								>
+									{isTestingDrawer ? "Testing..." : "Test Drawer Connection"}
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => {
+										fetchSerialPorts();
+										fetchPrinters();
+									}}
+									className="text-gray-500"
+								>
+									Refresh Devices
+								</Button>
+							</div>
+						</SectionCard>
+
+						<SectionCard title="Customer-facing Display Settings">
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Display Port (VFD)
+									</Label>
+									<select
+										value={localPosSettings.customerDisplayPort || ""}
+										onChange={(e) =>
+											setLocalPosSettings({
+												...localPosSettings,
+												customerDisplayPort: e.target.value,
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
+									>
+										<option value="">Select port...</option>
+										{availablePorts.map((port) => (
+											<option key={port.path} value={port.path}>
+												{port.path}{" "}
+												{port.friendlyName ? `- ${port.friendlyName}` : ""}
+											</option>
+										))}
+									</select>
+									<p className="mt-1 text-xs text-gray-500">
+										Connects to the monitor/pole at the back of the POS.
+									</p>
+								</div>
+							</div>
+
+							{/* Display Test Panel */}
+							<div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+								<p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+									Test Display
+								</p>
+
+								{/* Amount test buttons */}
+								<div>
+									<p className="text-xs text-gray-500 mb-2">
+										Send a test amount:
+									</p>
+									<div className="flex flex-wrap gap-2">
+										{["10.00", "50.00", "99.99", "150.00"].map((amount) => (
+											<Button
+												key={amount}
+												variant="outline"
+												size="sm"
+												disabled={!localPosSettings.customerDisplayPort}
+												onClick={async () => {
+													try {
+														await window.electron.invoke(
+															"update-customer-display",
+															localPosSettings.customerDisplayPort,
+															amount,
+														);
+														toast.success(`Sent ${amount} to display`);
+													} catch (err: any) {
+														toast.error(`Test failed: ${err.message}`);
+													}
+												}}
+												className="text-blue-600 border-blue-200 hover:bg-blue-50 font-mono"
+											>
+												{amount}
+											</Button>
+										))}
 									</div>
 								</div>
 
-								<div className="mt-6 flex items-center gap-3">
+								{/* Action buttons */}
+								<div className="flex flex-wrap gap-2 pt-1 border-t border-gray-200">
 									<Button
 										variant="outline"
 										size="sm"
-										onClick={handleTestDrawer}
-										disabled={
-											isTestingDrawer ||
-											(!localPosSettings.cashDrawerPort &&
-												!localPosSettings.receiptPrinter)
-										}
-										className="text-blue-600 border-blue-200 hover:bg-blue-50"
-									>
-										{isTestingDrawer ? "Testing..." : "Test Drawer Connection"}
-									</Button>
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => {
-											fetchSerialPorts();
-											fetchPrinters();
-										}}
-										className="text-gray-500"
-									>
-										Refresh Devices
-									</Button>
-								</div>
-							</div>
-
-							<div className="pt-4 border-t border-gray-100">
-								<h4 className="text-sm font-semibold text-gray-900 mb-4">
-									Customer-Facing Display
-								</h4>
-
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-									<div>
-										<Label className="block text-sm font-medium text-gray-700">
-											Display Port (VFD)
-										</Label>
-										<select
-											value={localPosSettings.customerDisplayPort || ""}
-											onChange={(e) =>
-												setLocalPosSettings({
-													...localPosSettings,
-													customerDisplayPort: e.target.value,
-												})
+										disabled={!localPosSettings.customerDisplayPort}
+										onClick={async () => {
+											try {
+												await window.electron.invoke(
+													"update-customer-display",
+													localPosSettings.customerDisplayPort,
+													"0.00",
+												);
+												toast.success("Display cleared to 0.00");
+											} catch (err: any) {
+												toast.error(`Clear failed: ${err.message}`);
 											}
-											className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm h-10"
-										>
-											<option value="">Select port...</option>
-											{availablePorts.map((port) => (
-												<option key={port.path} value={port.path}>
-													{port.path}{" "}
-													{port.friendlyName ? `- ${port.friendlyName}` : ""}
-												</option>
-											))}
-										</select>
-										<p className="mt-1 text-xs text-gray-500">
-											Connects to the monitor/pole at the back of the POS.
-										</p>
-									</div>
+										}}
+										className="text-orange-600 border-orange-200 hover:bg-orange-50"
+									>
+										Clear Display (0.00)
+									</Button>
+
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={!localPosSettings.customerDisplayPort}
+										onClick={async () => {
+											try {
+												await window.electron.invoke(
+													"update-customer-display",
+													localPosSettings.customerDisplayPort,
+													"0.00",
+												);
+												toast.success("Welcome message sent to display");
+											} catch (err: any) {
+												toast.error(`Test failed: ${err.message}`);
+											}
+										}}
+										className="text-green-600 border-green-200 hover:bg-green-50"
+									>
+										Test Welcome Message
+									</Button>
 								</div>
 
-								{/* Display Test Panel */}
-								<div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-									<p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-										Test Display
+								{!localPosSettings.customerDisplayPort && (
+									<p className="text-xs text-amber-600">
+										Select a display port above to enable test buttons.
 									</p>
-
-									{/* Amount test buttons */}
-									<div>
-										<p className="text-xs text-gray-500 mb-2">
-											Send a test amount:
-										</p>
-										<div className="flex flex-wrap gap-2">
-											{["10.00", "50.00", "99.99", "150.00"].map((amount) => (
-												<Button
-													key={amount}
-													variant="outline"
-													size="sm"
-													disabled={!localPosSettings.customerDisplayPort}
-													onClick={async () => {
-														try {
-															await window.electron.invoke(
-																"update-customer-display",
-																localPosSettings.customerDisplayPort,
-																amount,
-															);
-															toast.success(`Sent ${amount} to display`);
-														} catch (err: any) {
-															toast.error(`Test failed: ${err.message}`);
-														}
-													}}
-													className="text-blue-600 border-blue-200 hover:bg-blue-50 font-mono"
-												>
-													{amount}
-												</Button>
-											))}
-										</div>
-									</div>
-
-									{/* Action buttons */}
-									<div className="flex flex-wrap gap-2 pt-1 border-t border-gray-200">
-										<Button
-											variant="outline"
-											size="sm"
-											disabled={!localPosSettings.customerDisplayPort}
-											onClick={async () => {
-												try {
-													await window.electron.invoke(
-														"update-customer-display",
-														localPosSettings.customerDisplayPort,
-														"0.00",
-													);
-													toast.success("Display cleared to 0.00");
-												} catch (err: any) {
-													toast.error(`Clear failed: ${err.message}`);
-												}
-											}}
-											className="text-orange-600 border-orange-200 hover:bg-orange-50"
-										>
-											Clear Display (0.00)
-										</Button>
-
-										<Button
-											variant="outline"
-											size="sm"
-											disabled={!localPosSettings.customerDisplayPort}
-											onClick={async () => {
-												try {
-													await window.electron.invoke(
-														"update-customer-display",
-														localPosSettings.customerDisplayPort,
-														"0.00",
-													);
-													toast.success("Welcome message sent to display");
-												} catch (err: any) {
-													toast.error(`Test failed: ${err.message}`);
-												}
-											}}
-											className="text-green-600 border-green-200 hover:bg-green-50"
-										>
-											Test Welcome Message
-										</Button>
-									</div>
-
-									{!localPosSettings.customerDisplayPort && (
-										<p className="text-xs text-amber-600">
-											Select a display port above to enable test buttons.
-										</p>
-									)}
-								</div>
+								)}
 							</div>
+						</SectionCard>
 
-							<div className="pt-4 border-t border-gray-100">
+						<SectionCard title="Display settings">
+							<div className="">
 								<h4 className="text-sm font-semibold text-gray-900 mb-4">
 									On-Screen Keyboard
 								</h4>
@@ -995,17 +986,16 @@ export const Settings: React.FC = () => {
 									</div>
 								</div>
 							</div>
-
-							<div className="flex justify-end pt-4">
-								<Button
-									onClick={handleSavePosSettings}
-									className="bg-primary text-white hover:bg-primary"
-								>
-									Save Changes
-								</Button>
-							</div>
+						</SectionCard>
+						<div className="p-4 flex justify-end items-center">
+							<Button
+								onClick={handleSavePosSettings}
+								className="bg-primary text-white hover:bg-primary"
+							>
+								Save Changes
+							</Button>
 						</div>
-					</SectionCard>
+					</>
 				)}
 
 				{activeTab === "tables" && isManager && (

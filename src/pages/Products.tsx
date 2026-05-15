@@ -61,6 +61,8 @@ import {
 } from "lucide-react";
 import { useKeyboard } from "@/context/KeyboardContext";
 import { CategoryComponent } from "./CreateOrder";
+import EmptyState from "@/components/alerts/empty-state";
+import { ClassStyles } from "@/components/classnames";
 
 export default function Products() {
 	const { user } = useAuth();
@@ -254,7 +256,7 @@ export default function Products() {
 	}, [products]);
 
 	return (
-		<div className="h-full flex flex-col">
+		<div className="flex flex-col h-[calc(100%-1px)] overflow-hidden">
 			{/* Page Header */}
 			<div className="bg-white border-b">
 				<div className="flex items-center justify-between px-4 py-2">
@@ -277,7 +279,7 @@ export default function Products() {
 						variant={activeTab === "products" ? "default" : "outline"}
 						onClick={() => setActiveTab("products")}
 						className={cn(
-							"",
+							ClassStyles.tabButton,
 							activeTab === "products" ? "text-white" : (
 								"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
 							),
@@ -290,7 +292,7 @@ export default function Products() {
 						variant={activeTab === "categories" ? "default" : "outline"}
 						onClick={() => setActiveTab("categories")}
 						className={cn(
-							"",
+							ClassStyles.tabButton,
 							activeTab === "categories" ? "text-white" : (
 								"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
 							),
@@ -310,7 +312,7 @@ export default function Products() {
 						activeTab !== "products" ? "hidden" : "",
 					)}
 				>
-					<div className="h-14 border-b flex items-center justify-between px-4">
+					<div className="h-14 border-b flex items-center justify-between px-4 sticky top-0 z-10 bg-card">
 						<h2 className="font-semibold text-md">Categories</h2>
 						{filters.category !== "all" && (
 							<Button
@@ -322,7 +324,7 @@ export default function Products() {
 							</Button>
 						)}
 					</div>
-					<div className="flex-1 h-full overflow-y-auto p-4 space-y-4">
+					<div className="flex-1 h-[calc(100dvh-225px)] overflow-y-auto p-4 pb-12 space-y-4">
 						{categories.map((cat) => (
 							<CategoryComponent
 								key={cat.id}
@@ -331,10 +333,11 @@ export default function Products() {
 								setActiveCategory={handleSelectCategory}
 							/>
 						))}
+						<div className="!h-[100px]" />
 					</div>
 				</div>
-				<div className="flex-1 overflow-y-auto">
-					<div className="h-14 flex items-center gap-4 px-4 py-2 bg-card border-b">
+				<div className="flex-1 h-[calc(100dvh-170px)] overflow-y-auto">
+					<div className="h-14 flex items-center gap-4 px-4 py-2 bg-card border-b sticky top-0 z-10">
 						<div className="relative flex flex-1 max-w-lg items-center">
 							<Search className="h-4 w-4 absolute left-3 text-muted-foreground" />
 							<Input
@@ -547,9 +550,11 @@ export default function Products() {
 							{loading ?
 								<div className="text-center py-4 text-lg">Loading...</div>
 							: filteredProducts.length === 0 ?
-								<div className="text-center py-12 text-gray-400 text-lg">
-									No products found.
-								</div>
+								<EmptyState
+									icon={Beer}
+									title={`No drinks found`}
+									description={`We could not find drinks ${filters.category && filters.category !== "all" ? "this category. Try another category." : "at the moment. Add drinks to get started"}`}
+								/>
 							: viewMode === "grid" ?
 								<div
 									className={cn(
@@ -629,13 +634,16 @@ export default function Products() {
 														<h3 className="font-bold text-lg text-gray-900 line-clamp-1">
 															{product.name}
 														</h3>
-														<p className="text-sm text-gray-500 capitalize mt-1">
+														<p className="text-sm text-gray-500 capitalize mt-1 p-1 px-2 rounded-md bg-primary/10 flex items-center gap-2 w-fit">
 															{product.category ?
-																getCategoryName(
-																	product.category as any,
-																	categories,
-																)
-															:	"Uncategorized"}
+																<>
+																	<ShoppingBasket className="size-4" />{" "}
+																	{getCategoryName(
+																		product.category as any,
+																		categories,
+																	)}
+																</>
+															:	""}
 														</p>
 													</div>
 

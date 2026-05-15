@@ -16,7 +16,16 @@ import { useSettings } from "@/hooks/useSettings";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
 import type { Order } from "@/types";
-import { Clock, Lock, Plus, Search, Share2, Upload, X } from "lucide-react";
+import {
+	Clipboard,
+	Clock,
+	Lock,
+	Plus,
+	Search,
+	Share2,
+	Upload,
+	X,
+} from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
 import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
@@ -32,12 +41,18 @@ import { toast } from "sonner";
 import { FileText, Receipt } from "lucide-react";
 import { DailyReportDialog } from "@/components/dialogs/daily-report-dialog";
 import { ExpensesDialog } from "@/components/dialogs/expenses-dialog";
-import { OrderTypeIcons, PaymentModeIcons, type PaymentModes } from "@/components/Icons";
+import {
+	OrderTypeIcons,
+	PaymentModeIcons,
+	type PaymentModes,
+} from "@/components/Icons";
+import { ClassStyles } from "@/components/classnames";
+import EmptyState from "@/components/alerts/empty-state";
 
 export const Orders: React.FC = () => {
 	const { orders, loading, error, fetchOrders, getOrderById, updateOrder } =
 		useOrders();
-		const navigate = useNavigate();
+	const navigate = useNavigate();
 	const { fetchCategories } = useCategory();
 	const { settings } = useSettings();
 	const [activeTab, setActiveTab] = useState<"active" | "closed">("active");
@@ -51,8 +66,8 @@ export const Orders: React.FC = () => {
 	const [shareDialogOpen, setShareDialogOpen] = useState(false);
 	const [amountTendered, setAmountTendered] = useState<string>("");
 	const { format: formatCurrency } = useCurrency();
-	const {printReceipt, printKitchenOrder} = useReceipt();
-	const { isOpen:isKeyboardOpen } = useKeyboard();
+	const { printReceipt, printKitchenOrder } = useReceipt();
+	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [lastEnterPress, setLastEnterPress] = useState<number>(0);
 	const [enterCount, setEnterCount] = useState<number>(0);
@@ -66,12 +81,14 @@ export const Orders: React.FC = () => {
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			// Only trigger if no search/input or dialog is focused to avoid accidents
-			if (e.key === 'Enter') {
+			if (e.key === "Enter") {
 				const now = Date.now();
 				if (now - lastEnterPress < 500) {
 					const newCount = enterCount + 1;
 					if (newCount === 3) {
-						console.log("Triple-Enter detected! Triggering manual drawer kick...");
+						console.log(
+							"Triple-Enter detected! Triggering manual drawer kick...",
+						);
 						window.electron.invoke("trigger-cash-drawer");
 						setEnterCount(0);
 					} else {
@@ -84,15 +101,14 @@ export const Orders: React.FC = () => {
 			}
 		};
 
-		window.addEventListener('keydown', handleKeyDown);
-		return () => window.removeEventListener('keydown', handleKeyDown);
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [enterCount, lastEnterPress]);
 
 	useEffect(() => {
 		fetchOrders();
 		fetchCategories();
 	}, []);
-
 
 	const handleOrderSelect = async (order: Order) => {
 		if (!order.id) return;
@@ -126,12 +142,12 @@ export const Orders: React.FC = () => {
 					const todayStart = new Date(
 						now.getFullYear(),
 						now.getMonth(),
-						now.getDate()
+						now.getDate(),
 					);
 					const todayEnd = new Date(
 						now.getFullYear(),
 						now.getMonth(),
-						now.getDate() + 1
+						now.getDate() + 1,
 					);
 					if (orderDate < todayStart || orderDate >= todayEnd) return false;
 				} else if (dateFilter === "week") {
@@ -181,8 +197,9 @@ export const Orders: React.FC = () => {
 			let itemTotal = itemPrice * quantity;
 			if (item.item_type === "food" && item.extras && item.extras.length > 0) {
 				const extrasTotal = item.extras.reduce(
-					(sum: number, e: any) => sum + parseFloat(e.price || 0) * parseInt(e.quantity || 1, 10),
-					0
+					(sum: number, e: any) =>
+						sum + parseFloat(e.price || 0) * parseInt(e.quantity || 1, 10),
+					0,
 				);
 				itemTotal += extrasTotal * quantity;
 			}
@@ -194,15 +211,13 @@ export const Orders: React.FC = () => {
 
 	// Auto-update Customer Display (must be after selectedOrderTotal is defined)
 	useEffect(() => {
-    const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
-    if (!port) return;
+		const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
+		if (!port) return;
 
-    const totalStr = selectedOrder 
-        ? selectedOrderTotal.toFixed(2) 
-        : "0.00";
-        
-    window.electron.invoke("update-customer-display", port, totalStr);
-}, [selectedOrderTotal, selectedOrder?.id, settings?.pos]);
+		const totalStr = selectedOrder ? selectedOrderTotal.toFixed(2) : "0.00";
+
+		window.electron.invoke("update-customer-display", port, totalStr);
+	}, [selectedOrderTotal, selectedOrder?.id, settings?.pos]);
 
 	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
@@ -233,7 +248,7 @@ export const Orders: React.FC = () => {
 				setSelectedOrder(updated);
 				// Refresh orders list to update UI
 				await fetchOrders();
-				
+
 				// Show print confirmation instead of auto-printing
 				setOrderToPrint(updated);
 				setShowPrintConfirm(true);
@@ -272,26 +287,35 @@ export const Orders: React.FC = () => {
 
 	const handleDownloadPDF = () => {
 		if (!reportData) return;
-		
+
 		try {
 			const doc = new jsPDF();
 			const pageWidth = doc.internal.pageSize.getWidth();
-			
+
 			// 1. Header
 			doc.setFontSize(22);
 			doc.setTextColor(40, 40, 40);
-			doc.text("Daily Sales & Inventory Report", pageWidth / 2, 20, { align: "center" });
-			
+			doc.text("Daily Sales & Inventory Report", pageWidth / 2, 20, {
+				align: "center",
+			});
+
 			doc.setFontSize(12);
 			doc.setTextColor(100, 100, 100);
-			doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 28, { align: "center" });
-			doc.text(`Staff: ${user?.username || "Admin"}`, pageWidth / 2, 35, { align: "center" });
-			
+			doc.text(
+				`Generated on: ${new Date().toLocaleString()}`,
+				pageWidth / 2,
+				28,
+				{ align: "center" },
+			);
+			doc.text(`Staff: ${user?.username || "Admin"}`, pageWidth / 2, 35, {
+				align: "center",
+			});
+
 			// 2. Inventory Table (Drinks)
 			doc.setFontSize(16);
 			doc.setTextColor(0, 0, 0);
 			doc.text("Drinks Inventory Reconciliation", 14, 50);
-			
+
 			const inventoryBody = reportData.inventory.map((item: any) => [
 				item.name,
 				item.openingStock,
@@ -300,75 +324,102 @@ export const Orders: React.FC = () => {
 				item.damaged,
 				item.adjusted,
 				formatCurrency(item.totalSales),
-				item.stockLeft
+				item.stockLeft,
 			]);
-			
+
 			autoTable(doc, {
 				startY: 55,
 				head: [["Item", "Open", "Add", "Sold", "Dmg", "Adj", "Sales", "Left"]],
 				body: inventoryBody,
-				theme: 'striped',
+				theme: "striped",
 				headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-				styles: { fontSize: 8 }
+				styles: { fontSize: 8 },
 			});
-			
+
 			// 3. Food Sales Table
 			let currentY = (doc as any).lastAutoTable.finalY || 100;
 			doc.setFontSize(14);
 			doc.setTextColor(0, 0, 0);
 			doc.text("Food Sales Summary", 14, currentY + 15);
-			
+
 			const foodBody = reportData.foodSales.map((item: any) => [
 				item.name,
 				item.quantity,
-				formatCurrency(item.totalSales)
+				formatCurrency(item.totalSales),
 			]);
-			
+
 			autoTable(doc, {
 				startY: currentY + 20,
 				head: [["Item Name", "Qty Sold", "Total Revenue"]],
 				body: foodBody,
-				theme: 'striped',
+				theme: "striped",
 				headStyles: { fillColor: [39, 174, 96], textColor: 255 },
-				styles: { fontSize: 9 }
+				styles: { fontSize: 9 },
 			});
 
 			// 4. Expenses Table
 			currentY = (doc as any).lastAutoTable.finalY || 200;
 			doc.setFontSize(14);
 			doc.text("Daily Expenses", 14, currentY + 15);
-			
+
 			const expenseBody = reportData.expenses.map((e: any) => [
 				e.description,
 				formatCurrency(e.amount),
-				e.staff
+				e.staff,
 			]);
-			
+
 			autoTable(doc, {
 				startY: currentY + 20,
 				head: [["Description", "Amount", "Staff"]],
 				body: expenseBody,
-				theme: 'striped',
+				theme: "striped",
 				headStyles: { fillColor: [192, 57, 43], textColor: 255 },
-				styles: { fontSize: 9 }
+				styles: { fontSize: 9 },
 			});
-			
+
 			// 5. Final Summary
 			currentY = (doc as any).lastAutoTable.finalY || 250;
-			const drinksTotal = reportData.inventory.reduce((sum: number, item: any) => sum + item.totalSales, 0);
-			const foodTotal = reportData.foodSales.reduce((sum: number, item: any) => sum + item.totalSales, 0);
-			const netRevenue = (drinksTotal + foodTotal) - (reportData.totalExpenses || 0);
-			
+			const drinksTotal = reportData.inventory.reduce(
+				(sum: number, item: any) => sum + item.totalSales,
+				0,
+			);
+			const foodTotal = reportData.foodSales.reduce(
+				(sum: number, item: any) => sum + item.totalSales,
+				0,
+			);
+			const netRevenue =
+				drinksTotal + foodTotal - (reportData.totalExpenses || 0);
+
 			doc.setFontSize(12);
 			doc.setFont("helvetica", "bold");
-			doc.text(`Total Sales: ${formatCurrency(drinksTotal + foodTotal)}`, pageWidth - 14, currentY + 15, { align: "right" });
-			doc.text(`Total Expenses: -${formatCurrency(reportData.totalExpenses || 0)}`, pageWidth - 14, currentY + 23, { align: "right" });
-			doc.text(`Pending Orders: ${formatCurrency(reportData.pendingOrders?.total || 0)} (${reportData.pendingOrders?.count})`, pageWidth - 14, currentY + 31, { align: "right" });
-			
+			doc.text(
+				`Total Sales: ${formatCurrency(drinksTotal + foodTotal)}`,
+				pageWidth - 14,
+				currentY + 15,
+				{ align: "right" },
+			);
+			doc.text(
+				`Total Expenses: -${formatCurrency(reportData.totalExpenses || 0)}`,
+				pageWidth - 14,
+				currentY + 23,
+				{ align: "right" },
+			);
+			doc.text(
+				`Pending Orders: ${formatCurrency(reportData.pendingOrders?.total || 0)} (${reportData.pendingOrders?.count})`,
+				pageWidth - 14,
+				currentY + 31,
+				{ align: "right" },
+			);
+
 			doc.setFontSize(16);
 			doc.setTextColor(39, 174, 96);
-			doc.text(`NET REVENUE: ${formatCurrency(netRevenue)}`, pageWidth - 14, currentY + 45, { align: "right" });
-			
+			doc.text(
+				`NET REVENUE: ${formatCurrency(netRevenue)}`,
+				pageWidth - 14,
+				currentY + 45,
+				{ align: "right" },
+			);
+
 			// Save the PDF
 			const fileName = `DailyReport_${reportData.date}_${user?.username || "Admin"}.pdf`;
 			doc.save(fileName);
@@ -379,8 +430,10 @@ export const Orders: React.FC = () => {
 		}
 	};
 
-	const OrderTypeIcon = selectedOrder?  OrderTypeIcons[selectedOrder.order_type] : null;
-	const PaymentIcon = selectedOrder?  PaymentModeIcons[selectedOrder.payment_mode] : null;
+	const OrderTypeIcon =
+		selectedOrder ? OrderTypeIcons[selectedOrder.order_type] : null;
+	const PaymentIcon =
+		selectedOrder ? PaymentModeIcons[selectedOrder.payment_mode] : null;
 
 	return (
 		<div className="h-full flex flex-col flex-1">
@@ -435,36 +488,48 @@ export const Orders: React.FC = () => {
 				{/* Left Panel */}
 				<div className="flex-1 h-full border-r bg-white flex flex-col">
 					{/* Filter Header */}
-					<div className="flex items-center gap-3 px-4 py-2 border-b">
+					<div className="flex items-center gap-3 px-4 py-2 border-b !h-14">
 						<div className="flex mr-auto gap-2">
-						<Button
-							variant={activeTab === "active" ? "default" : "outline"}
-							size="default"
-							className={cn("text-base w-full shadow-none -mb-[0.5px]", activeTab === "active" ? "":" hover:bg-muted/20 text-muted-foreground")}
-							onClick={() => setActiveTab("active")}
-						>
-							<FileText className="!size-4" />
-							Open 
-						</Button>
-						<Button
-							variant={activeTab === "closed" ? "default" : "outline"}
-							size="default"
-							className={cn("text-base w-full shadow-none -mb-[0.5px]", activeTab === "closed" ? "":" hover:bg-muted/20 text-muted-foreground")}
-							onClick={() => setActiveTab("closed")}
-						>
-							<Lock className="!size-4" />
-							Closed
-						</Button>
-					</div>
+							<Button
+								variant={activeTab === "active" ? "default" : "outline"}
+								size="default"
+								className={cn(
+									ClassStyles.tabButton,
+									"text-base w-full shadow-none -mb-[0.5px]",
+									activeTab === "active" ? "" : (
+										" hover:bg-muted/20 text-muted-foreground"
+									),
+								)}
+								onClick={() => setActiveTab("active")}
+							>
+								<FileText className="!size-4" />
+								Open
+							</Button>
+							<Button
+								variant={activeTab === "closed" ? "default" : "outline"}
+								size="default"
+								className={cn(
+									ClassStyles.tabButton,
+									"text-base w-full shadow-none -mb-[0.5px]",
+									activeTab === "closed" ? "" : (
+										" hover:bg-muted/20 text-muted-foreground"
+									),
+								)}
+								onClick={() => setActiveTab("closed")}
+							>
+								<Lock className="!size-4" />
+								Closed
+							</Button>
+						</div>
 						<div className="flex items-center justify-end space-x-2 flex-1">
 							<div className="flex-1 flex items-center relative w-full max-w-lg">
 								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
-							<Input
-								className="w-full flex-1 text-base rounded-md pl-11 h-10 bg-muted/80"
-								placeholder="Search by Order # or Table #"
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-							/>
+								<Input
+									className="w-full flex-1 text-base rounded-md pl-11 h-10 bg-muted/80"
+									placeholder="Search by Order # or Table #"
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+								/>
 							</div>
 							{/* Date Filter */}
 							<div className="flex items-center space-x-2">
@@ -501,7 +566,7 @@ export const Orders: React.FC = () => {
 							</div>
 						</div>
 					</div>
-					
+
 					{/* Order List - Responsive Grid */}
 					<div className="flex-1 overflow-y-auto p-4 bg-muted">
 						{loading ?
@@ -513,20 +578,22 @@ export const Orders: React.FC = () => {
 								{error}
 							</div>
 						: filteredOrders.length === 0 ?
-							<div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-
-	<h3 className="text-lg font-semibold text-gray-700">
-		No orders yet
-	</h3>
-
-	<p className="mt-1 max-w-sm text-sm text-gray-400">
-		Orders will appear here once customers start placing them.
-	</p>
-</div>
-						:	<div className={cn("grid gap-4 px-0", isKeyboardOpen ? "grid-cols-1 md:grid-cols-1 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ")}>
+							<EmptyState
+								icon={Clipboard}
+								title="No orders yet"
+								description="Orders will appear here once customers start placing them."
+							/>
+						:	<div
+								className={cn(
+									"grid gap-4 px-0",
+									isKeyboardOpen ?
+										"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
+									:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+								)}
+							>
 								{filteredOrders.map((order) => {
 									const isOpen = order.status === "open";
-									const PaymentIcon = PaymentModeIcons[order.payment_mode]
+									const PaymentIcon = PaymentModeIcons[order.payment_mode];
 									return (
 										<div
 											key={order.id}
@@ -541,11 +608,10 @@ export const Orders: React.FC = () => {
 											)}
 											onClick={() => handleOrderSelect(order)}
 										>
-											{isOpen ? 
+											{isOpen ?
 												<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink" />
-												:
-												<div className="absolute top-3 right-3 text-muted-foreground/60">
-<Lock strokeWidth={3} />
+											:	<div className="absolute top-3 right-3 text-muted-foreground/60">
+													<Lock strokeWidth={3} />
 												</div>
 											}
 											<div className="space-y-3">
@@ -563,12 +629,16 @@ export const Orders: React.FC = () => {
 																	"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
 																	isOpen ?
 																		"bg-primary/10 text-primary"
-																	:	"bg-muted text-muted-foreground"
+																	:	"bg-muted text-muted-foreground",
 																)}
 															>
 																{isOpen && (
-												<div className={cn("w-2 h-2 mr-2 bg-primary rounded-full animate-blink")} />
-											)}
+																	<div
+																		className={cn(
+																			"w-2 h-2 mr-2 bg-primary rounded-full animate-blink",
+																		)}
+																	/>
+																)}
 																{order.status}
 															</div>
 															{order.order_type === "table" &&
@@ -590,7 +660,9 @@ export const Orders: React.FC = () => {
 												<div className="py-3 border-y border-gray-200">
 													<div className="flex items-center justify-between flex-wrap gap-2">
 														<PaymentIcon className="text-muted-foreground/60 size-4" />
-														<p className="text-sm text-gray-500 mr-auto">Total</p>
+														<p className="text-sm text-gray-500 mr-auto">
+															Total
+														</p>
 														<p className="font-bold text-sm text-gray-900">
 															{formatCurrency(order.amount ?? 0)}
 														</p>
@@ -599,7 +671,7 @@ export const Orders: React.FC = () => {
 
 												<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
 													<Clock className="size-4 text-muted-foreground/60" />
-													{order.created_at ? 
+													{order.created_at ?
 														new Date(order.created_at).toLocaleString()
 													:	"N/A"}
 												</div>
@@ -612,10 +684,19 @@ export const Orders: React.FC = () => {
 					</div>
 				</div>
 				{/* Right Panel: Order Details */}
-				<div className={cn("min-w-[200px] max-w-[450px] w-full bg-white flex flex-col h-full overflow-y-auto", !selectedOrder && "hidden")}>
-					<div className="flex items-center justify-between p-6 py-3 border-b">
+				<div
+					className={cn(
+						"min-w-[200px] max-w-[450px] w-full bg-white flex flex-col h-full overflow-y-auto",
+						!selectedOrder && "hidden",
+					)}
+				>
+					<div className="flex items-center justify-between p-4 py-2 !h-14 border-b sticky top-0 z-10 bg-card">
 						<h2 className="text-2xl font-semibold">Order Details</h2>
-						<Button variant="ghost" size="icon" onClick={()=>setSelectedOrder(null)}>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => setSelectedOrder(null)}
+						>
 							<X />
 						</Button>
 					</div>
@@ -639,8 +720,7 @@ export const Orders: React.FC = () => {
 									<div className="py-2 text-base text-gray-400">
 										Loading order details...
 									</div>
-								:	
-								<ul className="divide-y space-y-2">
+								:	<ul className="divide-y space-y-2">
 										{selectedOrder.items && selectedOrder.items.length > 0 ?
 											selectedOrder.items.map((item: any, index: number) => {
 												const itemName =
@@ -653,10 +733,10 @@ export const Orders: React.FC = () => {
 													:	item.image;
 												const basePrice =
 													item.item_type === "food" ?
-														(item.food_price || item.price || 0)
-													:	(item.price || 0);
+														item.food_price || item.price || 0
+													:	item.price || 0;
 												const quantity = item.quantity || 1;
-												
+
 												// Calculate total price including extras (multiplied by quantity)
 												let itemTotal = basePrice * quantity;
 												if (
@@ -667,7 +747,7 @@ export const Orders: React.FC = () => {
 													const extrasTotal = item.extras.reduce(
 														(sum: number, e: any) =>
 															sum + (e.price || 0) * (e.quantity || 1),
-														0
+														0,
 													);
 													// Extras total should be multiplied by item quantity
 													itemTotal += extrasTotal * quantity;
@@ -706,41 +786,53 @@ export const Orders: React.FC = () => {
 																	item.extras &&
 																	item.extras.length > 0 && (
 																		<div className="text-xs text-gray-500 mt-1 space-y-1">
-																			<div className="font-semibold text-foreground">Extras:</div>
+																			<div className="font-semibold text-foreground">
+																				Extras:
+																			</div>
 																			{item.extras.map(
 																				(e: any, extraIndex: number) => {
 																					const extraQty = e.quantity || 1;
-																					const extraTotal = (e.price || 0) * extraQty * quantity;
+																					const extraTotal =
+																						(e.price || 0) *
+																						extraQty *
+																						quantity;
 																					return (
 																						<div
 																							key={extraIndex}
 																							className="pl-2"
 																						>
 																							{e.name}
-																							{extraQty > 1 && ` (×${extraQty})`}
+																							{extraQty > 1 &&
+																								` (×${extraQty})`}
 																							: {formatCurrency(extraTotal)}
 																						</div>
 																					);
-																				}
+																				},
 																			)}
 																			<div className="pl-2 font-medium text-gray-700">
-																				Extras Total: {formatCurrency(
+																				Extras Total:{" "}
+																				{formatCurrency(
 																					item.extras.reduce(
 																						(sum: number, e: any) =>
-																							sum + (e.price || 0) * (e.quantity || 1) * quantity,
-																						0
-																					)
+																							sum +
+																							(e.price || 0) *
+																								(e.quantity || 1) *
+																								quantity,
+																						0,
+																					),
 																				)}
 																			</div>
 																		</div>
 																	)}
-																
+
 																{item.notes && (
 																	<div className="text-xs text-gray-500 mt-1">
-																		<span className="font-semibold text-foreground">Note: </span>
+																		<span className="font-semibold text-foreground">
+																			Note:{" "}
+																		</span>
 																		<div className="black p-2 bg-muted/50 rounded-xl">
 																			{item.notes}
-																			</div>
+																		</div>
 																	</div>
 																)}
 															</div>
@@ -763,54 +855,83 @@ export const Orders: React.FC = () => {
 								<div className="text-base font-semibold">Payment Info</div>
 								<div className="flex items-center justify-between gap-x-2">
 									<span className="text-base text-gray-500">Order Type:</span>
-									
+
 									<span className="capitalize text-base font-medium flex items-center gap-2">
-										{OrderTypeIcon ? <OrderTypeIcon className="text-muted-foreground/80 size-4" />:null}
-										{selectedOrder.order_type === "takeout" ? "Take-Out" : selectedOrder.order_type === "table" ? "Table" : "Cushier"}{" "}
-										{selectedOrder.order_type === "table" && selectedOrder.table_number && (
-											<span className="ml-2 text-gray-500">
-												(#{selectedOrder.table_number})
-											</span>
-										)}
-										{selectedOrder.order_type === "takeout" && selectedOrder.table_number && (
-											<span className="ml-2 text-gray-500">
-												({selectedOrder.table_number})
-											</span>
-										)}
+										{OrderTypeIcon ?
+											<OrderTypeIcon className="text-muted-foreground/80 size-4" />
+										:	null}
+										{selectedOrder.order_type === "takeout" ?
+											"Take-Out"
+										: selectedOrder.order_type === "table" ?
+											"Table"
+										:	"Cushier"}{" "}
+										{selectedOrder.order_type === "table" &&
+											selectedOrder.table_number && (
+												<span className="ml-2 text-gray-500">
+													(#{selectedOrder.table_number})
+												</span>
+											)}
+										{selectedOrder.order_type === "takeout" &&
+											selectedOrder.table_number && (
+												<span className="ml-2 text-gray-500">
+													({selectedOrder.table_number})
+												</span>
+											)}
 									</span>
 								</div>
-								<div className={cn("",selectedOrder.status === "closed" ? "flex items-center justify-between":"")}>
+								<div
+									className={cn(
+										"",
+										selectedOrder.status === "closed" ?
+											"flex items-center justify-between"
+										:	"",
+									)}
+								>
 									<div className="text-base text-gray-500">Payment:</div>
-									{
-										selectedOrder.status === "closed" ? 
+									{selectedOrder.status === "closed" ?
 										<div className="capitalize text-base font-medium flex items-center gap-2 ">
-										{PaymentIcon ? <PaymentIcon className="text-muted-foreground/80 size-4" />:null}
-										<span className="capitalize">
+											{PaymentIcon ?
+												<PaymentIcon className="text-muted-foreground/80 size-4" />
+											:	null}
+											<span className="capitalize">
 												{selectedOrder.payment_mode}
 											</span>
-									</div>
-										:
-									<div className="flex items-center justify-between gap-x-2">
-									{paymentModes.map(({ value, label }) => {
-											const Icon = PaymentModeIcons[value as PaymentModes]
-											return(
-											<Button
-												key={value}
-												className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
-												variant={selectedOrder?.payment_mode === value ? "default" : "outline"}
-												onClick={() => setSelectedOrder({
-											...selectedOrder,
-											payment_mode: value as PaymentModes,
-										})}
-											>
-												<Icon className="!size-4" />
-												{label}
-											</Button>
-										)})}
+										</div>
+									:	<div className="flex items-center justify-between gap-x-2">
+											{paymentModes.map(({ value, label }) => {
+												const Icon = PaymentModeIcons[value as PaymentModes];
+												return (
+													<Button
+														key={value}
+														className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+														variant={
+															selectedOrder?.payment_mode === value ?
+																"default"
+															:	"outline"
+														}
+														onClick={() =>
+															setSelectedOrder({
+																...selectedOrder,
+																payment_mode: value as PaymentModes,
+															})
+														}
+													>
+														<Icon className="!size-4" />
+														{label}
+													</Button>
+												);
+											})}
 										</div>
 									}
 								</div>
-								<div className={cn("",selectedOrder.status === "closed" && !selectedOrder.notes ? "flex items-center justify-between":"")}>
+								<div
+									className={cn(
+										"",
+										selectedOrder.status === "closed" && !selectedOrder.notes ?
+											"flex items-center justify-between"
+										:	"",
+									)}
+								>
 									<div className="text-base text-gray-500">Notes:</div>
 									{selectedOrder.status === "open" ?
 										<Textarea
@@ -831,29 +952,43 @@ export const Orders: React.FC = () => {
 									let calculatedSubtotal = 0;
 									if (selectedOrder.items && selectedOrder.items.length > 0) {
 										selectedOrder.items.forEach((item: any) => {
-											const itemPrice = item.item_type === "food" ? (item.food_price || item.price || 0) : (item.price || 0);
+											const itemPrice =
+												item.item_type === "food" ?
+													item.food_price || item.price || 0
+												:	item.price || 0;
 											const quantity = item.quantity || 1;
 											let itemTotal = itemPrice * quantity;
-											
+
 											// Add extras for food items
-											if (item.item_type === "food" && item.extras && item.extras.length > 0) {
+											if (
+												item.item_type === "food" &&
+												item.extras &&
+												item.extras.length > 0
+											) {
 												const extrasTotal = item.extras.reduce(
-													(sum: number, e: any) => sum + (e.price || 0) * (e.quantity || 1),
-													0
+													(sum: number, e: any) =>
+														sum + (e.price || 0) * (e.quantity || 1),
+													0,
 												);
 												itemTotal += extrasTotal * quantity;
 											}
-											
+
 											calculatedSubtotal += itemTotal;
 										});
 									}
-									
-									const subtotal = calculatedSubtotal > 0 ? calculatedSubtotal : (selectedOrder.amount_bt ?? 0);
+
+									const subtotal =
+										calculatedSubtotal > 0 ? calculatedSubtotal : (
+											(selectedOrder.amount_bt ?? 0)
+										);
 									const taxRate = selectedOrder.tax || 0;
 									const taxAmount = subtotal * (taxRate / 100);
 									const total = subtotal + taxAmount;
-									const changeDue = Math.max(0, parseFloat(amountTendered || "0") - total);
-									
+									const changeDue = Math.max(
+										0,
+										parseFloat(amountTendered || "0") - total,
+									);
+
 									return (
 										<div className="space-y-4 px-6">
 											<div className="space-y-2">
@@ -875,38 +1010,55 @@ export const Orders: React.FC = () => {
 												</div>
 											</div>
 
-											{selectedOrder.status === "open" && selectedOrder.payment_mode === "cash" && (
-												<div className="space-y-4 pt-4 border-t">
-													<div className="space-y-2">
-														<Label className="text-sm font-semibold text-gray-700">Cash Received</Label>
-														<div className="relative">
-															<span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">GHS</span>
-															<Input
-																type="number"
-																placeholder="0.00"
-																className="pl-14 text-xl font-bold h-12  focus:ring-green-500"
-																value={amountTendered}
-																onChange={(e) => setAmountTendered(e.target.value)}
-															/>
+											{selectedOrder.status === "open" &&
+												selectedOrder.payment_mode === "cash" && (
+													<div className="space-y-4 pt-4 border-t">
+														<div className="space-y-2">
+															<Label className="text-sm font-semibold text-gray-700">
+																Cash Received
+															</Label>
+															<div className="relative">
+																<span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+																	GHS
+																</span>
+																<Input
+																	type="number"
+																	placeholder="0.00"
+																	className="pl-14 text-xl font-bold h-12  focus:ring-green-500"
+																	value={amountTendered}
+																	onChange={(e) =>
+																		setAmountTendered(e.target.value)
+																	}
+																/>
+															</div>
 														</div>
+
+														{parseFloat(amountTendered) > 0 && (
+															<div
+																className={cn(
+																	"p-4 rounded-lg shadow-lg animate-in fade-in zoom-in duration-300",
+																	parseFloat(amountTendered) - total < 0 ?
+																		"bg-red-500"
+																	:	"bg-blue-600",
+																	"text-white",
+																)}
+															>
+																<div className="text-xs uppercase tracking-wider font-semibold opacity-80">
+																	{parseFloat(amountTendered) - total < 0 ?
+																		"Amount Remaining"
+																	:	"Change Due"}
+																</div>
+																<div className="text-4xl font-black">
+																	{formatCurrency(
+																		Math.abs(
+																			parseFloat(amountTendered) - total,
+																		),
+																	)}
+																</div>
+															</div>
+														)}
 													</div>
-													
-													{parseFloat(amountTendered) > 0 && (
-																<div className={cn(
-																									"p-4 rounded-lg shadow-lg animate-in fade-in zoom-in duration-300",
-																									parseFloat(amountTendered) - total < 0 ? "bg-red-500" : "bg-blue-600",
-																									"text-white"
-																								)}>
-																									<div className="text-xs uppercase tracking-wider font-semibold opacity-80">
-																										{parseFloat(amountTendered) - total < 0 ? "Amount Remaining" : "Change Due"}
-																									</div>
-																									<div className="text-4xl font-black">
-																										{formatCurrency(Math.abs(parseFloat(amountTendered) - total))}
-																									</div>
-																								</div>
-																							)}
-												</div>
-											)}
+												)}
 										</div>
 									);
 								})()}
@@ -914,26 +1066,33 @@ export const Orders: React.FC = () => {
 							{/* Actions Section */}
 							<div className="flex flex-col gap-2 px-6 pb-6">
 								{/* show this button only if there are food items in the order */}
-								{selectedOrder.status === "open" && (selectedOrder.items?.filter((item: any) => item.item_type === "food")?.length ?? 0) > 0 && (
-									<Button
-										variant="outline"
-										onClick={() => printKitchenOrder(selectedOrder)}
-										className="text-base w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
-									>
-										Print Kitchen Order
-									</Button>
-								)}
+								{selectedOrder.status === "open" &&
+									(selectedOrder.items?.filter(
+										(item: any) => item.item_type === "food",
+									)?.length ?? 0) > 0 && (
+										<Button
+											variant="outline"
+											onClick={() => printKitchenOrder(selectedOrder)}
+											className="text-base w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+										>
+											Print Kitchen Order
+										</Button>
+									)}
 								<div className="flex space-x-4">
 									{selectedOrder?.status === "open" ?
 										<>
 											<Button
-											variant="default"
-											onClick={handleCloseOrder}
-											className="text-base flex-1"
-											disabled={selectedOrder?.payment_mode === 'cash' && (parseFloat(amountTendered || "0") < (selectedOrderTotal || 0))}
-										>
-											Close Order
-										</Button>
+												variant="default"
+												onClick={handleCloseOrder}
+												className="text-base flex-1"
+												disabled={
+													selectedOrder?.payment_mode === "cash" &&
+													parseFloat(amountTendered || "0") <
+														(selectedOrderTotal || 0)
+												}
+											>
+												Close Order
+											</Button>
 											<Button
 												variant="outline"
 												onClick={handleEditItems}

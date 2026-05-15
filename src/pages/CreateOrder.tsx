@@ -26,7 +26,17 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTables } from "@/hooks/useTables";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
-import { Eye, ChevronLeft, Search, Salad, Wine, Trash2, ShoppingBasket, Beer, X } from "lucide-react";
+import {
+	Eye,
+	ChevronLeft,
+	Search,
+	Salad,
+	Wine,
+	Trash2,
+	ShoppingBasket,
+	Beer,
+	X,
+} from "lucide-react";
 import { FoodItemSelectionDialog } from "@/components/orders/FoodItemSelectionDialog";
 import { AlertWithActions } from "@/components/alerts/alert-with-actions";
 import { useReceipt } from "@/hooks/useReceipt";
@@ -36,14 +46,45 @@ import { useKeyboard } from "@/context/KeyboardContext";
 import { Textarea } from "@/components/ui/textarea";
 import { History, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { OrderTypeIcons, PaymentModeIcons, type OrderTypes, type PaymentModes } from "@/components/Icons";
+import {
+	OrderTypeIcons,
+	PaymentModeIcons,
+	type OrderTypes,
+	type PaymentModes,
+} from "@/components/Icons";
+import { ClassStyles } from "@/components/classnames";
 
-export const CategoryComponent =({cat, activeCategory, setActiveCategory}:{cat: any, activeCategory:any, setActiveCategory:(val:any)=>void})=>{
-	return <div key={cat.id} className={cn("p-4 h-18 border rounded-xl flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group", cat.id == activeCategory ? "bg-primary border-primary text-primary-foreground ":"" )} onClick={()=>setActiveCategory(cat?.id as any)}>
-													<ShoppingBasket className={cn("size-6 text-muted-foreground/60", (cat.id as any) == activeCategory ? "text-primary-foreground":"", "group-hover:text-primary")}/>
-													{cat.name}
-												</div>
-}
+export const CategoryComponent = ({
+	cat,
+	activeCategory,
+	setActiveCategory,
+}: {
+	cat: any;
+	activeCategory: any;
+	setActiveCategory: (val: any) => void;
+}) => {
+	return (
+		<div
+			key={cat.id}
+			className={cn(
+				"p-4 h-18 border rounded-xl flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group",
+				cat.id == activeCategory ?
+					"bg-primary border-primary text-primary-foreground "
+				:	"",
+			)}
+			onClick={() => setActiveCategory(cat?.id as any)}
+		>
+			<ShoppingBasket
+				className={cn(
+					"size-6 text-muted-foreground/60",
+					(cat.id as any) == activeCategory ? "text-primary-foreground" : "",
+					"group-hover:text-primary",
+				)}
+			/>
+			{cat.name}
+		</div>
+	);
+};
 
 export const CreateOrder: React.FC = () => {
 	const { products, loading: productsLoading, fetchProducts } = useProducts();
@@ -70,10 +111,12 @@ export const CreateOrder: React.FC = () => {
 		index: number;
 	} | null>(null);
 	const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
-	const [orderType, setOrderType] = useState<"customer" | "table" | "takeout">("customer");
+	const [orderType, setOrderType] = useState<"customer" | "table" | "takeout">(
+		"customer",
+	);
 	const [tableNumber, setTableNumber] = useState("");
 	const [paymentMode, setPaymentMode] = useState<"cash" | "momo" | "card">(
-		"cash"
+		"cash",
 	);
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
 	const [notes, setNotes] = useState("");
@@ -115,7 +158,14 @@ export const CreateOrder: React.FC = () => {
 
 	// Save cart to localStorage whenever it changes
 	useEffect(() => {
-		const data = { cart, orderType, tableNumber, paymentMode, notes, amountTendered };
+		const data = {
+			cart,
+			orderType,
+			tableNumber,
+			paymentMode,
+			notes,
+			amountTendered,
+		};
 		localStorage.setItem("pos_current_cart", JSON.stringify(data));
 	}, [cart, orderType, tableNumber, paymentMode, notes, amountTendered]);
 
@@ -132,7 +182,7 @@ export const CreateOrder: React.FC = () => {
 			tableNumber,
 			paymentMode,
 			notes,
-			subtotal
+			subtotal,
 		};
 		const updatedDrafts = [newDraft, ...drafts];
 		setDrafts(updatedDrafts);
@@ -164,13 +214,13 @@ export const CreateOrder: React.FC = () => {
 	};
 
 	useEffect(() => {
-			fetchProducts();
-			fetchCategories();
-			fetchFoodItems();
-			fetchFoodCategories();
-			getTables();
-			fetchExtras();
-			fetchOrders();
+		fetchProducts();
+		fetchCategories();
+		fetchFoodItems();
+		fetchFoodCategories();
+		getTables();
+		fetchExtras();
+		fetchOrders();
 	}, []);
 
 	const filteredProducts = products.filter((p) => {
@@ -181,10 +231,10 @@ export const CreateOrder: React.FC = () => {
 
 	const filteredFoodItems = foodItems.filter((item) => {
 		const matchesSearch = item.name
-		.toLowerCase()
-		.includes(search.toLowerCase());
+			.toLowerCase()
+			.includes(search.toLowerCase());
 		const matchesCategory =
-		foodCategory === "all" || item.category_id.toString() == foodCategory;
+			foodCategory === "all" || item.category_id.toString() == foodCategory;
 		return matchesSearch && matchesCategory && item.status === "active";
 	});
 
@@ -195,7 +245,7 @@ export const CreateOrder: React.FC = () => {
 		setCart((prev) => {
 			const existing = prev.find(
 				(item: any) =>
-					item.itemType === "drink" && item.product?.id === product.id
+					item.itemType === "drink" && item.product?.id === product.id,
 			);
 			if (existing) {
 				// Don't exceed available stock
@@ -203,7 +253,7 @@ export const CreateOrder: React.FC = () => {
 				return prev.map((item: any) =>
 					item.itemType === "drink" && item.product?.id === product.id ?
 						{ ...item, quantity: newQuantity }
-					:	item
+					:	item,
 				);
 			}
 			return [...prev, { product, quantity: 1, itemType: "drink" }];
@@ -213,7 +263,7 @@ export const CreateOrder: React.FC = () => {
 	const addFoodToCart = (
 		foodItem: any,
 		selectedExtras: number[],
-		notes: string
+		notes: string,
 	) => {
 		setCart((prev) => {
 			if (editingCartIndex !== null) {
@@ -242,7 +292,7 @@ export const CreateOrder: React.FC = () => {
 	const updateCartQty = (
 		itemId: number,
 		itemType: "drink" | "food",
-		qty: number
+		qty: number,
 	) => {
 		setCart((prev) =>
 			prev.map((item, index) => {
@@ -257,7 +307,7 @@ export const CreateOrder: React.FC = () => {
 					}
 				}
 				return item;
-			})
+			}),
 		);
 	};
 
@@ -265,7 +315,7 @@ export const CreateOrder: React.FC = () => {
 		setCart((prev) => {
 			if (itemType === "drink") {
 				return prev.filter(
-					(item) => !(item.itemType === "drink" && item.product?.id === itemId)
+					(item) => !(item.itemType === "drink" && item.product?.id === itemId),
 				);
 			} else {
 				// For food, use index
@@ -302,20 +352,19 @@ export const CreateOrder: React.FC = () => {
 
 	const alreadyInCart = (productId: string | number): boolean => {
 		return cart.some(
-			(item) => item.itemType === "drink" && item.product?.id === productId
+			(item) => item.itemType === "drink" && item.product?.id === productId,
 		);
 	};
 
 	// Update Customer Display in real-time
 	// Update Customer Display in real-time
-		useEffect(() => {
+	useEffect(() => {
 		const port = parseJSONString(settings?.pos as any)?.customerDisplayPort;
 		if (!port || !open) return;
-	
+
 		const totalStr = cart.length > 0 ? total.toFixed(2) : "0.00";
 		window.electron.invoke("update-customer-display", port, totalStr);
 	}, [total, cart, open, settings?.pos]);
-
 
 	// Reset table number when switching order types
 	useEffect(() => {
@@ -324,29 +373,27 @@ export const CreateOrder: React.FC = () => {
 		}
 	}, [orderType]);
 
-
 	const resetState = () => {
-    setCart([]);
-    setOrderType("customer");
-    setTableNumber("");
-    setPaymentMode("cash");
-    setAmountTendered("");
-    setNotes("");
-    setSearch("");
-    setActiveTab("drinks");
-    setSelectedFoodItem(null);
-    localStorage.removeItem("pos_current_cart");
-  };
+		setCart([]);
+		setOrderType("customer");
+		setTableNumber("");
+		setPaymentMode("cash");
+		setAmountTendered("");
+		setNotes("");
+		setSearch("");
+		setActiveTab("drinks");
+		setSelectedFoodItem(null);
+		localStorage.removeItem("pos_current_cart");
+	};
 
-  const onOrderCreated = (newOrder: Order) => {
-	resetState()
+	const onOrderCreated = (newOrder: Order) => {
+		resetState();
 
-	setTimeout(() => {
-							setOrderToPrint(newOrder);
-							setShowPrintConfirm(true);
-						}, 500);
-  };
-    
+		setTimeout(() => {
+			setOrderToPrint(newOrder);
+			setShowPrintConfirm(true);
+		}, 500);
+	};
 
 	const handlePlaceOrder = async () => {
 		// Build order payload
@@ -372,7 +419,8 @@ export const CreateOrder: React.FC = () => {
 			order_type: orderType,
 			table_number: orderType === "table" ? tableNumber : undefined,
 			payment_mode: paymentMode,
-			amount_tendered: paymentMode === "cash" ? parseFloat(amountTendered || "0") : 0,
+			amount_tendered:
+				paymentMode === "cash" ? parseFloat(amountTendered || "0") : 0,
 			tax,
 			notes,
 			status: orderType === "customer" ? "closed" : "open",
@@ -402,114 +450,122 @@ export const CreateOrder: React.FC = () => {
 		}
 	};
 
-	const CategoriesToUse = activeTab === "drinks" ? categories:foodCategories
+	const CategoriesToUse = activeTab === "drinks" ? categories : foodCategories;
 
 	return (
 		<>
 			<div className="w-full h-[calc(100%-1px)] p-0 !overflow-hidden !relative">
-					<div className="flex h-full min-h-0 !overflow-hidden">
-						{/* Left: Product/Food selection */}
-						<div className="flex-1 border-r flex flex-col min-h-0 overflow-y-auto">
-							<div className="bg-white">
-						<div className="p-2 pr-8 py-2 bg-white flex gap-4 items-center justify-start border-b">
-
+				<div className="flex h-full min-h-0 !overflow-hidden">
+					{/* Left: Product/Food selection */}
+					<div className="flex-1 border-r flex flex-col min-h-0">
+						<div className="bg-white">
+							<div className="p-2 pr-8 py-2 bg-white flex gap-4 items-center justify-start border-b">
 								<Button
 									variant={"ghost"}
 									size="icon"
 									onClick={() => navigate(-1)}
-									// className="w-fit"
 								>
 									<ChevronLeft />
 								</Button>
-								<h2 className="font-bold text-2xl capitalize">Create {activeTab} Order</h2>
-								<Button
-								variant="outline"
-								className="ml-auto hover:bg-primary/10 text-primary border-primary"
-									onClick={() => setActiveTab(activeTab === "drinks" ? "food" : "drinks")}
-								>
-									{
-										activeTab === "drinks" ? (
-											<Salad />
-										):(
-											<Wine />
-										)
-									}
-									{activeTab === "drinks" ? "Food" : "Drinks"} Order
-								</Button>
-								
+								<h2 className="font-bold text-2xl capitalize">
+									Create {activeTab} Order
+								</h2>
 							</div>
+						</div>
 
-							
-							</div>
-
-							{/* Product/Food Grid */}
-							<div className="flex-1 flex flex-row overflow-y-auto">
-								<div className="w-[250px] border-r overflow-y-auto bg-white h-full">
-									<div className="h-16 border-b flex items-center justify-between px-4">
-										<h2 className="font-semibold text-md">
-											Categories
-										</h2>
-										{
-											(category != "all" || foodCategory != "all") && 
-										<Button variant="ghost" className="h-9 gap-1 px-2.5 rounded-lg text-xs bg-muted" onClick={()=>(activeTab === "drinks" ? setCategory : setFoodCategory)?.("all") }>
+						{/* Product/Food Grid */}
+						<div className="flex-1 flex flex-row">
+							<div className="w-[250px] border-r overflow-y-auto bg-white h-[calc(100dvh-120px)]">
+								<div className="h-14 border-b bg-card sticky top-0 z-10 flex items-center justify-between px-4">
+									<h2 className="font-semibold text-md">Categories</h2>
+									{(category != "all" || foodCategory != "all") && (
+										<Button
+											variant="ghost"
+											className="h-9 gap-1 px-2.5 rounded-lg text-xs bg-muted"
+											onClick={() =>
+												(activeTab === "drinks" ? setCategory : (
+													setFoodCategory
+												))?.("all")
+											}
+										>
 											<X className="!size-3" /> Clear
 										</Button>
-										}
-									</div>
-									<div className="flex-1 h-full overflow-y-auto p-4 space-y-4">
-										{
-											CategoriesToUse.map((cat) => <CategoryComponent key={cat.id} cat={cat} activeCategory={activeTab === "drinks" ? category:foodCategory} setActiveCategory={activeTab === "drinks" ? setCategory : setFoodCategory} />)
-										}
-									</div>
+									)}
 								</div>
-								<div className="flex-1">
-									<div className="px-4 py-2 border-b flex items-center space-x-4 bg-card h-16">
-										<Button
-								variant={activeTab === "drinks"?"default":"outline"}
-								className={cn("hover:bg-primary/10 text-primary shadow-none", activeTab === "drinks"?"text-primary-foreground hover:bg-primary":"text-muted-foreground")}
-									onClick={() => setActiveTab("drinks")}
-								>
-									
-											<Beer />
-									Drinks
-								</Button>
-								<Button
-								variant={activeTab === "food"?"default":"outline"}
-								className={cn("hover:bg-primary/10 text-primary shadow-none", activeTab === "food"?"text-primary-foreground hover:bg-primary":"text-muted-foreground")}
-									onClick={() => setActiveTab("food")}
-								>
-									<Salad />
-									Food
-								</Button>
-								<div className="flex-1 flex items-center relative !ml-auto max-w-lg">
-								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
-							<Input
-								className="flex-1 text-base rounded-md pl-11 bg-muted/80 h-10"
-									id="order-search"
-									name="order-search"
-									placeholder={
-										activeTab === "drinks" ? "Search drinks..." : (
-											"Search food items..."
-										)
-									}
-									value={search}
-									onChange={(e) => setSearch(e.target.value)}
-								/>
+								<div className="flex-1 p-4 space-y-4">
+									{CategoriesToUse.map((cat) => (
+										<CategoryComponent
+											key={cat.id}
+											cat={cat}
+											activeCategory={
+												activeTab === "drinks" ? category : foodCategory
+											}
+											setActiveCategory={
+												activeTab === "drinks" ? setCategory : setFoodCategory
+											}
+										/>
+									))}
+									<div className="h-[100px]" />
 								</div>
 							</div>
+							<div className="flex-1 h-[calc(100dvh-118px)] overflow-y-auto">
+								<div className="px-4 py-2 border-b flex items-center space-x-4 bg-card h-14 sticky top-0 z-10">
+									<Button
+										variant={activeTab === "drinks" ? "default" : "outline"}
+										className={cn(
+											ClassStyles.tabButton,
+											"hover:bg-primary/10 text-primary shadow-none",
+											activeTab === "drinks" ?
+												"text-primary-foreground hover:bg-primary"
+											:	"text-muted-foreground",
+										)}
+										onClick={() => setActiveTab("drinks")}
+									>
+										<Beer />
+										Drinks
+									</Button>
+									<Button
+										variant={activeTab === "food" ? "default" : "outline"}
+										className={cn(
+											ClassStyles.tabButton,
+											"hover:bg-primary/10 text-primary shadow-none",
+											activeTab === "food" ?
+												"text-primary-foreground hover:bg-primary"
+											:	"text-muted-foreground",
+										)}
+										onClick={() => setActiveTab("food")}
+									>
+										<Salad />
+										Food
+									</Button>
+									<div className="flex-1 flex items-center relative !ml-auto max-w-lg">
+										<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
+										<Input
+											className="flex-1 text-base rounded-md pl-11 bg-muted/80 h-10"
+											id="order-search"
+											name="order-search"
+											placeholder={
+												activeTab === "drinks" ? "Search drinks..." : (
+													"Search food items..."
+												)
+											}
+											value={search}
+											onChange={(e) => setSearch(e.target.value)}
+										/>
+									</div>
+								</div>
 								<div
-	className={cn(
-		"grid gap-6 p-6",
-		isKeyboardOpen || cart.length > 0
-			? activeTab === "drinks"
-				? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
-				: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-			: activeTab === "drinks"
-				? "grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6"
-				: "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-	)}
-
->
+									className={cn(
+										"grid gap-4 p-4",
+										isKeyboardOpen || cart.length > 0 ?
+											activeTab === "drinks" ?
+												"grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+											:	"grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+										: activeTab === "drinks" ?
+											"grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6"
+										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+									)}
+								>
 									{activeTab === "drinks" ?
 										productsLoading ?
 											<div className="col-span-full text-center text-gray-400 py-20 text-lg">
@@ -517,14 +573,14 @@ export const CreateOrder: React.FC = () => {
 											</div>
 										: filteredProducts.length === 0 ?
 											<div className="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
-	<h3 className="text-lg font-semibold text-gray-700">
-		No {activeTab} yet
-	</h3>
-	<p className="mt-1 max-w-sm text-sm text-gray-400">
-		{activeTab} will appear here once you start adding them.
-	</p>
-
-</div>
+												<h3 className="text-lg font-semibold text-gray-700">
+													No {activeTab} yet
+												</h3>
+												<p className="mt-1 max-w-sm text-sm text-gray-400">
+													{activeTab} will appear here once you start adding
+													them.
+												</p>
+											</div>
 										:	filteredProducts.map((product) => {
 												const isOutOfStock = product.stock <= 0;
 												const isInCart = alreadyInCart(product?.id);
@@ -537,7 +593,7 @@ export const CreateOrder: React.FC = () => {
 															"bg-white rounded-lg overflow-hidden shadow-sm transition-all p-1",
 															isDisabled ?
 																"opacity-50 cursor-not-allowed"
-															:	"cursor-pointer hover:shadow-md hover:scale-[1.02]"
+															:	"cursor-pointer hover:shadow-md hover:scale-[1.02]",
 														)}
 														onClick={() => {
 															if (!isDisabled) {
@@ -584,15 +640,18 @@ export const CreateOrder: React.FC = () => {
 											})
 
 									: filteredFoodItems.length === 0 ?
-									<div className="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
-	<h3 className="text-lg font-semibold text-gray-700">
-		No food items found{foodCategory ? ` under ${foodCategories?.find(c=>c.id as any == foodCategory)?.name} category`:""}.
-	</h3>
-	<p className="mt-1 max-w-sm text-sm text-gray-400 capitalize">
-		{activeTab} will appear here once you start adding them.
-	</p>
-
-</div>
+										<div className="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
+											<h3 className="text-lg font-semibold text-gray-700">
+												No food items found
+												{foodCategory ?
+													` under ${foodCategories?.find((c) => (c.id as any) == foodCategory)?.name} category`
+												:	""}
+												.
+											</h3>
+											<p className="mt-1 max-w-sm text-sm text-gray-400 capitalize">
+												{activeTab} will appear here once you start adding them.
+											</p>
+										</div>
 									:	filteredFoodItems.map((foodItem) => {
 											return (
 												<div
@@ -632,256 +691,254 @@ export const CreateOrder: React.FC = () => {
 										})
 									}
 								</div>
-								</div>
 							</div>
 						</div>
-						{/* Right: Cart and finalization */}
-						<div className={cn("w-1/4 bg-white flex flex-col h-full min-h-0", cart.length === 0 && "hidden")}>
-							{/* Cart Header */}
-							<div className="px-6 py-2 border-b flex-shrink-0 flex justify-between items-center">
-								<div>
-									<h2 className="text-lg font-bold text-gray-900">
-										Current Order
-									</h2>
-									<p className="text-gray-500 text-xs">
-										Total items: {cart.length}
-									</p>
-								</div>
-								<div className="flex gap-2">
-									<Button 
-										variant="ghost" 
-										size="icon" 
-										className="size-9 rounded-full hover:bg-primary/10" 
-										onClick={() => setShowDraftsDialog(true)}
-										title="Draft History"
-									>
-										<History className="size-5" />
-									</Button>
-									<Button 
-										variant="ghost" 
-										size="icon" 
-										className="size-9 rounded-full hover:bg-primary/10" 
-										onClick={saveDraft}
-										disabled={cart.length === 0}
-										title="Save as Draft"
-									>
-										<Save className="size-5" />
-									</Button>
-								</div>
-							</div>
-
-							{/* Cart Items - Scrollable */}
-							<div
-								className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
-								style={{ WebkitOverflowScrolling: "touch" }}
-							>
-								{cart.length === 0 ?
-									<div className="flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20">
-										<div className="w-20 h-20 mb-4 flex items-center justify-center text-6xl">
-											🛒
-										</div>
-										<div className="text-lg font-semibold mb-2 text-gray-600">
-											Cart is Empty
-										</div>
-										<div className="text-base text-gray-500">
-											Add products to get started
-										</div>
-									</div>
-								:	
-								<ul className="divide-y divide-gray-100 px-6 py-4  h-[35%] overflow-y-auto">
-	{cart.map((item, index) => {
-		const isDrink = item.itemType === "drink";
-
-		const product = isDrink ? item.product : item.foodItem;
-		const image = product?.image;
-		const name = product?.name;
-
-		const itemExtras =
-			!isDrink ?
-				foodExtras.filter((e) => item.extraIds?.includes(e.id))
-			:	[];
-
-		const itemPrice =
-			isDrink ?
-				product.price
-			:	product.price +
-				(itemExtras.reduce((sum, e) => sum + e.price, 0) || 0);
-
-		const itemKey =
-			isDrink ? `drink-${product.id}` : `food-${index}`;
-
-		const currentQty = item.quantity;
-
-		return (
-			<li
-				key={itemKey}
-				className={cn(
-					"flex items-start gap-4 py-4",
-					!isDrink && "border-b"
-				)}
-			>
-				<div
-					className={cn(
-						"w-16 h-16 rounded-lg overflow-hidden flex-shrink-0",
-						isDrink ? "bg-muted p-0.5" : "bg-gray-100"
-					)}
-				>
-					{image ?
-						<img
-							src={image}
-							alt={name}
-							className={cn(
-								"w-full h-full object-cover",
-								isDrink && "rounded-md"
-							)}
-						/>
-					:	<div className="w-full h-full flex items-center justify-center text-2xl">
-							{isDrink ? "🍺" : "🍽️"}
-						</div>
-					}
-				</div>
-
-				<div className="flex-1 min-w-0">
+					</div>
+					{/* Right: Cart and finalization */}
 					<div
 						className={cn(
-							"font-semibold text-base text-gray-900 mb-1",
-							!isDrink &&
-								"cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
+							"w-1/4 bg-white flex flex-col h-full min-h-0",
+							cart.length === 0 && "hidden",
 						)}
-						onClick={() => {
-							if (!isDrink) {
-								setViewingCartFoodItem({ item, index });
-							}
-						}}
 					>
-						{name}
-
-						{!isDrink && (
-							<Eye className="h-4 w-4 text-gray-400" />
-						)}
-					</div>
-
-					{!isDrink && itemExtras.length > 0 && (
-						<div className="text-xs text-gray-500 mb-1">
-							Extras:{" "}
-							{itemExtras.map((e) => e.name).join(", ")}
+						{/* Cart Header */}
+						<div className="px-6 py-2 border-b flex-shrink-0 flex justify-between items-center">
+							<div>
+								<h2 className="text-lg font-bold text-gray-900">
+									Current Order
+								</h2>
+								<p className="text-gray-500 text-xs">
+									Total items: {cart.length}
+								</p>
+							</div>
+							<div className="flex gap-2">
+								<Button
+									variant="ghost"
+									size="icon"
+									className="size-9 rounded-full hover:bg-primary/10"
+									onClick={() => setShowDraftsDialog(true)}
+									title="Draft History"
+								>
+									<History className="size-5" />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="size-9 rounded-full hover:bg-primary/10"
+									onClick={saveDraft}
+									disabled={cart.length === 0}
+									title="Save as Draft"
+								>
+									<Save className="size-5" />
+								</Button>
+							</div>
 						</div>
-					)}
 
-					{!isDrink && item.notes && (
-						<div className="text-xs text-gray-500 mb-1">
-							Note: {item.notes}
-						</div>
-					)}
-
-					<div className="text-base font-bold text-gray-900">
-						{formatCurrency(itemPrice)}
-						{!isDrink && ` × ${currentQty}`}
-					</div>
-
-					<div className="flex items-center gap-2 mt-3">
-						<Button
-							size="icon"
-							variant={isDrink ? "ghost" : "outline"}
-							className={cn(
-								"size-12 rounded-lg bg-muted"
-							)}
-							onClick={() =>
-								updateCartQty(
-									isDrink ? product.id : index,
-									isDrink ? "drink" : "food",
-									Math.max(1, currentQty - 1)
-								)
-							}
+						{/* Cart Items - Scrollable */}
+						<div
+							className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+							style={{ WebkitOverflowScrolling: "touch" }}
 						>
-							-
-						</Button>
+							{cart.length === 0 ?
+								<div className="flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20">
+									<div className="w-20 h-20 mb-4 flex items-center justify-center text-6xl">
+										🛒
+									</div>
+									<div className="text-lg font-semibold mb-2 text-gray-600">
+										Cart is Empty
+									</div>
+									<div className="text-base text-gray-500">
+										Add products to get started
+									</div>
+								</div>
+							:	<ul className="divide-y divide-gray-100 px-6 py-4  h-[35%] overflow-y-auto">
+									{cart.map((item, index) => {
+										const isDrink = item.itemType === "drink";
 
-						<Input
-							type="number"
-							min={1}
-							max={isDrink ? product.stock : undefined}
-							value={currentQty}
-							onChange={(e) =>
-								updateCartQty(
-									isDrink ? product.id : index,
-									isDrink ? "drink" : "food",
-									Math.max(1, Number(e.target.value))
-								)
-							}
-							className="w-20 h-12 text-center flex-1"
-						/>
+										const product = isDrink ? item.product : item.foodItem;
+										const image = product?.image;
+										const name = product?.name;
 
-						<Button
-							size="icon"
-							variant={isDrink ? "ghost" : "outline"}
-							className={cn(
-								"size-12 rounded-lg bg-muted"
-							)}
-							onClick={() =>
-								updateCartQty(
-									isDrink ? product.id : index,
-									isDrink ? "drink" : "food",
-									currentQty + 1
-								)
-							}
-							disabled={
-								isDrink && currentQty >= product.stock
-							}
-						>
-							+
-						</Button>
+										const itemExtras =
+											!isDrink ?
+												foodExtras.filter((e) => item.extraIds?.includes(e.id))
+											:	[];
 
-						<Button
-							size="icon"
-							variant="ghost"
-							className="bg-destructive/10 size-12 rounded-lg ml-4 text-destructive hover:bg-destructive/20 hover:text-destructive"
-							onClick={() =>
-								removeFromCart(
-									isDrink ? product.id : index,
-									isDrink ? "drink" : "food"
-								)
-							}
-						>
-							<Trash2 />
-						</Button>
+										const itemPrice =
+											isDrink ?
+												product.price
+											:	product.price +
+												(itemExtras.reduce((sum, e) => sum + e.price, 0) || 0);
 
-						{isDrink &&
-							currentQty >= product.stock && (
-								<span className="text-xs text-red-600">
-									Max
-								</span>
-							)}
-					</div>
-				</div>
-			</li>
-		);
-	})}
-</ul>
-								}
+										const itemKey =
+											isDrink ? `drink-${product.id}` : `food-${index}`;
+
+										const currentQty = item.quantity;
+
+										return (
+											<li
+												key={itemKey}
+												className={cn(
+													"flex items-start gap-4 py-4",
+													!isDrink && "border-b",
+												)}
+											>
+												<div
+													className={cn(
+														"w-16 h-16 rounded-lg overflow-hidden flex-shrink-0",
+														isDrink ? "bg-muted p-0.5" : "bg-gray-100",
+													)}
+												>
+													{image ?
+														<img
+															src={image}
+															alt={name}
+															className={cn(
+																"w-full h-full object-cover",
+																isDrink && "rounded-md",
+															)}
+														/>
+													:	<div className="w-full h-full flex items-center justify-center text-2xl">
+															{isDrink ? "🍺" : "🍽️"}
+														</div>
+													}
+												</div>
+
+												<div className="flex-1 min-w-0">
+													<div
+														className={cn(
+															"font-semibold text-base text-gray-900 mb-1",
+															!isDrink &&
+																"cursor-pointer hover:text-primary transition-colors flex items-center gap-2",
+														)}
+														onClick={() => {
+															if (!isDrink) {
+																setViewingCartFoodItem({ item, index });
+															}
+														}}
+													>
+														{name}
+
+														{!isDrink && (
+															<Eye className="h-4 w-4 text-gray-400" />
+														)}
+													</div>
+
+													{!isDrink && itemExtras.length > 0 && (
+														<div className="text-xs text-gray-500 mb-1">
+															Extras: {itemExtras.map((e) => e.name).join(", ")}
+														</div>
+													)}
+
+													{!isDrink && item.notes && (
+														<div className="text-xs text-gray-500 mb-1">
+															Note: {item.notes}
+														</div>
+													)}
+
+													<div className="text-base font-bold text-gray-900">
+														{formatCurrency(itemPrice)}
+														{!isDrink && ` × ${currentQty}`}
+													</div>
+
+													<div className="flex items-center gap-2 mt-3">
+														<Button
+															size="icon"
+															variant={isDrink ? "ghost" : "outline"}
+															className={cn("size-12 rounded-lg bg-muted")}
+															onClick={() =>
+																updateCartQty(
+																	isDrink ? product.id : index,
+																	isDrink ? "drink" : "food",
+																	Math.max(1, currentQty - 1),
+																)
+															}
+														>
+															-
+														</Button>
+
+														<Input
+															type="number"
+															min={1}
+															max={isDrink ? product.stock : undefined}
+															value={currentQty}
+															onChange={(e) =>
+																updateCartQty(
+																	isDrink ? product.id : index,
+																	isDrink ? "drink" : "food",
+																	Math.max(1, Number(e.target.value)),
+																)
+															}
+															className="w-20 h-12 text-center flex-1"
+														/>
+
+														<Button
+															size="icon"
+															variant={isDrink ? "ghost" : "outline"}
+															className={cn("size-12 rounded-lg bg-muted")}
+															onClick={() =>
+																updateCartQty(
+																	isDrink ? product.id : index,
+																	isDrink ? "drink" : "food",
+																	currentQty + 1,
+																)
+															}
+															disabled={isDrink && currentQty >= product.stock}
+														>
+															+
+														</Button>
+
+														<Button
+															size="icon"
+															variant="ghost"
+															className="bg-destructive/10 size-12 rounded-lg ml-4 text-destructive hover:bg-destructive/20 hover:text-destructive"
+															onClick={() =>
+																removeFromCart(
+																	isDrink ? product.id : index,
+																	isDrink ? "drink" : "food",
+																)
+															}
+														>
+															<Trash2 />
+														</Button>
+
+														{isDrink && currentQty >= product.stock && (
+															<span className="text-xs text-red-600">Max</span>
+														)}
+													</div>
+												</div>
+											</li>
+										);
+									})}
+								</ul>
+							}
 							{/* Order finalization */}
-							<div className={cn("px-6 py-5 space-y-4 border-t-[0.5px] flex-shrink-0", cart.length === 0 ? "hidden" : "block")}>
+							<div
+								className={cn(
+									"px-6 py-5 space-y-4 border-t-[0.5px] flex-shrink-0",
+									cart.length === 0 ? "hidden" : "block",
+								)}
+							>
 								<div className="space-y-2">
 									<span className="text-sm font-medium text-gray-700">
 										Order Type:
 									</span>
 									<div className="flex gap-2 overflow-x-auto">
-
-	{orderTypes.map(({ value, label }) => {
-		const Icon = OrderTypeIcons[value as OrderTypes]
-		return (<Button
-			key={value}
-			className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
-			variant={orderType === value ? "default" : "outline"}
-			onClick={() => setOrderType(value as any)}
-		>
-			<Icon className="!size-4" />
-			{label}
-		</Button>)
-	}
-	)}
-
-</div>
+										{orderTypes.map(({ value, label }) => {
+											const Icon = OrderTypeIcons[value as OrderTypes];
+											return (
+												<Button
+													key={value}
+													className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+													variant={orderType === value ? "default" : "outline"}
+													onClick={() => setOrderType(value as any)}
+												>
+													<Icon className="!size-4" />
+													{label}
+												</Button>
+											);
+										})}
+									</div>
 								</div>
 								{orderType === "table" && (
 									<div className="space-y-2">
@@ -894,16 +951,16 @@ export const CreateOrder: React.FC = () => {
 												orders
 													.filter(
 														(order) =>
-															order.status === "open" && order.table_number
+															order.status === "open" && order.table_number,
 													)
-													.map((order) => order.table_number?.toString())
+													.map((order) => order.table_number?.toString()),
 											);
 
 											// Filter available tables (active and not assigned to an active order)
 											const availableTables = tables.filter(
 												(table) =>
 													table.status === "active" &&
-													!tablesWithActiveOrders.has(table.name)
+													!tablesWithActiveOrders.has(table.name),
 											);
 
 											if (availableTables.length === 0) {
@@ -946,31 +1003,32 @@ export const CreateOrder: React.FC = () => {
 									</div>
 								)}
 								<div className="space-y-2">
-									<p className="text-sm font-medium text-gray-700">
-										Payment:
-									</p>
-<div className="flex gap-2 overflow-x-auto">
-
-	{paymentModes.map(({ value, label }) => {
-		const Icon = PaymentModeIcons[value as PaymentModes]
-		return(
-		<Button
-			key={value}
-			className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
-			variant={paymentMode === value ? "default" : "outline"}
-			onClick={() => setPaymentMode(value as any)}
-		>
-			<Icon className="!size-4" />
-			{label}
-		</Button>
-	)})}
-
-</div>
+									<p className="text-sm font-medium text-gray-700">Payment:</p>
+									<div className="flex gap-2 overflow-x-auto">
+										{paymentModes.map(({ value, label }) => {
+											const Icon = PaymentModeIcons[value as PaymentModes];
+											return (
+												<Button
+													key={value}
+													className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+													variant={
+														paymentMode === value ? "default" : "outline"
+													}
+													onClick={() => setPaymentMode(value as any)}
+												>
+													<Icon className="!size-4" />
+													{label}
+												</Button>
+											);
+										})}
+									</div>
 								</div>
 
 								{paymentMode === "cash" && orderType === "customer" && (
 									<div className="space-y-3">
-										<p className="text-sm font-medium text-gray-700">Cash Received</p>
+										<p className="text-sm font-medium text-gray-700">
+											Cash Received
+										</p>
 										<div className="space-y-2">
 											<Input
 												id="amount-tendered"
@@ -983,18 +1041,26 @@ export const CreateOrder: React.FC = () => {
 												autoFocus
 											/>
 										</div>
-										
+
 										{parseFloat(amountTendered) > 0 && (
-											<div className={cn(
-												"p-4 rounded-lg shadow-lg animate-in fade-in zoom-in duration-300",
-												parseFloat(amountTendered) - total < 0 ? "bg-red-500" : "bg-blue-600",
-												"text-white"
-											)}>
+											<div
+												className={cn(
+													"p-4 rounded-lg shadow-lg animate-in fade-in zoom-in duration-300",
+													parseFloat(amountTendered) - total < 0 ?
+														"bg-red-500"
+													:	"bg-blue-600",
+													"text-white",
+												)}
+											>
 												<div className="text-xs uppercase tracking-wider font-semibold opacity-80">
-													{parseFloat(amountTendered) - total < 0 ? "Amount Remaining" : "Change Due"}
+													{parseFloat(amountTendered) - total < 0 ?
+														"Amount Remaining"
+													:	"Change Due"}
 												</div>
 												<div className="text-4xl font-black">
-													{formatCurrency(Math.abs(parseFloat(amountTendered) - total))}
+													{formatCurrency(
+														Math.abs(parseFloat(amountTendered) - total),
+													)}
 												</div>
 											</div>
 										)}
@@ -1016,9 +1082,7 @@ export const CreateOrder: React.FC = () => {
 								</div>
 
 								<div className="space-y-3 pt-3 border-t border-gray-200">
-									<p className="text-md font-semibold">
-										Payment Summary:
-									</p>
+									<p className="text-md font-semibold">Payment Summary:</p>
 									<div className="flex justify-between text-base text-gray-600">
 										<span>Subtotal</span>
 										<span className="font-medium">
@@ -1048,10 +1112,14 @@ export const CreateOrder: React.FC = () => {
 									<Button
 										type="button"
 										disabled={
-											cart.length === 0 || 
+											cart.length === 0 ||
 											loading ||
 											(orderType === "table" && !tableNumber) ||
-											(paymentMode === "cash" && orderType === "customer" && (!amountTendered || parseFloat(amountTendered) <= 0 ||  parseFloat(amountTendered) < total ))
+											(paymentMode === "cash" &&
+												orderType === "customer" &&
+												(!amountTendered ||
+													parseFloat(amountTendered) <= 0 ||
+													parseFloat(amountTendered) < total))
 										}
 										onClick={handlePlaceOrder}
 										className="flex-1 h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white shadow-md transition-all active:scale-95"
@@ -1060,23 +1128,26 @@ export const CreateOrder: React.FC = () => {
 									</Button>
 								</div>
 							</div>
-							</div>
-
 						</div>
 					</div>
-					<FoodItemSelectionDialog
-				open={!!selectedFoodItem}
-				foodItem={selectedFoodItem}
-				foodExtras={foodExtras}
-				initialExtras={editingCartIndex !== null ? cart[editingCartIndex]?.extraIds : []}
-				initialNotes={editingCartIndex !== null ? cart[editingCartIndex]?.notes : ""}
-				onClose={() => {
-					setSelectedFoodItem(null);
-					setEditingCartIndex(null);
-				}}
-				onAdd={addFoodToCart}
-			/>
 				</div>
+				<FoodItemSelectionDialog
+					open={!!selectedFoodItem}
+					foodItem={selectedFoodItem}
+					foodExtras={foodExtras}
+					initialExtras={
+						editingCartIndex !== null ? cart[editingCartIndex]?.extraIds : []
+					}
+					initialNotes={
+						editingCartIndex !== null ? cart[editingCartIndex]?.notes : ""
+					}
+					onClose={() => {
+						setSelectedFoodItem(null);
+						setEditingCartIndex(null);
+					}}
+					onAdd={addFoodToCart}
+				/>
+			</div>
 
 			{/* View Cart Food Item Details Dialog */}
 			<ViewDialog open={showDraftsDialog} onOpenChange={setShowDraftsDialog}>
@@ -1095,7 +1166,7 @@ export const CreateOrder: React.FC = () => {
 							</div>
 						:	<div className="space-y-4">
 								{drafts.map((draft) => (
-									<div 
+									<div
 										key={draft.id}
 										className="border rounded-xl p-4 hover:border-primary/50 transition-colors bg-white shadow-sm"
 									>
@@ -1115,18 +1186,18 @@ export const CreateOrder: React.FC = () => {
 											</div>
 										</div>
 										<div className="flex gap-2">
-											<Button 
-												variant="default" 
-												size="sm" 
+											<Button
+												variant="default"
+												size="sm"
 												className="flex-1 gap-2"
 												onClick={() => loadDraft(draft)}
 											>
 												<RotateCcw className="size-4" />
 												Restore Draft
 											</Button>
-											<Button 
-												variant="ghost" 
-												size="sm" 
+											<Button
+												variant="ghost"
+												size="sm"
 												className="text-red-600 hover:bg-red-50 hover:text-red-700"
 												onClick={() => deleteDraft(draft.id)}
 											>
@@ -1139,7 +1210,10 @@ export const CreateOrder: React.FC = () => {
 						}
 					</div>
 					<ViewDialogFooter>
-						<Button variant="outline" onClick={() => setShowDraftsDialog(false)}>
+						<Button
+							variant="outline"
+							onClick={() => setShowDraftsDialog(false)}
+						>
 							Close
 						</Button>
 					</ViewDialogFooter>
@@ -1216,7 +1290,7 @@ export const CreateOrder: React.FC = () => {
 											viewingCartFoodItem.item.extraIds?.forEach(
 												(id: number) => {
 													extraCounts.set(id, (extraCounts.get(id) || 0) + 1);
-												}
+												},
 											);
 											return Array.from(extraCounts.entries()).map(
 												([id, quantity]) => {
@@ -1242,7 +1316,7 @@ export const CreateOrder: React.FC = () => {
 																</span>
 															</div>
 														:	null;
-												}
+												},
 											);
 										})()}
 									</>
@@ -1259,10 +1333,10 @@ export const CreateOrder: React.FC = () => {
 												viewingCartFoodItem.item.extraIds?.forEach(
 													(id: number) => {
 														extraCounts.set(id, (extraCounts.get(id) || 0) + 1);
-													}
+													},
 												);
 												const extrasTotal = Array.from(
-													extraCounts.entries()
+													extraCounts.entries(),
 												).reduce((sum, [id, quantity]) => {
 													const extra = foodExtras.find((e) => e.id === id);
 													return sum + (extra?.price || 0) * quantity;
@@ -1271,7 +1345,7 @@ export const CreateOrder: React.FC = () => {
 													(basePrice + extrasTotal) *
 													viewingCartFoodItem.item.quantity
 												);
-											})()
+											})(),
 										)}
 									</span>
 								</div>
@@ -1302,10 +1376,12 @@ export const CreateOrder: React.FC = () => {
 								onClick={() => {
 									const itemToEdit = viewingCartFoodItem.item;
 									const index = viewingCartFoodItem.index;
-									
+
 									// Re-find the full food item from our master list to ensure we have the extras mapping
-									const fullFoodItem = foodItems.find(fi => fi.id === itemToEdit.foodItem.id);
-									
+									const fullFoodItem = foodItems.find(
+										(fi) => fi.id === itemToEdit.foodItem.id,
+									);
+
 									setViewingCartFoodItem(null);
 									setEditingCartIndex(index);
 									setSelectedFoodItem(fullFoodItem || itemToEdit.foodItem);
@@ -1320,23 +1396,22 @@ export const CreateOrder: React.FC = () => {
 			)}
 
 			<AlertWithActions
-							open={showPrintConfirm}
-							onOpenChange={setShowPrintConfirm}
-							title="Print Receipt?"
-							message="Would you like to print a receipt for this order?"
-							confirmText="Print Receipt"
-							cancelText="Skip"
-							onConfirm={async () => {
-								if (orderToPrint) {
-									await printReceipt(orderToPrint);
-								}
-								setShowPrintConfirm(false);
-								setOrderToPrint(null);
-							}}
-						/>
+				open={showPrintConfirm}
+				onOpenChange={setShowPrintConfirm}
+				title="Print Receipt?"
+				message="Would you like to print a receipt for this order?"
+				confirmText="Print Receipt"
+				cancelText="Skip"
+				onConfirm={async () => {
+					if (orderToPrint) {
+						await printReceipt(orderToPrint);
+					}
+					setShowPrintConfirm(false);
+					setOrderToPrint(null);
+				}}
+			/>
 		</>
 	);
 };
 
 export default CreateOrder;
-
