@@ -33,6 +33,7 @@ import { useCategory } from "@/hooks/useCategory";
 import { useProducts } from "@/hooks/useProducts";
 import { useStock } from "@/hooks/useStock";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useSettings } from "@/hooks/useSettings";
 import { getCategoryName } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { useEffect, useMemo, useState } from "react";
@@ -80,6 +81,7 @@ export default function Products() {
 	} = useCategory();
 	const { getStockStatus } = useStock();
 	const { format: formatCurrency, currency } = useCurrency();
+	const { settings } = useSettings();
 	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -97,7 +99,11 @@ export default function Products() {
 		useState(false);
 	const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-	const canManageProducts = user?.role === "admin" || user?.role === "manager";
+	const canManageProducts =
+		user?.role === "admin" ||
+		user?.role === "manager" ||
+		(user?.role === "cashier" && settings?.pos?.allowCashierInventoryManagement);
+	const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
 
 	useEffect(() => {
 		fetchProducts();
@@ -759,24 +765,28 @@ export default function Products() {
 													)}
 
 													{/* Actions */}
-													{canManageProducts && (
+													{(canManageProducts || canDeleteProducts) && (
 														<div className="flex gap-2 p-3 border-t border-gray-200 flex-wrap">
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => setEditingProduct(product)}
-																className="flex-1 text-base"
-															>
-																Edit
-															</Button>
-															<Button
-																variant="destructive"
-																size="sm"
-																onClick={() => handleDeleteProduct(product)}
-																className="flex-1 text-base"
-															>
-																Delete
-															</Button>
+															{canManageProducts && (
+																<Button
+																	variant="outline"
+																	size="sm"
+																	onClick={() => setEditingProduct(product)}
+																	className="flex-1 text-base"
+																>
+																	Edit
+																</Button>
+															)}
+															{canDeleteProducts && (
+																<Button
+																	variant="destructive"
+																	size="sm"
+																	onClick={() => handleDeleteProduct(product)}
+																	className="flex-1 text-base"
+																>
+																	Delete
+																</Button>
+															)}
 														</div>
 													)}
 												</div>

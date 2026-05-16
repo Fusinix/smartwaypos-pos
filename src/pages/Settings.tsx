@@ -115,6 +115,7 @@ export const Settings: React.FC = () => {
 		cashDrawerKickCode: "0x07",
 		receiptPrinter: "",
 		customerDisplayPort: "",
+		allowCashierInventoryManagement: false,
 		...settings?.pos,
 	});
 
@@ -982,6 +983,28 @@ export const Settings: React.FC = () => {
 												});
 												window.electron.invoke("set-fullscreen", checked);
 											}}
+										/>
+									</div>
+									<div className="flex items-center justify-between p-4 bg-orange-50 border border-orange-100 rounded-lg mt-6">
+										<div className="space-y-1">
+											<p className="text-sm font-bold text-orange-900">
+												Allow Cashiers to Manage Inventory
+											</p>
+											<p className="text-xs text-orange-800">
+												When enabled, cashiers can add new products/food and update stock levels.
+											</p>
+											<p className="text-[10px] text-orange-700 italic mt-1">
+												<strong>Note:</strong> This grants inventory access previously restricted to admins. For security, they will still be <strong>unable to delete</strong> items.
+											</p>
+										</div>
+										<Switch
+											checked={localPosSettings.allowCashierInventoryManagement === true}
+											onCheckedChange={(checked) =>
+												setLocalPosSettings({
+													...localPosSettings,
+													allowCashierInventoryManagement: checked,
+												})
+											}
 										/>
 									</div>
 								</div>

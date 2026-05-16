@@ -31,6 +31,7 @@ export interface POSSettings {
   autoOpenKeyboard?: boolean;
   hideMenuBar?: boolean;
   fullscreen?: boolean;
+  allowCashierInventoryManagement?: boolean;
 }
 
 export interface TableSettings {

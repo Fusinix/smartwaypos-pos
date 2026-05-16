@@ -34,6 +34,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useFood } from "@/hooks/useFood";
 import { useFoodExtras } from "@/hooks/useFoodExtras";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useSettings } from "@/hooks/useSettings";
 import type {
 	FoodItem,
 	FoodCategory,
@@ -80,6 +81,7 @@ export default function Food() {
 	const { format: formatCurrency } = useCurrency();
 	const { isOpen: isKeyboardOpen } = useKeyboard();
 	const { showConfirm } = useAlertStore();
+	const { settings } = useSettings();
 
 	// Tab state
 	const [activeTab, setActiveTab] = useState<"items" | "categories" | "extras">(
@@ -122,7 +124,10 @@ export default function Food() {
 	}>({ totalFoodSales: 0, totalExtrasSales: 0 });
 	const [statsLoading, setStatsLoading] = useState(false);
 
-	const canManageFood = user?.role === "admin";
+	const canManageFood =
+		user?.role === "admin" ||
+		(user?.role === "cashier" && settings?.pos?.allowCashierInventoryManagement);
+	const canDeleteFood = user?.role === "admin";
 
 	const handleDeleteItem = (item: FoodItem) => {
 		showConfirm({
@@ -496,24 +501,28 @@ export default function Food() {
 														</div>
 													</div>
 
-													{canManageFood && (
+													{(canManageFood || canDeleteFood) && (
 														<div className="flex gap-2 p-3 border-t border-gray-200 flex-wrap">
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => setEditingFoodItem(item)}
-																className="flex-1 text-base"
-															>
-																Edit
-															</Button>
-															<Button
-																variant="destructive"
-																size="sm"
-																onClick={() => handleDeleteItem(item)}
-																className="flex-1 text-base"
-															>
-																Delete
-															</Button>
+															{canManageFood && (
+																<Button
+																	variant="outline"
+																	size="sm"
+																	onClick={() => setEditingFoodItem(item)}
+																	className="flex-1 text-base"
+																>
+																	Edit
+																</Button>
+															)}
+															{canDeleteFood && (
+																<Button
+																	variant="destructive"
+																	size="sm"
+																	onClick={() => handleDeleteItem(item)}
+																	className="flex-1 text-base"
+																>
+																	Delete
+																</Button>
+															)}
 														</div>
 													)}
 												</div>
