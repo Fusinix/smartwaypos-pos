@@ -51,6 +51,10 @@ export function useOnScreenKeyboard() {
           const isNumeric =
             input.type === 'number' ||
             input.type === 'tel' ||
+            input.type === 'date' ||
+            input.type === 'time' ||
+            input.type === 'datetime-local' ||
+            input.type === 'month' ||
             inputMode === 'numeric' ||
             inputMode === 'decimal' ||
             id.includes('price') ||

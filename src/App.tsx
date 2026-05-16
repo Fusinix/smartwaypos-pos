@@ -9,6 +9,7 @@ import { Login } from './pages/Login';
 import { useAlertStore } from './stores/useAlertStore';
 import { LicenseCheck } from './components/LicenseCheck';
 import { useOnScreenKeyboard } from './hooks/useOnScreenKeyboard';
+import { GlobalAlertDialog } from './components/alerts/GlobalAlertDialog';
 
 // Lazy load pages for better performance
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -66,6 +67,7 @@ const App: React.FC = () => {
   return (
     <KeyboardProvider>
       <Toaster position="top-center" richColors />
+      <GlobalAlertDialog />
       {isLoading && <FullPageLoader message={loadingMessage} />}
       <LicenseCheck onLicenseValid={handleLicenseValid}>
         <HashRouter>

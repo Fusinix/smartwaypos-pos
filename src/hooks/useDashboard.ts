@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 
-export type TimePeriod = 'day' | 'week' | 'month' | 'custom';
+export type TimePeriod = 'day' | 'yesterday' | 'week' | 'month' | 'custom';
 
 export interface DashboardFilters {
   timePeriod: TimePeriod;

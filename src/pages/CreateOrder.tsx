@@ -38,7 +38,6 @@ import {
 	X,
 } from "lucide-react";
 import { FoodItemSelectionDialog } from "@/components/orders/FoodItemSelectionDialog";
-import { AlertWithActions } from "@/components/alerts/alert-with-actions";
 import { useReceipt } from "@/hooks/useReceipt";
 import type { Order } from "@/types";
 import { useNavigate } from "react-router-dom";
@@ -53,6 +52,8 @@ import {
 	type PaymentModes,
 } from "@/components/Icons";
 import { ClassStyles } from "@/components/classnames";
+import { useAlertStore } from "@/stores/useAlertStore";
+import EmptyState from "@/components/alerts/empty-state";
 
 export const CategoryComponent = ({
 	cat,
@@ -121,8 +122,8 @@ export const CreateOrder: React.FC = () => {
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
 	const [notes, setNotes] = useState("");
 	const [amountTendered, setAmountTendered] = useState("");
-	const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
+	const { showConfirm } = useAlertStore();
 	const [drafts, setDrafts] = useState<any[]>([]);
 	const [showDraftsDialog, setShowDraftsDialog] = useState(false);
 
@@ -201,16 +202,33 @@ export const CreateOrder: React.FC = () => {
 	};
 
 	const deleteDraft = (id: number) => {
-		const updatedDrafts = drafts.filter((d) => d.id !== id);
-		setDrafts(updatedDrafts);
-		localStorage.setItem("pos_drafts", JSON.stringify(updatedDrafts));
-		toast.success("Draft deleted");
+		showConfirm({
+			title: "Delete Draft?",
+			description: "Are you sure you want to delete this draft?",
+			confirmText: "Delete",
+			variant: "destructive",
+			onConfirm: () => {
+				const updatedDrafts = drafts.filter((d) => d.id !== id);
+				setDrafts(updatedDrafts);
+				localStorage.setItem("pos_drafts", JSON.stringify(updatedDrafts));
+				toast.success("Draft deleted");
+			},
+		});
 	};
 
 	const clearCart = () => {
-		resetState();
-		localStorage.removeItem("pos_current_cart");
-		toast.success("Cart cleared");
+		showConfirm({
+			title: "Clear Cart?",
+			description:
+				"Are you sure you want to remove all items from the cart? This action cannot be undone.",
+			confirmText: "Clear Cart",
+			variant: "destructive",
+			onConfirm: () => {
+				resetState();
+				localStorage.removeItem("pos_current_cart");
+				toast.success("Cart cleared");
+			},
+		});
 	};
 
 	useEffect(() => {
@@ -311,16 +329,32 @@ export const CreateOrder: React.FC = () => {
 		);
 	};
 
-	const removeFromCart = (itemId: number, itemType: "drink" | "food") => {
-		setCart((prev) => {
-			if (itemType === "drink") {
-				return prev.filter(
-					(item) => !(item.itemType === "drink" && item.product?.id === itemId),
+	const removeFromCart = (
+		itemId: number,
+		itemType: "drink" | "food",
+		name: string,
+	) => {
+		showConfirm({
+			title: "Remove Item?",
+			description: `Remove "${name}" from your cart?`,
+			confirmText: "Remove",
+			variant: "destructive",
+			onConfirm: () => {
+				setCart((prev) => {
+					if (itemType === "drink") {
+						return prev.filter(
+							(item) =>
+								!(item.itemType === "drink" && item.product?.id === itemId),
+						);
+					} else {
+						// For food, use index
+						return prev.filter((_, index) => index !== itemId);
+					}
+				});
+				toast.success(
+					`${itemType === "drink" ? "Drink" : "Food"} removed from cart`,
 				);
-			} else {
-				// For food, use index
-				return prev.filter((_, index) => index !== itemId);
-			}
+			},
 		});
 	};
 
@@ -390,8 +424,15 @@ export const CreateOrder: React.FC = () => {
 		resetState();
 
 		setTimeout(() => {
-			setOrderToPrint(newOrder);
-			setShowPrintConfirm(true);
+			showConfirm({
+				title: "Print Receipt?",
+				description: "Would you like to print a receipt for this order?",
+				confirmText: "Print Receipt",
+				cancelText: "Skip",
+				onConfirm: async () => {
+					await printReceipt(newOrder);
+				},
+			});
 		}, 500);
 	};
 
@@ -446,7 +487,7 @@ export const CreateOrder: React.FC = () => {
 		} catch (error) {
 			console.error("Error placing order:", error);
 			// Error is already handled by createOrder hook with toast
-			throw error;
+			toast.error("Failed to place order");
 		}
 	};
 
@@ -528,7 +569,7 @@ export const CreateOrder: React.FC = () => {
 										variant={activeTab === "food" ? "default" : "outline"}
 										className={cn(
 											ClassStyles.tabButton,
-											"hover:bg-primary/10 text-primary shadow-none",
+											"hover:bg-primary/10 text-primary shadow-none !mr-4",
 											activeTab === "food" ?
 												"text-primary-foreground hover:bg-primary"
 											:	"text-muted-foreground",
@@ -557,12 +598,14 @@ export const CreateOrder: React.FC = () => {
 								<div
 									className={cn(
 										"grid gap-4 p-4",
-										isKeyboardOpen || cart.length > 0 ?
-											activeTab === "drinks" ?
-												"grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+										isKeyboardOpen ?
+											cart.length > 0 ?
+												activeTab === "drinks" ?
+													"grid-cols-1 md:grid-cols-1 lg:grid-cols-2"
+												:	"grid-cols-1 md:grid-cols-1 lg:grid-cols-2"
 											:	"grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
 										: activeTab === "drinks" ?
-											"grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6"
+											"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
 										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
 									)}
 								>
@@ -572,14 +615,12 @@ export const CreateOrder: React.FC = () => {
 												Loading products...
 											</div>
 										: filteredProducts.length === 0 ?
-											<div className="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
-												<h3 className="text-lg font-semibold text-gray-700">
-													No {activeTab} yet
-												</h3>
-												<p className="mt-1 max-w-sm text-sm text-gray-400">
-													{activeTab} will appear here once you start adding
-													them.
-												</p>
+											<div className="col-span-full">
+												<EmptyState
+													icon={activeTab === "drinks" ? Beer : Salad}
+													title={`No ${activeTab} yet`}
+													description={`No ${activeTab} will appear here once you start adding them.`}
+												/>
 											</div>
 										:	filteredProducts.map((product) => {
 												const isOutOfStock = product.stock <= 0;
@@ -699,6 +740,7 @@ export const CreateOrder: React.FC = () => {
 						className={cn(
 							"w-1/4 bg-white flex flex-col h-full min-h-0",
 							cart.length === 0 && "hidden",
+							isKeyboardOpen && cart.length > 0 && "w-1/3",
 						)}
 					>
 						{/* Cart Header */}
@@ -896,6 +938,7 @@ export const CreateOrder: React.FC = () => {
 																removeFromCart(
 																	isDrink ? product.id : index,
 																	isDrink ? "drink" : "food",
+																	name,
 																)
 															}
 														>
@@ -1394,22 +1437,6 @@ export const CreateOrder: React.FC = () => {
 					</ViewDialogContent>
 				</ViewDialog>
 			)}
-
-			<AlertWithActions
-				open={showPrintConfirm}
-				onOpenChange={setShowPrintConfirm}
-				title="Print Receipt?"
-				message="Would you like to print a receipt for this order?"
-				confirmText="Print Receipt"
-				cancelText="Skip"
-				onConfirm={async () => {
-					if (orderToPrint) {
-						await printReceipt(orderToPrint);
-					}
-					setShowPrintConfirm(false);
-					setOrderToPrint(null);
-				}}
-			/>
 		</>
 	);
 };

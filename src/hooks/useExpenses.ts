@@ -19,11 +19,7 @@ export const useExpenses = (filters: DashboardFilters) => {
     try {
       setIsLoading(true);
       setError(null);
-      // For now, get-expenses only takes a single date.
-      // We'll pass the current date if timePeriod is 'day', otherwise we might need a range.
-      // Let's use the startDate if available.
-      const dateStr = filters.startDate ? filters.startDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      const data = await window.electron.invoke('get-expenses', dateStr);
+      const data = await window.electron.invoke('get-expenses', filters);
       setExpenses(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses');

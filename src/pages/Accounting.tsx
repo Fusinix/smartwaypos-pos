@@ -10,6 +10,7 @@ import {
 	CreditCard,
 	Percent,
 	BarChart2,
+	X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useUsers } from "@/hooks/useUsers";
 import { ClassStyles } from "@/components/classnames";
+import { Input } from "@/components/ui/input";
 
 const tabs = [
 	{ id: "overview", label: "Overview", icon: BarChart2 },
@@ -40,8 +42,10 @@ const tabs = [
 
 const periodOptions: { label: string; value: TimePeriod }[] = [
 	{ label: "Day", value: "day" },
+	{ label: "Yesterday", value: "yesterday" },
 	{ label: "Week", value: "week" },
 	{ label: "Month", value: "month" },
+	{ label: "Custom", value: "custom" },
 ];
 
 const Accounting: React.FC = () => {
@@ -79,17 +83,42 @@ const Accounting: React.FC = () => {
 			<div className="flex items-center justify-between px-4 py-2 border-b border-border">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Accounting</h1>
-					<p className="text-gray-500 text-sm mt-1 capitalize">
-						{filters.timePeriod} 2026
+					<p className="text-gray-500 text-sm mt-1">
+						{filters.timePeriod === "custom" ?
+							`${filters.startDate?.toLocaleDateString()} - ${filters.endDate?.toLocaleDateString()}`
+						: filters.timePeriod === "yesterday" ?
+							new Date(Date.now() - 86400000).toLocaleDateString(undefined, {
+								month: "long",
+								day: "numeric",
+								year: "numeric",
+							})
+						:	new Date().toLocaleDateString(undefined, {
+								month: "long",
+								day: "numeric",
+								year: "numeric",
+							})
+						}
 					</p>
 				</div>
 
 				<div className="flex items-center gap-3">
-					<div className="bg-gray-100 p-1 rounded-lg flex gap-1">
+					<div
+						className={cn(
+							"bg-gray-100 p-1 rounded-lg flex gap-1",
+							filters.timePeriod === "custom" && "hidden",
+						)}
+					>
 						{periodOptions.map((opt) => (
 							<button
 								key={opt.label}
-								onClick={() => updateFilters({ timePeriod: opt.value })}
+								onClick={() => {
+									const updates: any = { timePeriod: opt.value };
+									if (opt.value === "custom" && !filters.startDate) {
+										updates.startDate = new Date();
+										updates.endDate = new Date();
+									}
+									updateFilters(updates);
+								}}
 								className={cn(
 									"px-4 py-1.5 rounded-md text-sm font-medium transition-all",
 									filters.timePeriod === opt.value ?
@@ -101,6 +130,42 @@ const Accounting: React.FC = () => {
 							</button>
 						))}
 					</div>
+
+					{filters.timePeriod === "custom" && (
+						<div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+							<Input
+								type="date"
+								className="bg-transparent border-none text-sm px-2 h-8 focus:ring-0"
+								value={filters.startDate?.toISOString().split("T")[0] || ""}
+								onChange={(e) =>
+									updateFilters({
+										startDate:
+											e.target.value ? new Date(e.target.value) : undefined,
+									})
+								}
+							/>
+							<span className="text-gray-400">-</span>
+							<Input
+								type="date"
+								className="bg-transparent border-none text-sm px-2 h-8 focus:ring-0"
+								value={filters.endDate?.toISOString().split("T")[0] || ""}
+								onChange={(e) =>
+									updateFilters({
+										endDate:
+											e.target.value ? new Date(e.target.value) : undefined,
+									})
+								}
+							/>
+							<Button
+								size="icon"
+								variant="ghost"
+								className="rounded-md h-8"
+								onClick={() => updateFilters({ timePeriod: "day" })}
+							>
+								<X />
+							</Button>
+						</div>
+					)}
 
 					<Button
 						variant="outline"

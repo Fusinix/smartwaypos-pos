@@ -1717,11 +1717,57 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date) => {
     }
 });
 // Expense handlers
-electron_1.ipcMain.handle("get-expenses", async (_, date) => {
+electron_1.ipcMain.handle("get-expenses", async (_, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const reportDate = date || new Date().toISOString().split("T")[0];
-        const expenses = await db.all("SELECT * FROM expenses WHERE date(created_at) = date(?) ORDER BY created_at DESC", [reportDate]);
+        let start, end;
+        const now = new Date();
+        const timePeriod = filters.timePeriod || "day";
+        const startDate = filters.startDate;
+        const endDate = filters.endDate;
+        switch (timePeriod) {
+            case "day":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                break;
+            case "week":
+                const dayOfWeek = now.getDay();
+                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
+                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+                break;
+            case "month":
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                break;
+            case "custom":
+                start = startDate ? new Date(startDate) : new Date();
+                end = endDate ? new Date(endDate) : new Date();
+                end.setHours(23, 59, 59, 999);
+                break;
+            default:
+                // Backward compatibility for when just a date string is passed
+                if (typeof filters === 'string') {
+                    const dateStr = filters;
+                    const expenses = await db.all("SELECT * FROM expenses WHERE date(created_at) = date(?) ORDER BY created_at DESC", [dateStr]);
+                    return expenses;
+                }
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        }
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
+        const expenses = await db.all("SELECT * FROM expenses WHERE date(created_at) >= date(?) AND date(created_at) < date(?) ORDER BY created_at DESC", [startDateStr, endDateStr]);
         return expenses;
     }
     catch (error) {
@@ -2815,9 +2861,12 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -2832,38 +2881,22 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
-        // Get closed orders in date range (only closed orders count for revenue)
-        // For closed orders, use updated_at (when closed) to determine which period they belong to
-        // This ensures orders closed today show up in today's stats regardless of when created
-        // SQLite stores dates as 'YYYY-MM-DD HH:MM:SS' format in local time
-        // For 'day' period, we already calculated the date strings above, otherwise extract from ISO
-        let startDateStr;
-        let endDateStr;
-        if (timePeriod === "day") {
-            // Use the date strings we calculated above for 'day' period
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, "0");
-            const day = String(today.getDate()).padStart(2, "0");
-            startDateStr = `${year}-${month}-${day}`;
-            // Calculate next day properly (handles month/year boundaries)
-            const nextDay = new Date(today);
-            nextDay.setDate(today.getDate() + 1);
-            const nextYear = nextDay.getFullYear();
-            const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
-            const nextDayStr = String(nextDay.getDate()).padStart(2, "0");
-            endDateStr = `${nextYear}-${nextMonth}-${nextDayStr}`;
-        }
-        else {
-            // For other periods, extract from ISO string
-            startDateStr = start.toISOString().split("T")[0];
-            endDateStr = end.toISOString().split("T")[0];
-        }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        let startDateStr = formatDate(start);
+        let endDateStr = formatDate(end);
         // Debug: First, get ALL closed orders to see what we have
         const allClosedOrders = await db.all(`
       SELECT 
@@ -2986,6 +3019,45 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
     try {
         const db = await (0, database_1.getDatabase)();
         let data;
+        const { timePeriod = "day", startDate, endDate } = filters;
+        let start, end;
+        const now = new Date();
+        switch (timePeriod) {
+            case "day":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                break;
+            case "week":
+                const dayOfWeek = now.getDay();
+                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
+                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+                break;
+            case "month":
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                break;
+            case "custom":
+                start = startDate ? new Date(startDate) : new Date();
+                end = endDate ? new Date(endDate) : new Date();
+                end.setHours(23, 59, 59, 999);
+                break;
+            default:
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        }
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         if (type === "dashboard") {
             // Gather dashboard analytics for export
             // 1. Revenue & Orders by Date (only closed orders)
@@ -2993,14 +3065,11 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
         SELECT DATE(created_at) as date, SUM(amount) as revenue, COUNT(*) as orders
         FROM orders
         WHERE status = 'closed'
-        AND created_at >= ? AND created_at < ?
+        AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ? 
+        AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
         GROUP BY DATE(created_at)
         ORDER BY date
-      `, [
-                filters.startDate ||
-                    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-                filters.endDate || new Date().toISOString(),
-            ]);
+      `, [startDateStr, endDateStr]);
             // 2. Top Products (only closed orders)
             const topProducts = await db.all(`
         SELECT p.name as product, c.name as category, SUM(oi.quantity) as sold, SUM(oi.quantity * p.price) as revenue
@@ -3014,11 +3083,7 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
         GROUP BY p.id, p.name, c.name
         ORDER BY revenue DESC
         LIMIT 10
-      `, [
-                filters.startDate ||
-                    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-                filters.endDate || new Date().toISOString(),
-            ]);
+      `, [startDateStr, endDateStr]);
             // 3. Category Performance (only closed orders)
             const categoryPerformance = await db.all(`
         SELECT c.name as category, SUM(oi.quantity * p.price) as revenue, COUNT(DISTINCT o.id) as orders
@@ -3227,9 +3292,12 @@ electron_1.ipcMain.handle("get-sales-analytics", async (_event, filters = {}) =>
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -3244,37 +3312,22 @@ electron_1.ipcMain.handle("get-sales-analytics", async (_event, filters = {}) =>
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
-        // Get daily sales data (only closed orders count for revenue)
-        // For closed orders, use updated_at (when closed) as the date for grouping
-        // This ensures orders closed today show up in today's stats regardless of when created
-        // Use local date strings for 'day' period to avoid timezone issues
-        let startDateStr;
-        let endDateStr;
-        if (timePeriod === "day") {
-            // Use local date strings for 'day' period
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, "0");
-            const day = String(today.getDate()).padStart(2, "0");
-            startDateStr = `${year}-${month}-${day}`;
-            // Calculate next day properly (handles month/year boundaries)
-            const nextDay = new Date(today);
-            nextDay.setDate(today.getDate() + 1);
-            const nextYear = nextDay.getFullYear();
-            const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
-            const nextDayStr = String(nextDay.getDate()).padStart(2, "0");
-            endDateStr = `${nextYear}-${nextMonth}-${nextDayStr}`;
-        }
-        else {
-            // For other periods, extract from ISO string
-            startDateStr = start.toISOString().split("T")[0];
-            endDateStr = end.toISOString().split("T")[0];
-        }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         const salesData = await db.all(`
       SELECT 
         strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) as date,
@@ -3332,9 +3385,12 @@ electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -3349,34 +3405,22 @@ electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
-        // Use local date strings for 'day' period to avoid timezone issues
-        let startDateStr;
-        let endDateStr;
-        if (timePeriod === "day") {
-            // Use local date strings for 'day' period
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, "0");
-            const day = String(today.getDate()).padStart(2, "0");
-            startDateStr = `${year}-${month}-${day}`;
-            // Calculate next day properly (handles month/year boundaries)
-            const nextDay = new Date(today);
-            nextDay.setDate(today.getDate() + 1);
-            const nextYear = nextDay.getFullYear();
-            const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
-            const nextDayStr = String(nextDay.getDate()).padStart(2, "0");
-            endDateStr = `${nextYear}-${nextMonth}-${nextDayStr}`;
-        }
-        else {
-            // For other periods, extract from ISO string
-            startDateStr = start.toISOString().split("T")[0];
-            endDateStr = end.toISOString().split("T")[0];
-        }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         const topProducts = await db.all(`
       SELECT 
         p.id,
@@ -3411,9 +3455,12 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -3428,34 +3475,22 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
-        // Use local date strings for 'day' period to avoid timezone issues
-        let startDateStr;
-        let endDateStr;
-        if (timePeriod === "day") {
-            // Use local date strings for 'day' period
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, "0");
-            const day = String(today.getDate()).padStart(2, "0");
-            startDateStr = `${year}-${month}-${day}`;
-            // Calculate next day properly (handles month/year boundaries)
-            const nextDay = new Date(today);
-            nextDay.setDate(today.getDate() + 1);
-            const nextYear = nextDay.getFullYear();
-            const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
-            const nextDayStr = String(nextDay.getDate()).padStart(2, "0");
-            endDateStr = `${nextYear}-${nextMonth}-${nextDayStr}`;
-        }
-        else {
-            // For other periods, extract from ISO string
-            startDateStr = start.toISOString().split("T")[0];
-            endDateStr = end.toISOString().split("T")[0];
-        }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         const categoryData = await db.all(`
       SELECT 
         c.name as category,
@@ -3492,9 +3527,12 @@ electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -3509,34 +3547,22 @@ electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
-        // Use local date strings for 'day' period to avoid timezone issues
-        let startDateStr;
-        let endDateStr;
-        if (timePeriod === "day") {
-            // Use local date strings for 'day' period
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, "0");
-            const day = String(today.getDate()).padStart(2, "0");
-            startDateStr = `${year}-${month}-${day}`;
-            // Calculate next day properly (handles month/year boundaries)
-            const nextDay = new Date(today);
-            nextDay.setDate(today.getDate() + 1);
-            const nextYear = nextDay.getFullYear();
-            const nextMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
-            const nextDayStr = String(nextDay.getDate()).padStart(2, "0");
-            endDateStr = `${nextYear}-${nextMonth}-${nextDayStr}`;
-        }
-        else {
-            // For other periods, extract from ISO string
-            startDateStr = start.toISOString().split("T")[0];
-            endDateStr = end.toISOString().split("T")[0];
-        }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         const peakHours = await db.all(`
       SELECT 
         CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER) as hour,
@@ -3565,9 +3591,12 @@ electron_1.ipcMain.handle("get-order-status", async (_event, filters = {}) => {
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -3582,19 +3611,31 @@ electron_1.ipcMain.handle("get-order-status", async (_event, filters = {}) => {
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         const orderStatus = await db.all(`
       SELECT 
         status,
         COUNT(*) as count
       FROM orders 
-      WHERE created_at >= ? AND created_at < ?
+      WHERE strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
+      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
       GROUP BY status
-    `, [start.toISOString(), end.toISOString()]);
+    `, [startDateStr, endDateStr]);
         // Calculate percentages
         const totalOrders = orderStatus.reduce((sum, status) => sum + status.count, 0);
         return orderStatus.map((status) => ({
@@ -3616,9 +3657,12 @@ electron_1.ipcMain.handle("get-payment-methods", async (_event, filters = {}) =>
         const now = new Date();
         switch (timePeriod) {
             case "day":
-                // Set to start of today in local timezone, then convert to UTC for consistent comparison
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case "yesterday":
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 break;
             case "week":
                 const dayOfWeek = now.getDay();
@@ -3633,11 +3677,22 @@ electron_1.ipcMain.handle("get-payment-methods", async (_event, filters = {}) =>
             case "custom":
                 start = startDate ? new Date(startDate) : new Date();
                 end = endDate ? new Date(endDate) : new Date();
+                // Ensure end date includes the full day
+                end.setHours(23, 59, 59, 999);
                 break;
             default:
                 start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         }
+        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const formatDate = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const startDateStr = formatDate(start);
+        const endDateStr = formatDate(end);
         const paymentMethods = await db.all(`
       SELECT 
         payment_mode as method,
@@ -3645,9 +3700,10 @@ electron_1.ipcMain.handle("get-payment-methods", async (_event, filters = {}) =>
         SUM(amount) as revenue
       FROM orders 
       WHERE status = 'closed'
-      AND created_at >= ? AND created_at < ?
+      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
+      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
       GROUP BY payment_mode
-    `, [start.toISOString(), end.toISOString()]);
+    `, [startDateStr, endDateStr]);
         // Calculate percentages
         const totalOrders = paymentMethods.reduce((sum, method) => sum + method.count, 0);
         return paymentMethods.map((method) => ({

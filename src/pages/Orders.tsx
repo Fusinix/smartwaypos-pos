@@ -179,11 +179,37 @@ export const Orders: React.FC = () => {
 				(order.order_type === "takeout" && searchLower.includes("takeout")) ||
 				(order.order_type === "takeout" && searchLower.includes("to-")) ||
 				false;
-			// Category filter (optional, can be expanded to check order items)
-			// For now, skip category filter logic
 			return matchesSearch;
 		});
 	}, [orders, activeTab, search, dateFilter, customDateStart, customDateEnd]);
+
+	const groupedOrders = useMemo(() => {
+		const groups: { [key: string]: Order[] } = {};
+
+		filteredOrders.forEach((order) => {
+			if (!order.created_at) return;
+
+			const date = new Date(order.created_at);
+			const dateString = date.toLocaleDateString(undefined, {
+				weekday: "long",
+				month: "long",
+				day: "numeric",
+				year: "numeric",
+			});
+
+			if (!groups[dateString]) {
+				groups[dateString] = [];
+			}
+			groups[dateString].push(order);
+		});
+
+		// Return entries sorted by date (newest date first)
+		return Object.entries(groups).sort((a, b) => {
+			const dateA = new Date(a[1][0].created_at!);
+			const dateB = new Date(b[1][0].created_at!);
+			return dateB.getTime() - dateA.getTime();
+		});
+	}, [filteredOrders]);
 
 	const selectedOrderTotal = useMemo(() => {
 		if (!selectedOrder || !selectedOrder.items) return 0;
@@ -532,7 +558,12 @@ export const Orders: React.FC = () => {
 								/>
 							</div>
 							{/* Date Filter */}
-							<div className="flex items-center space-x-2">
+							<div
+								className={cn(
+									"flex items-center space-x-2",
+									isKeyboardOpen && selectedOrder?.id ? "hidden" : "",
+								)}
+							>
 								<Select value={dateFilter} onValueChange={setDateFilter}>
 									<SelectTrigger className="w-40 text-base">
 										<SelectValue placeholder="Filter by Date" />
@@ -568,8 +599,15 @@ export const Orders: React.FC = () => {
 					</div>
 
 					{/* Order List - Responsive Grid */}
-					<div className="flex-1 overflow-y-auto p-4 bg-muted">
-						{loading ?
+					<div className="flex-1 overflow-y-auto p-4 bg-muted relative">
+						{loading && groupedOrders.length > 0 && (
+							<div className="absolute top-0 left-0 right-0 z-20">
+								<div className="h-1 bg-primary/20 w-full overflow-hidden">
+									<div className="h-full bg-primary animate-progress w-1/3" />
+								</div>
+							</div>
+						)}
+						{loading && groupedOrders.length === 0 ?
 							<div className="p-4 text-center text-gray-500 text-lg">
 								Loading...
 							</div>
@@ -577,108 +615,120 @@ export const Orders: React.FC = () => {
 							<div className="p-4 text-center text-red-500 text-lg">
 								{error}
 							</div>
-						: filteredOrders.length === 0 ?
+						: groupedOrders.length === 0 ?
 							<EmptyState
 								icon={Clipboard}
 								title="No orders yet"
 								description="Orders will appear here once customers start placing them."
 							/>
-						:	<div
-								className={cn(
-									"grid gap-4 px-0",
-									isKeyboardOpen ?
-										"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
-									:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
-								)}
-							>
-								{filteredOrders.map((order) => {
-									const isOpen = order.status === "open";
-									const PaymentIcon = PaymentModeIcons[order.payment_mode];
-									return (
-										<div
-											key={order.id}
-											className={cn(
-												"bg-card rounded-lg p-4 cursor-pointer transition-all relative",
-												selectedOrder?.id === order.id ?
-													"ring-2 ring-primary"
-												:	"hover:shadow-md hover:border-primary/50",
-												// isOpen ?
-												// 	"bg-card"
-												// :	"border-transparent"
-											)}
-											onClick={() => handleOrderSelect(order)}
-										>
-											{isOpen ?
-												<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink" />
-											:	<div className="absolute top-3 right-3 text-muted-foreground/60">
-													<Lock strokeWidth={3} />
-												</div>
-											}
-											<div className="space-y-3">
-												<div className="">
-													<div className="flex-1 pb-2 space-y-1">
-														<div className="font-bold text-2xl text-gray-900">
-															Order #{order.order_number ?? order.id}
-														</div>
-														<p className="text-sm text-gray-900 line-clamp-2">
-															{order.notes}
-														</p>
-														<div className="mt-1 flex items-center gap-2 flex-wrap">
-															<div
-																className={cn(
-																	"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
-																	isOpen ?
-																		"bg-primary/10 text-primary"
-																	:	"bg-muted text-muted-foreground",
-																)}
-															>
-																{isOpen && (
-																	<div
-																		className={cn(
-																			"w-2 h-2 mr-2 bg-primary rounded-full animate-blink",
-																		)}
-																	/>
-																)}
-																{order.status}
-															</div>
-															{order.order_type === "table" &&
-																order.table_number && (
-																	<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-																		Table {order.table_number}
-																	</span>
-																)}
-															{order.order_type === "takeout" &&
-																order.table_number && (
-																	<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-																		{order.table_number}
-																	</span>
-																)}
-														</div>
-													</div>
-												</div>
-
-												<div className="py-3 border-y border-gray-200">
-													<div className="flex items-center justify-between flex-wrap gap-2">
-														<PaymentIcon className="text-muted-foreground/60 size-4" />
-														<p className="text-sm text-gray-500 mr-auto">
-															Total
-														</p>
-														<p className="font-bold text-sm text-gray-900">
-															{formatCurrency(order.amount ?? 0)}
-														</p>
-													</div>
-												</div>
-
-												<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
-													<Clock className="size-4 text-muted-foreground/60" />
-													{order.created_at ?
-														new Date(order.created_at).toLocaleString()
-													:	"N/A"}
-												</div>
-											</div>
+						:	<div className="space-y-8">
+								{groupedOrders.map(([dateString, ordersInGroup]) => (
+									<div key={dateString} className="space-y-4">
+										<div className="sticky -top-5 z-10 py-2 bg-muted/95 backdrop-blur-sm">
+											<h3 className="text-lg font-bold text-gray-900 border-l-4 border-primary pl-3">
+												{dateString}
+											</h3>
 										</div>
-									);
-								})}
+										<div
+											className={cn(
+												"grid gap-4 px-0",
+												isKeyboardOpen ?
+													selectedOrder?.id ?
+														"grid-cols-1 md:grid-cols-1 lg:grid-cols-2"
+													:	"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
+												:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+											)}
+										>
+											{ordersInGroup.map((order) => {
+												const isOpen = order.status === "open";
+												const PaymentIcon =
+													PaymentModeIcons[order.payment_mode];
+
+												return (
+													<div
+														key={order.id}
+														className={cn(
+															"bg-card rounded-lg p-4 cursor-pointer transition-all relative",
+															selectedOrder?.id === order.id ?
+																"ring-2 ring-primary"
+															:	"hover:shadow-md hover:border-primary/50",
+														)}
+														onClick={() => handleOrderSelect(order)}
+													>
+														{isOpen ?
+															<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink" />
+														:	<div className="absolute top-3 right-3 text-muted-foreground/60">
+																<Lock strokeWidth={3} />
+															</div>
+														}
+														<div className="space-y-3">
+															<div className="">
+																<div className="flex-1 pb-2 space-y-1">
+																	<div className="font-bold text-2xl text-gray-900">
+																		Order #{order.order_number ?? order.id}
+																	</div>
+																	<p className="text-sm text-gray-900 line-clamp-2">
+																		{order.notes}
+																	</p>
+																	<div className="mt-1 flex items-center gap-2 flex-wrap">
+																		<div
+																			className={cn(
+																				"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
+																				isOpen ?
+																					"bg-primary/10 text-primary"
+																				:	"bg-muted text-muted-foreground",
+																			)}
+																		>
+																			{isOpen && (
+																				<div
+																					className={cn(
+																						"w-2 h-2 mr-2 bg-primary rounded-full animate-blink",
+																					)}
+																				/>
+																			)}
+																			{order.status}
+																		</div>
+																		{order.order_type === "table" &&
+																			order.table_number && (
+																				<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+																					Table {order.table_number}
+																				</span>
+																			)}
+																		{order.order_type === "takeout" &&
+																			order.table_number && (
+																				<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+																					{order.table_number}
+																				</span>
+																			)}
+																	</div>
+																</div>
+															</div>
+
+															<div className="py-3 border-y border-gray-200">
+																<div className="flex items-center justify-between flex-wrap gap-2">
+																	<PaymentIcon className="text-muted-foreground/60 size-4" />
+																	<p className="text-sm text-gray-500 mr-auto">
+																		Total
+																	</p>
+																	<p className="font-bold text-xl text-primary">
+																		{formatCurrency(order.amount ?? 0)}
+																	</p>
+																</div>
+															</div>
+
+															<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
+																<Clock className="size-4 text-muted-foreground/60" />
+																{order.created_at ?
+																	new Date(order.created_at).toLocaleString()
+																:	"N/A"}
+															</div>
+														</div>
+													</div>
+												);
+											})}
+										</div>
+									</div>
+								))}
 							</div>
 						}
 					</div>
@@ -701,18 +751,11 @@ export const Orders: React.FC = () => {
 						</Button>
 					</div>
 					{!selectedOrder ?
-						<div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20">
-							<div className="w-20 h-20 mb-4 flex items-center justify-center text-6xl">
-								🛒
-							</div>
-							<div className="text-xl font-semibold mb-2 text-foreground">
-								No Order Selected
-							</div>
-							<div className="text-lg">
-								Select an order from the list or create a new one to view its
-								details here.
-							</div>
-						</div>
+						<EmptyState
+							icon={Clipboard}
+							title="No Order Selected"
+							description="Select an order from the list or create a new one to view its details here."
+						/>
 					:	<div className="flex-1 flex flex-col pt-1 space-y-6">
 							{/* Cart Section */}
 							<div className="border-b p-6 pt-0 pb-12 h-[40%] overflow-y-auto">

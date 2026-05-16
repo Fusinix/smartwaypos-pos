@@ -3,16 +3,6 @@
 import { SimpleAlert } from "@/components/alerts/simple-alert";
 import AddEditFoodItemDialog from "@/components/dialogs/add-edit-food-item-dialog";
 import { AddEditFoodCategoryDialog } from "@/components/dialogs/add-edit-food-category-dialog";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -65,6 +55,9 @@ import { cn } from "@/lib/utils";
 import { useKeyboard } from "@/context/KeyboardContext";
 import { CategoryComponent } from "./CreateOrder";
 import { ClassStyles } from "@/components/classnames";
+import { useAlertStore } from "@/stores/useAlertStore";
+import { toast } from "sonner";
+import EmptyState from "@/components/alerts/empty-state";
 
 export default function Food() {
 	const { user } = useAuth();
@@ -86,6 +79,7 @@ export default function Food() {
 
 	const { format: formatCurrency } = useCurrency();
 	const { isOpen: isKeyboardOpen } = useKeyboard();
+	const { showConfirm } = useAlertStore();
 
 	// Tab state
 	const [activeTab, setActiveTab] = useState<"items" | "categories" | "extras">(
@@ -96,18 +90,12 @@ export default function Food() {
 	// Items state
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [editingFoodItem, setEditingFoodItem] = useState<FoodItem | null>(null);
-	const [foodItemToDelete, setFoodItemToDelete] = useState<FoodItem | null>(
-		null,
-	);
 	const [search, setSearch] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
 	// Categories state
 	const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
 	const [editingCategory, setEditingCategory] = useState<FoodCategory | null>(
-		null,
-	);
-	const [categoryToDelete, setCategoryToDelete] = useState<FoodCategory | null>(
 		null,
 	);
 	const [categorySearch, setCategorySearch] = useState("");
@@ -125,7 +113,6 @@ export default function Food() {
 
 	const [isAddExtraDialogOpen, setIsAddExtraDialogOpen] = useState(false);
 	const [editingExtra, setEditingExtra] = useState<FoodExtra | null>(null);
-	const [extraToDelete, setExtraToDelete] = useState<FoodExtra | null>(null);
 	const [extrasSearch, setExtrasSearch] = useState("");
 
 	// Stats
@@ -136,6 +123,45 @@ export default function Food() {
 	const [statsLoading, setStatsLoading] = useState(false);
 
 	const canManageFood = user?.role === "admin";
+
+	const handleDeleteItem = (item: FoodItem) => {
+		showConfirm({
+			title: "Delete Food Item?",
+			description: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+			confirmText: "Delete",
+			variant: "destructive",
+			onConfirm: async () => {
+				await deleteFoodItem(item.id);
+				toast.success("Food item deleted successfully");
+			},
+		});
+	};
+
+	const handleDeleteCategory = (category: FoodCategory) => {
+		showConfirm({
+			title: "Delete Category?",
+			description: `Are you sure you want to delete "${category.name}"? This will also affect items in this category.`,
+			confirmText: "Delete",
+			variant: "destructive",
+			onConfirm: async () => {
+				await deleteFoodCategory(category.id);
+				toast.success("Category deleted successfully");
+			},
+		});
+	};
+
+	const handleDeleteExtra = (extra: FoodExtra) => {
+		showConfirm({
+			title: "Delete Extra?",
+			description: `Are you sure you want to delete "${extra.name}"? This action cannot be undone.`,
+			confirmText: "Delete",
+			variant: "destructive",
+			onConfirm: async () => {
+				await deleteExtra(extra.id);
+				toast.success("Extra deleted successfully");
+			},
+		});
+	};
 
 	useEffect(() => {
 		const tab = searchParams.get("tab");
@@ -168,8 +194,7 @@ export default function Food() {
 			.toLowerCase()
 			.includes(search.toLowerCase());
 		const matchesCategory =
-			categoryFilter === "all" ||
-			item.category_id.toString() === categoryFilter;
+			categoryFilter === "all" || item.category_id.toString() == categoryFilter;
 		return matchesSearch && matchesCategory;
 	});
 
@@ -286,25 +311,6 @@ export default function Food() {
 							}
 						/>
 					</div>
-
-					{activeTab === "items" && foodCategories?.length ?
-						<Select
-							value={categoryFilter}
-							onValueChange={(value) => setCategoryFilter(value)}
-						>
-							<SelectTrigger className="w-fit">
-								<SelectValue placeholder="Select category" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Categories</SelectItem>
-								{foodCategories.map((category: any) => (
-									<SelectItem key={category.id} value={category.id.toString()}>
-										{category.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					:	null}
 				</div>
 			</div>
 
@@ -357,7 +363,7 @@ export default function Food() {
 											<CardTitle className="text-sm font-medium">
 												Total Food Items
 											</CardTitle>
-											<Utensils className="h-4 w-4 text-muted-foreground" />
+											<Salad className="h-4 w-4 text-muted-foreground" />
 										</CardHeader>
 										<CardContent>
 											<div className="text-2xl font-bold">
@@ -373,7 +379,7 @@ export default function Food() {
 											<CardTitle className="text-sm font-medium">
 												Total Food Sales
 											</CardTitle>
-											<Utensils className="h-4 w-4 text-muted-foreground" />
+											<Salad className="h-4 w-4 text-muted-foreground" />
 										</CardHeader>
 										<CardContent>
 											<div className="text-2xl font-bold">
@@ -391,7 +397,7 @@ export default function Food() {
 											<CardTitle className="text-sm font-medium">
 												Total Extras Sales
 											</CardTitle>
-											<Utensils className="h-4 w-4 text-muted-foreground" />
+											<Salad className="h-4 w-4 text-muted-foreground" />
 										</CardHeader>
 										<CardContent>
 											<div className="text-2xl font-bold">
@@ -410,9 +416,11 @@ export default function Food() {
 							{loading ?
 								<div className="text-center py-4 text-lg">Loading...</div>
 							: filteredFoodItems.length === 0 ?
-								<div className="text-center py-12 text-gray-400 text-lg">
-									No food items found.
-								</div>
+								<EmptyState
+									icon={Salad}
+									title="No food items found."
+									description="Add food items to get started."
+								/>
 							:	<div
 									className={cn(
 										"grid gap-4",
@@ -501,7 +509,7 @@ export default function Food() {
 															<Button
 																variant="destructive"
 																size="sm"
-																onClick={() => setFoodItemToDelete(item)}
+																onClick={() => handleDeleteItem(item)}
 																className="flex-1 text-base"
 															>
 																Delete
@@ -533,33 +541,6 @@ export default function Food() {
 									onSave={(item) => updateFoodItem(editingFoodItem.id, item)}
 								/>
 							)}
-							<AlertDialog
-								open={!!foodItemToDelete}
-								onOpenChange={(open) => !open && setFoodItemToDelete(null)}
-							>
-								<AlertDialogContent>
-									<AlertDialogHeader>
-										<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-										<AlertDialogDescription>
-											This will permanently delete the food item "
-											{foodItemToDelete?.name}".
-										</AlertDialogDescription>
-									</AlertDialogHeader>
-									<AlertDialogFooter>
-										<AlertDialogCancel>Cancel</AlertDialogCancel>
-										<AlertDialogAction
-											onClick={() => {
-												if (foodItemToDelete) {
-													deleteFoodItem(foodItemToDelete.id);
-													setFoodItemToDelete(null);
-												}
-											}}
-										>
-											Delete
-										</AlertDialogAction>
-									</AlertDialogFooter>
-								</AlertDialogContent>
-							</AlertDialog>
 						</>
 					)}
 
@@ -615,7 +596,7 @@ export default function Food() {
 															<Button
 																variant="destructive"
 																size="default"
-																onClick={() => setCategoryToDelete(category)}
+																onClick={() => handleDeleteCategory(category)}
 																className="text-base"
 															>
 																Delete
@@ -649,33 +630,6 @@ export default function Food() {
 									}}
 								/>
 							)}
-							<AlertDialog
-								open={!!categoryToDelete}
-								onOpenChange={(open) => !open && setCategoryToDelete(null)}
-							>
-								<AlertDialogContent>
-									<AlertDialogHeader>
-										<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-										<AlertDialogDescription>
-											This will permanently delete the category "
-											{categoryToDelete?.name}".
-										</AlertDialogDescription>
-									</AlertDialogHeader>
-									<AlertDialogFooter>
-										<AlertDialogCancel>Cancel</AlertDialogCancel>
-										<AlertDialogAction
-											onClick={() => {
-												if (categoryToDelete) {
-													deleteFoodCategory(categoryToDelete.id);
-													setCategoryToDelete(null);
-												}
-											}}
-										>
-											Delete
-										</AlertDialogAction>
-									</AlertDialogFooter>
-								</AlertDialogContent>
-							</AlertDialog>
 						</>
 					)}
 
@@ -745,7 +699,7 @@ export default function Food() {
 														variant="destructive"
 														size="sm"
 														className="flex-1"
-														onClick={() => setExtraToDelete(extra)}
+														onClick={() => handleDeleteExtra(extra)}
 													>
 														Delete
 													</Button>
@@ -782,32 +736,6 @@ export default function Food() {
 									/>
 								</DialogContent>
 							</Dialog>
-							<AlertDialog
-								open={!!extraToDelete}
-								onOpenChange={(open) => !open && setExtraToDelete(null)}
-							>
-								<AlertDialogContent>
-									<AlertDialogHeader>
-										<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-										<AlertDialogDescription>
-											This will permanently delete "{extraToDelete?.name}".
-										</AlertDialogDescription>
-									</AlertDialogHeader>
-									<AlertDialogFooter>
-										<AlertDialogCancel>Cancel</AlertDialogCancel>
-										<AlertDialogAction
-											onClick={() => {
-												if (extraToDelete) {
-													deleteExtra(extraToDelete.id);
-													setExtraToDelete(null);
-												}
-											}}
-										>
-											Delete
-										</AlertDialogAction>
-									</AlertDialogFooter>
-								</AlertDialogContent>
-							</AlertDialog>
 						</>
 					)}
 				</div>

@@ -2,16 +2,6 @@
 
 import { SimpleAlert } from "@/components/alerts/simple-alert";
 import AddEditProductDialog from "@/components/dialogs/add-edit-product-dialog";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -63,6 +53,8 @@ import { useKeyboard } from "@/context/KeyboardContext";
 import { CategoryComponent } from "./CreateOrder";
 import EmptyState from "@/components/alerts/empty-state";
 import { ClassStyles } from "@/components/classnames";
+import { useAlertStore } from "@/stores/useAlertStore";
+import { toast } from "sonner";
 
 export default function Products() {
 	const { user } = useAuth();
@@ -92,7 +84,7 @@ export default function Products() {
 
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-	const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+	const { showConfirm } = useAlertStore();
 
 	// Category management state
 	const [activeTab, setActiveTab] = useState<"products" | "categories">(
@@ -103,9 +95,6 @@ export default function Products() {
 	const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
 	const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] =
 		useState(false);
-	const [isDeleteCategoryDialogOpen, setIsDeleteCategoryDialogOpen] =
-		useState(false);
-	const [categoryToDelete, setCategoryToDelete] = useState<any>(null);
 	const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
 	const canManageProducts = user?.role === "admin" || user?.role === "manager";
@@ -192,12 +181,30 @@ export default function Products() {
 		setFilters({ ...filters, category: catId });
 	};
 
-	const handleDeleteCategory = async () => {
-		if (categoryToDelete) {
-			await deleteCategory(categoryToDelete.id);
-			setIsDeleteCategoryDialogOpen(false);
-			setCategoryToDelete(null);
-		}
+	const handleDeleteCategory = (category: any) => {
+		showConfirm({
+			title: "Delete Category?",
+			description: `Are you sure you want to delete "${category.name}"? This action cannot be undone.`,
+			confirmText: "Delete",
+			variant: "destructive",
+			onConfirm: async () => {
+				await deleteCategory(category.id);
+				toast.success("Category deleted successfully");
+			},
+		});
+	};
+
+	const handleDeleteProduct = (product: Product) => {
+		showConfirm({
+			title: "Delete Product?",
+			description: `Are you sure you want to delete "${product.name}"? This action cannot be undone.`,
+			confirmText: "Delete",
+			variant: "destructive",
+			onConfirm: async () => {
+				await deleteProduct(product.id);
+				toast.success("Product deleted successfully");
+			},
+		});
 	};
 
 	// Calculate stock summary metrics
@@ -355,7 +362,7 @@ export default function Products() {
 								}
 							/>
 						</div>
-						{activeTab === "products" ?
+						{activeTab === "products" && !isKeyboardOpen ?
 							<>
 								<Select
 									value={filters.stockLevel || "all"}
@@ -429,7 +436,14 @@ export default function Products() {
 							{/* Stock Summary Section - Admin Only */}
 							{user?.role === "admin" && (
 								<>
-									<div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+									<div
+										className={cn(
+											"mb-6 grid gap-4",
+											isKeyboardOpen ?
+												"grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
+											:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+										)}
+									>
 										<Card className="bg-white">
 											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 												<CardTitle className="text-sm font-medium">
@@ -560,7 +574,7 @@ export default function Products() {
 									className={cn(
 										"grid gap-4",
 										isKeyboardOpen ?
-											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
+											"grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 "
 										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
 									)}
 								>
@@ -758,7 +772,7 @@ export default function Products() {
 															<Button
 																variant="destructive"
 																size="sm"
-																onClick={() => setProductToDelete(product)}
+																onClick={() => handleDeleteProduct(product)}
 																className="flex-1 text-base"
 															>
 																Delete
@@ -862,7 +876,7 @@ export default function Products() {
 																	variant="ghost"
 																	size="sm"
 																	className="text-red-600"
-																	onClick={() => setProductToDelete(product)}
+																	onClick={() => handleDeleteProduct(product)}
 																>
 																	Delete
 																</Button>
@@ -946,10 +960,7 @@ export default function Products() {
 															<Button
 																variant="destructive"
 																size="default"
-																onClick={() => {
-																	setCategoryToDelete(category);
-																	setIsDeleteCategoryDialogOpen(true);
-																}}
+																onClick={() => handleDeleteCategory(category)}
 																className="text-base"
 															>
 																Delete
@@ -1001,58 +1012,6 @@ export default function Products() {
 						}}
 						onSave={handleEditCategory}
 					/>
-
-					<AlertDialog
-						open={!!productToDelete}
-						onOpenChange={(open) => !open && setProductToDelete(null)}
-					>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-								<AlertDialogDescription>
-									This action cannot be undone. This will permanently delete the
-									product "{productToDelete?.name}".
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
-								<AlertDialogAction
-									onClick={() => {
-										if (productToDelete) {
-											deleteProduct(productToDelete.id);
-											setProductToDelete(null);
-										}
-									}}
-								>
-									Delete
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
-
-					<AlertDialog
-						open={isDeleteCategoryDialogOpen}
-						onOpenChange={setIsDeleteCategoryDialogOpen}
-					>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-								<AlertDialogDescription>
-									This action cannot be undone. This will permanently delete the
-									category and remove it from our servers.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
-								<AlertDialogAction
-									onClick={handleDeleteCategory}
-									className="bg-red-600 hover:bg-red-700"
-								>
-									Delete
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
 				</div>
 			</div>
 		</div>
