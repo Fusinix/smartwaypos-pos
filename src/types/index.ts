@@ -28,7 +28,7 @@ export interface Order {
   order_type: 'customer' | 'table' | 'takeout';
   table_number?: string;
   customer_name?: string;
-  payment_mode: 'cash' | 'momo' | 'card';
+  payment_mode?: 'cash' | 'momo' | 'card' | 'bank' | null;
   tax: number;
   amount?: number;
   amount_bt?: number;

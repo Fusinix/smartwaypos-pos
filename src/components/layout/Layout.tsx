@@ -40,6 +40,7 @@ import { useStock } from "../../hooks/useStock";
 import { useOrders } from "../../hooks/useOrders";
 import { useProducts } from "../../hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
+import { useKeyboard } from "@/context/KeyboardContext";
 
 export const Layout: React.FC = () => {
 	const { isAuthenticated, user, logout } = useAuth();
@@ -52,13 +53,14 @@ export const Layout: React.FC = () => {
 		getLowStockProducts,
 		getOutOfStockProducts,
 	} = useStock();
-	const { settings } = useSettings();
+	const { settings, updateSettings } = useSettings();
+	const { isOpen: isKeyboardOpen } = useKeyboard();
 	const { orders, fetchOrders } = useOrders();
 	const { activeShift, clockIn, clockOut } = useShifts();
 	const [shiftTimer, setShiftTimer] = useState("00:00:00");
 	const { products, fetchProducts } = useProducts();
 	const hasProducts = products.length > 0;
-	const [language, setLanguage] = useState("en");
+	// const [language, setLanguage] = useState("en");
 	const [isFullScreen, setIsFullScreen] = useState(false);
 
 	useEffect(() => {
@@ -178,12 +180,14 @@ export const Layout: React.FC = () => {
 	];
 
 	return (
-		<div className="h-screen bg-background flex w-full">
+		<div className="h-full bg-background flex w-full">
 			{/* Left Sidebar */}
 			<aside
-				className={`${
-					sidebarOpen ? "w-64" : "w-20"
-				} border-r transition-all duration-300 flex flex-col h-screen sticky top-0`}
+				className={cn(
+					sidebarOpen ? "w-64" : "w-20",
+					"border-r transition-all duration-300 flex flex-col overflow-y-auto sticky top-0",
+					isKeyboardOpen ? "h-full" : "h-screen",
+				)}
 			>
 				{/* Logo/Brand */}
 				<div className="h-16 flex items-center px-2 overflow-hidden">
@@ -242,7 +246,14 @@ export const Layout: React.FC = () => {
 					</div>
 					{sidebarOpen && (
 						<Button
-							onClick={logout}
+							onClick={() => {
+								logout();
+								updateSettings({
+									pos: { ...settings?.pos, fullscreen: false },
+								});
+								window.electron.invoke("set-fullscreen", !isFullScreen);
+								setIsFullScreen(false);
+							}}
 							variant="ghost"
 							size="sm"
 							className="w-full text-base bg-destructive/10 text-destructive hover:bg-destructive/20"
@@ -491,6 +502,12 @@ export const Layout: React.FC = () => {
 							size="icon"
 							className="text-white bg-white/20"
 							onClick={() => {
+								updateSettings({
+									pos: {
+										...settings?.pos,
+										fullscreen: !settings?.pos?.fullscreen,
+									},
+								});
 								window.electron.invoke("set-fullscreen", !isFullScreen);
 								setIsFullScreen(!isFullScreen);
 							}}

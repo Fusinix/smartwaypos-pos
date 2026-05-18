@@ -96,7 +96,7 @@ export const ExpensesDialog: React.FC<ExpensesDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="max-w-2xl">
+			<DialogContent className="max-w-2xl z-[99]">
 				<DialogHeader>
 					<div className="flex items-center gap-2">
 						<DialogTitle className="text-xl font-bold">

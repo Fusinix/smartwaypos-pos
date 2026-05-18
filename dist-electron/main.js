@@ -1610,7 +1610,7 @@ electron_1.ipcMain.handle("update-product-stock", async (_, productId, newStock,
         throw error;
     }
 });
-electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date) => {
+electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) => {
     try {
         const db = await (0, database_1.getDatabase)();
         const reportDate = date || new Date().toISOString().split("T")[0];
@@ -1621,7 +1621,8 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date) => {
             // 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
             const logs = await db.all(`SELECT * FROM inventory_logs 
 				 WHERE product_id = ? 
-				 AND date(created_at) = date(?)`, [product.id, reportDate]);
+				 AND date(created_at) = date(?)` +
+                (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]);
             // 2b. Get today's sales from orders for this product
             const salesData = await db.get(`SELECT SUM(oi.quantity) as sold_qty
 				 FROM order_items oi
@@ -1629,7 +1630,8 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date) => {
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.created_at) = date(?)`, [product.id, reportDate]);
+				 AND date(o.created_at) = date(?)` +
+                (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]);
             const sold = salesData?.sold_qty || 0;
             let added = 0;
             let adjusted = 0;
@@ -1681,15 +1683,18 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date) => {
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
 			 AND o.status = 'closed'
-			 AND date(o.created_at) = date(?)
-			 GROUP BY fi.id, fi.name, fi.price`, [reportDate]);
+			 AND date(o.created_at) = date(?)` +
+            (author?.id ? ` AND o.admin_id = ?` : ``) +
+            ` GROUP BY fi.id, fi.name, fi.price`, author?.id ? [reportDate, author.id] : [reportDate]);
         // 6. Get pending orders summary
         const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
 			 FROM orders 
 			 WHERE status = 'open' 
-			 AND date(created_at) = date(?)`, [reportDate]);
+			 AND date(created_at) = date(?)` +
+            (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
         // 7. Get today's expenses
-        const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at) = date(?)`, [reportDate]);
+        const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
+            (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
         return {
             date: reportDate,
             inventory: report,
@@ -2187,6 +2192,28 @@ async function generateTakeOutTableNumber(db) {
     // Format as TO-001, TO-002, etc.
     return `TO-${String(nextNumber).padStart(3, "0")}`;
 }
+// Helper function to generate dine-in table number
+async function generateDineInTableNumber(db) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    // Get the last dine-in table number for this month
+    const lastDineInOrder = await db.get(`SELECT table_number FROM orders 
+     WHERE order_type = 'table' 
+     AND strftime('%Y-%m', created_at) = ?
+     AND table_number LIKE 'DI-%'
+     ORDER BY CAST(SUBSTR(table_number, 4) AS INTEGER) DESC LIMIT 1`, [`${year}-${month}`]);
+    let nextNumber = 1;
+    if (lastDineInOrder?.table_number) {
+        // Extract number from "DI-001" format
+        const match = lastDineInOrder.table_number.match(/DI-(\d+)/);
+        if (match) {
+            nextNumber = parseInt(match[1], 10) + 1;
+        }
+    }
+    // Format as DI-001, DI-002, etc.
+    return `DI-${String(nextNumber).padStart(3, "0")}`;
+}
 // Order handlers
 electron_1.ipcMain.handle("create-order", async (_event, order) => {
     try {
@@ -2235,10 +2262,13 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
        WHERE strftime('%Y-%m', created_at) = ?
        ORDER BY order_number DESC LIMIT 1`, [`${year}-${month}`]);
         const orderNumber = lastOrder?.order_number ? lastOrder.order_number + 1 : 1;
-        // Generate take-out table number if order type is takeout
+        // Generate table numbers on the fly
         let tableNumber = orderData.table_number || null;
         if (orderData.order_type === "takeout") {
             tableNumber = await generateTakeOutTableNumber(db);
+        }
+        else if (orderData.order_type === "table") {
+            tableNumber = await generateDineInTableNumber(db);
         }
         // Insert order with calculated amounts and order number
         const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
@@ -2772,10 +2802,29 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
     }
 });
 // Add after other IPC handlers:
-electron_1.ipcMain.handle("get-logs", async () => {
+electron_1.ipcMain.handle("get-logs", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const logs = await db.all("SELECT * FROM logs ORDER BY created_at DESC");
+        const { startDate, endDate, type } = filters;
+        let query = "SELECT * FROM logs";
+        const params = [];
+        const conditions = [];
+        if (startDate && endDate) {
+            conditions.push("strftime('%Y-%m-%d', created_at) BETWEEN ? AND ?");
+            params.push(startDate, endDate);
+        }
+        if (type === "crud") {
+            // Exclude non-modifying actions
+            conditions.push("action NOT LIKE 'view_%'");
+            conditions.push("action NOT LIKE 'login%'");
+            conditions.push("action NOT LIKE 'logout%'");
+            conditions.push("action NOT LIKE 'export_%'");
+        }
+        if (conditions.length > 0) {
+            query += " WHERE " + conditions.join(" AND ");
+        }
+        query += " ORDER BY created_at DESC";
+        const logs = await db.all(query, params);
         return logs;
     }
     catch (error) {
@@ -3994,8 +4043,9 @@ electron_1.ipcMain.handle("list-printers", async (event) => {
 });
 electron_1.ipcMain.handle("trigger-cash-drawer", async (event) => {
     try {
+        const dbInstance = await (0, database_1.getDatabase)();
         // Get cash drawer settings
-        const settings = await db.get("SELECT pos FROM settings");
+        const settings = await dbInstance.get("SELECT pos FROM settings");
         if (!settings || !settings.pos) {
             throw new Error("Cash drawer settings not found");
         }
@@ -4013,13 +4063,19 @@ electron_1.ipcMain.handle("trigger-cash-drawer", async (event) => {
             finalPrinterName = autoDetected.name;
             console.log(`Using auto-detected printer for drawer: "${finalPrinterName}"`);
         }
+        // Fallback to default printer if no printer is configured/auto-detected
+        if (!finalPrinterName && printers.length > 0) {
+            const defaultPrinter = printers.find((p) => p.isDefault) || printers[0];
+            finalPrinterName = defaultPrinter.name;
+            console.log(`Falling back to default printer for drawer: "${finalPrinterName}"`);
+        }
         // CASE 1: RJ11 Drawer connected to Printer (Preferred)
         if (finalPrinterName) {
             console.log(`Attempting to kick drawer on: ${finalPrinterName}`);
             // Use lpr -P with raw mode, it's more robust with spaces in names
             // Force-cancel any stuck jobs in the CUPS queue, then Reset, Kick, and Reset again.
-            // This is the "Nuclear Option" to prevent the printer from hanging.
-            const command = `/usr/bin/cancel -a "${finalPrinterName}" ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
+            // Append '2>/dev/null || true' to prevent cancel command errors from failing the execution.
+            const command = `/usr/bin/cancel -a "${finalPrinterName}" 2>/dev/null || true ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
             return new Promise((resolve, reject) => {
                 (0, child_process_1.exec)(command, (error) => {
                     if (error) {

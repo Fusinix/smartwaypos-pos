@@ -1838,7 +1838,7 @@ ipcMain.handle(
 	}
 );
 
-ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
+ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: any) => {
 	try {
 		const db = await getDatabase();
 		const reportDate = date || new Date().toISOString().split("T")[0];
@@ -1853,8 +1853,9 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 			const logs = await db.all(
 				`SELECT * FROM inventory_logs 
 				 WHERE product_id = ? 
-				 AND date(created_at) = date(?)`,
-				[product.id, reportDate]
+				 AND date(created_at) = date(?)` +
+				(author?.id ? ` AND admin_id = ?` : ``),
+				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
 			);
 			
 			// 2b. Get today's sales from orders for this product
@@ -1865,8 +1866,9 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.created_at) = date(?)`,
-				[product.id, reportDate]
+				 AND date(o.created_at) = date(?)` +
+				(author?.id ? ` AND o.admin_id = ?` : ``),
+				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
 			);
 			
 			const sold = salesData?.sold_qty || 0;
@@ -1922,9 +1924,10 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
 			 AND o.status = 'closed'
-			 AND date(o.created_at) = date(?)
-			 GROUP BY fi.id, fi.name, fi.price`,
-			[reportDate]
+			 AND date(o.created_at) = date(?)` +
+			(author?.id ? ` AND o.admin_id = ?` : ``) +
+			` GROUP BY fi.id, fi.name, fi.price`,
+			author?.id ? [reportDate, author.id] : [reportDate]
 		);
 
 		// 6. Get pending orders summary
@@ -1932,14 +1935,16 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string) => {
 			`SELECT COUNT(id) as count, SUM(amount) as total
 			 FROM orders 
 			 WHERE status = 'open' 
-			 AND date(created_at) = date(?)`,
-			[reportDate]
+			 AND date(created_at) = date(?)` +
+			(author?.id ? ` AND admin_id = ?` : ``),
+			author?.id ? [reportDate, author.id] : [reportDate]
 		);
 
 		// 7. Get today's expenses
 		const expenses = await db.all(
-			`SELECT * FROM expenses WHERE date(created_at) = date(?)`,
-			[reportDate]
+			`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
+			(author?.id ? ` AND admin_id = ?` : ``),
+			author?.id ? [reportDate, author.id] : [reportDate]
 		);
 
 		return {
@@ -3310,10 +3315,35 @@ ipcMain.handle(
 );
 
 // Add after other IPC handlers:
-ipcMain.handle("get-logs", async () => {
+ipcMain.handle("get-logs", async (_event, filters: any = {}) => {
 	try {
 		const db = await getDatabase();
-		const logs = await db.all("SELECT * FROM logs ORDER BY created_at DESC");
+		const { startDate, endDate, type } = filters;
+
+		let query = "SELECT * FROM logs";
+		const params = [];
+		const conditions = [];
+
+		if (startDate && endDate) {
+			conditions.push("strftime('%Y-%m-%d', created_at) BETWEEN ? AND ?");
+			params.push(startDate, endDate);
+		}
+
+		if (type === "crud") {
+			// Exclude non-modifying actions
+			conditions.push("action NOT LIKE 'view_%'");
+			conditions.push("action NOT LIKE 'login%'");
+			conditions.push("action NOT LIKE 'logout%'");
+			conditions.push("action NOT LIKE 'export_%'");
+		}
+
+		if (conditions.length > 0) {
+			query += " WHERE " + conditions.join(" AND ");
+		}
+
+		query += " ORDER BY created_at DESC";
+
+		const logs = await db.all(query, params);
 		return logs;
 	} catch (error) {
 		console.error("Error getting logs:", error);
@@ -4762,8 +4792,9 @@ ipcMain.handle("list-printers", async (event) => {
 
 ipcMain.handle("trigger-cash-drawer", async (event) => {
 	try {
+		const dbInstance = await getDatabase();
 		// Get cash drawer settings
-		const settings = await db.get("SELECT pos FROM settings");
+		const settings = await dbInstance.get("SELECT pos FROM settings");
 		if (!settings || !settings.pos) {
 			throw new Error("Cash drawer settings not found");
 		}
@@ -4788,13 +4819,20 @@ ipcMain.handle("trigger-cash-drawer", async (event) => {
 			console.log(`Using auto-detected printer for drawer: "${finalPrinterName}"`);
 		}
 
+		// Fallback to default printer if no printer is configured/auto-detected
+		if (!finalPrinterName && printers.length > 0) {
+			const defaultPrinter = printers.find((p: any) => (p as any).isDefault) || printers[0];
+			finalPrinterName = defaultPrinter.name;
+			console.log(`Falling back to default printer for drawer: "${finalPrinterName}"`);
+		}
+
 		// CASE 1: RJ11 Drawer connected to Printer (Preferred)
 		if (finalPrinterName) {
 			console.log(`Attempting to kick drawer on: ${finalPrinterName}`);
 			// Use lpr -P with raw mode, it's more robust with spaces in names
 			// Force-cancel any stuck jobs in the CUPS queue, then Reset, Kick, and Reset again.
-			// This is the "Nuclear Option" to prevent the printer from hanging.
-			const command = `/usr/bin/cancel -a "${finalPrinterName}" ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
+			// Append '2>/dev/null || true' to prevent cancel command errors from failing the execution.
+			const command = `/usr/bin/cancel -a "${finalPrinterName}" 2>/dev/null || true ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
 							
 			return new Promise((resolve, reject) => {
 				exec(command, (error: any) => {

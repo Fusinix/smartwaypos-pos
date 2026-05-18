@@ -21,6 +21,8 @@ import {
 	List,
 	UserCog2,
 	Users,
+	ArrowDown,
+	ArrowRight,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +42,7 @@ import type {
 import { Switch } from "@/components/ui/switch";
 import type { User as UserType } from "@/types";
 import { ClassStyles } from "@/components/classnames";
+import { useKeyboard } from "@/context/KeyboardContext";
 
 interface SystemLog {
 	id: number;
@@ -77,6 +80,7 @@ export const Settings: React.FC = () => {
 		updateTable,
 		deleteTable,
 	} = useTables();
+	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [activeTab, setActiveTab] = useState("general");
 	const [editingUser, setEditingUser] = useState<
@@ -96,6 +100,13 @@ export const Settings: React.FC = () => {
 	const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
 	const [isTestingDrawer, setIsTestingDrawer] = useState(false);
 	const [selectedLog, setSelectedLog] = useState<SystemLog | null>(null);
+
+	const [logFilters, setLogFilters] = useState({
+		mode: "today" as "today" | "yesterday" | "custom",
+		type: "crud" as "all" | "crud",
+		startDate: new Date().toISOString().split("T")[0],
+		endDate: new Date().toISOString().split("T")[0],
+	});
 
 	// Local state for settings with default values
 	const [localGeneralSettings, setLocalGeneralSettings] =
@@ -161,7 +172,14 @@ export const Settings: React.FC = () => {
 		if (activeTab === "logs" && isAdmin) {
 			fetchLogs();
 		}
-	}, [activeTab, isAdmin]);
+	}, [
+		activeTab,
+		isAdmin,
+		logFilters.mode,
+		logFilters.startDate,
+		logFilters.endDate,
+		logFilters.type,
+	]);
 
 	// Fetch tables when tables tab is active
 	useEffect(() => {
@@ -217,7 +235,25 @@ export const Settings: React.FC = () => {
 	const fetchLogs = async () => {
 		try {
 			setLogsLoading(true);
-			const logsData = await window.electron.invoke("get-logs");
+			const { mode, startDate, endDate, type } = logFilters;
+
+			let filterParams: any = { type };
+			if (mode === "today") {
+				const today = new Date().toISOString().split("T")[0];
+				filterParams.startDate = today;
+				filterParams.endDate = today;
+			} else if (mode === "yesterday") {
+				const yesterday = new Date();
+				yesterday.setDate(yesterday.getDate() - 1);
+				const dateStr = yesterday.toISOString().split("T")[0];
+				filterParams.startDate = dateStr;
+				filterParams.endDate = dateStr;
+			} else {
+				filterParams.startDate = startDate;
+				filterParams.endDate = endDate;
+			}
+
+			const logsData = await window.electron.invoke("get-logs", filterParams);
 			setLogs(logsData);
 		} catch (error) {
 			console.error("Error fetching logs:", error);
@@ -445,7 +481,7 @@ export const Settings: React.FC = () => {
 			</div>
 
 			{/* Main Content */}
-			<div className="flex-1 p-4 py-6 overflow-y-auto space-y-8 ">
+			<div className={cn("flex-1 p-4 py-6 overflow-y-auto space-y-8")}>
 				<SimpleAlert
 					open={showErrorDialog}
 					onOpenChange={setShowErrorDialog}
@@ -908,7 +944,7 @@ export const Settings: React.FC = () => {
 								<h4 className="text-sm font-semibold text-gray-900 mb-4">
 									On-Screen Keyboard
 								</h4>
-								<div className="flex items-center justify-between">
+								<div className="flex items-center justify-between mb-4">
 									<div>
 										<p className="text-sm font-medium text-gray-700">
 											Auto-open Keyboard
@@ -927,6 +963,58 @@ export const Settings: React.FC = () => {
 											})
 										}
 									/>
+								</div>
+
+								<div className="flex items-center justify-between hidden">
+									<div>
+										<p className="text-sm font-medium text-gray-700">
+											Keyboard position
+										</p>
+										<p className="text-xs text-gray-500">
+											How you prefer the on-screen keyboard to be positioned.
+										</p>
+									</div>
+									<div className="flex items-center gap-2 p-1 bg-muted rounded-md">
+										<Button
+											variant={
+												localPosSettings.keyboardPosition === "b" ?
+													"default"
+												:	"ghost"
+											}
+											size="sm"
+											onClick={() =>
+												setLocalPosSettings({
+													...localPosSettings,
+													keyboardPosition: "b",
+												})
+											}
+											className={cn(ClassStyles.tabButton)}
+										>
+											<ArrowDown />
+											Bottom
+										</Button>
+										<Button
+											variant={
+												(
+													!localPosSettings.keyboardPosition ||
+													localPosSettings.keyboardPosition === "r"
+												) ?
+													"default"
+												:	"ghost"
+											}
+											size="sm"
+											onClick={() =>
+												setLocalPosSettings({
+													...localPosSettings,
+													keyboardPosition: "r",
+												})
+											}
+											className={cn(ClassStyles.tabButton)}
+										>
+											<ArrowRight />
+											Right
+										</Button>
+									</div>
 								</div>
 							</div>
 
@@ -991,14 +1079,20 @@ export const Settings: React.FC = () => {
 												Allow Cashiers to Manage Inventory
 											</p>
 											<p className="text-xs text-orange-800">
-												When enabled, cashiers can add new products/food and update stock levels.
+												When enabled, cashiers can add new products/food and
+												update stock levels.
 											</p>
 											<p className="text-[10px] text-orange-700 italic mt-1">
-												<strong>Note:</strong> This grants inventory access previously restricted to admins. For security, they will still be <strong>unable to delete</strong> items.
+												<strong>Note:</strong> This grants inventory access
+												previously restricted to admins. For security, they will
+												still be <strong>unable to delete</strong> items.
 											</p>
 										</div>
 										<Switch
-											checked={localPosSettings.allowCashierInventoryManagement === true}
+											checked={
+												localPosSettings.allowCashierInventoryManagement ===
+												true
+											}
 											onCheckedChange={(checked) =>
 												setLocalPosSettings({
 													...localPosSettings,
@@ -1215,6 +1309,78 @@ export const Settings: React.FC = () => {
 							>
 								{logsLoading ? "Loading..." : "Refresh Logs"}
 							</Button>
+
+							<div className="flex flex-wrap items-center gap-4 p-0 rounded-lg border border-gray-100">
+								<div className="flex gap-1 bg-muted border rounded-md p-1">
+									{(["today", "yesterday", "custom"] as const).map((mode) => (
+										<Button
+											key={mode}
+											variant="ghost"
+											size="sm"
+											className={cn(
+												ClassStyles.tabButton,
+												"capitalize h-8 px-4",
+												logFilters.mode === mode &&
+													"bg-white text-primary hover:bg-white",
+											)}
+											onClick={() => setLogFilters({ ...logFilters, mode })}
+										>
+											{mode}
+										</Button>
+									))}
+								</div>
+
+								{logFilters.mode === "custom" && (
+									<div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+										<Input
+											type="date"
+											value={logFilters.startDate}
+											onChange={(e) =>
+												setLogFilters({
+													...logFilters,
+													startDate: e.target.value,
+												})
+											}
+											className="h-9 w-40"
+										/>
+										<span className="text-gray-400">to</span>
+										<Input
+											type="date"
+											value={logFilters.endDate}
+											onChange={(e) =>
+												setLogFilters({
+													...logFilters,
+													endDate: e.target.value,
+												})
+											}
+											className="h-9 w-40"
+										/>
+									</div>
+								)}
+
+								<div className="flex gap-1 bg-muted border rounded-md p-1">
+									{(["all", "crud"] as const).map((type) => (
+										<Button
+											key={type}
+											variant="ghost"
+											size="sm"
+											className={cn(
+												ClassStyles.tabButton,
+												"capitalize h-8 px-4",
+												logFilters.type === type &&
+													"bg-white text-primary hover:bg-white",
+											)}
+											onClick={() => setLogFilters({ ...logFilters, type })}
+										>
+											{type === "crud" ? "CRUD Only" : "All Actions"}
+										</Button>
+									))}
+								</div>
+
+								<div className="text-xs text-gray-500 ml-auto">
+									{logs.length} logs found
+								</div>
+							</div>
 
 							<div className="mt-4">
 								<div className="overflow-x-auto">

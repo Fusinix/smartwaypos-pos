@@ -1,65 +1,68 @@
-export type UserRole = 'admin' | 'manager' | 'cashier';
+/** @format */
+
+export type UserRole = "admin" | "manager" | "cashier";
 
 export interface User {
-  id: number;
-  username: string;
-  role: UserRole;
+	id: number;
+	username: string;
+	role: UserRole;
 }
 
 export interface NewUser {
-  username: string;
-  password: string;
-  role: UserRole;
+	username: string;
+	password: string;
+	role: UserRole;
 }
 
 export interface GeneralSettings {
-  businessName: string;
-  businessLogo?: string;
-  defaultCurrency: string;
-  printReceipts: boolean;
+	businessName: string;
+	businessLogo?: string;
+	defaultCurrency: string;
+	printReceipts: boolean;
 }
 
 export interface POSSettings {
-  autoLogoutTimeout: number;
-  defaultTaxRate: number;
-  receiptFooterNote: string;
-  showTaxOnReceipt: boolean;
-  cashDrawerPort?: string;
-  cashDrawerKickCode?: string;
-  receiptPrinter?: string;
-  customerDisplayPort?: string;
-  autoOpenKeyboard?: boolean;
-  hideMenuBar?: boolean;
-  fullscreen?: boolean;
-  allowCashierInventoryManagement?: boolean;
+	autoLogoutTimeout: number;
+	defaultTaxRate: number;
+	receiptFooterNote: string;
+	showTaxOnReceipt: boolean;
+	cashDrawerPort?: string;
+	cashDrawerKickCode?: string;
+	receiptPrinter?: string;
+	customerDisplayPort?: string;
+	autoOpenKeyboard?: boolean;
+	keyboardPosition?: "b" | "r";
+	hideMenuBar?: boolean;
+	fullscreen?: boolean;
+	allowCashierInventoryManagement?: boolean;
 }
 
 export interface TableSettings {
-  tables: Table[];
+	tables: Table[];
 }
 
 export interface Table {
-  id: number;
-  name: string;
-  capacity?: number;
-  status: 'active' | 'inactive';
-  created_at?: string;
+	id: number;
+	name: string;
+	capacity?: number;
+	status: "active" | "inactive";
+	created_at?: string;
 }
 
 export interface ThemeSettings {
-  mode: 'light' | 'dark';
-  primaryColor?: string;
+	mode: "light" | "dark";
+	primaryColor?: string;
 }
 
 export interface Settings {
-  general: GeneralSettings;
-  pos: POSSettings;
-  tables: TableSettings;
-  theme: ThemeSettings;
+	general: GeneralSettings;
+	pos: POSSettings;
+	tables: TableSettings;
+	theme: ThemeSettings;
 }
 
 export interface BackupData {
-  timestamp: string;
-  version: string;
-  data: string;
-} 
+	timestamp: string;
+	version: string;
+	data: string;
+}

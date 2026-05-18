@@ -1,185 +1,185 @@
-import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { X } from "lucide-react"
+/** @format */
 
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
 
-import { useKeyboard } from "@/context/KeyboardContext"
+import { cn } from "@/lib/utils";
+
+import { useKeyboard } from "@/context/KeyboardContext";
+import { useSettings } from "@/hooks/useSettings";
 
 const Dialog = ({ modal, ...props }: DialogPrimitive.DialogProps) => {
-  const { isOpen: isKeyboardOpen } = useKeyboard();
-  // If modal is not explicitly provided, default to !isKeyboardOpen
-  // This ensures all dialogs automatically become non-modal when keyboard is active
-  const finalModal = modal !== undefined ? modal : !isKeyboardOpen;
-  
-  return <DialogPrimitive.Root modal={finalModal} {...props} />;
-}
+	const { isOpen: isKeyboardOpen } = useKeyboard();
+	// If modal is not explicitly provided, default to !isKeyboardOpen
+	// This ensures all dialogs automatically become non-modal when keyboard is active
+	const finalModal = modal !== undefined ? modal : !isKeyboardOpen;
 
-const DialogTrigger = DialogPrimitive.Trigger
+	return <DialogPrimitive.Root modal={finalModal} {...props} />;
+};
+
+const DialogTrigger = DialogPrimitive.Trigger;
 
 const DialogPortal = ({
-  children,
-  ...props
+	children,
+	...props
 }: DialogPrimitive.DialogPortalProps) => {
-  const { portalContainer } = useKeyboard()
-  return (
-    <DialogPrimitive.Portal container={portalContainer?.current} {...props}>
-      {children}
-    </DialogPrimitive.Portal>
-  )
-}
+	const { portalContainer } = useKeyboard();
+	return (
+		<DialogPrimitive.Portal container={portalContainer?.current} {...props}>
+			{children}
+		</DialogPrimitive.Portal>
+	);
+};
 
-const DialogClose = DialogPrimitive.Close
+const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
+	React.ElementRef<typeof DialogPrimitive.Overlay>,
+	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => {
-  const { isOpen } = useKeyboard();
-  return (
-    <DialogPrimitive.Overlay
-      ref={ref}
-      onPointerDown={(e) => {
-        if (isOpen) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }}
-      onMouseDown={(e) => {
-        if (isOpen) {
-          e.preventDefault();
-        }
-      }}
-      className={cn(
-        "absolute inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-        className
-      )}
-      {...props}
-    />
-  );
-})
-DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
+	const { isOpen } = useKeyboard();
+	return (
+		<DialogPrimitive.Overlay
+			ref={ref}
+			onPointerDown={(e) => {
+				if (isOpen) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}}
+			onMouseDown={(e) => {
+				if (isOpen) {
+					e.preventDefault();
+				}
+			}}
+			className={cn(
+				"absolute inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+				className,
+			)}
+			{...props}
+		/>
+	);
+});
+DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+	React.ElementRef<typeof DialogPrimitive.Content>,
+	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  const { isOpen } = useKeyboard();
-  
-  return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        onOpenAutoFocus={(e) => {
-          if (isOpen) e.preventDefault();
-        }}
-        onCloseAutoFocus={(e) => {
-          if (isOpen) e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          if (isOpen) e.preventDefault();
-          const target = e.target as HTMLElement;
-          if (target?.closest('.keyboard-container')) {
-            e.preventDefault();
-          }
-        }}
-        onPointerDownOutside={(e) => {
-          if (isOpen) e.preventDefault();
-          const target = e.target as HTMLElement;
-          if (target?.closest('.keyboard-container')) {
-            e.preventDefault();
-          }
-        }}
-        onFocusOutside={(e) => {
-          if (isOpen) e.preventDefault();
-          const target = e.target as HTMLElement;
-          if (target?.closest('.keyboard-container')) {
-            e.preventDefault();
-          }
-        }}
-        className={cn(
-          "absolute left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[95%] overflow-y-auto",
-          isOpen && "!flex-1 !w-full left-[50%] right-0 h-full",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  );
-})
-DialogContent.displayName = DialogPrimitive.Content.displayName
+	const { isOpen } = useKeyboard();
+
+	return (
+		<DialogPortal>
+			<DialogOverlay />
+			<DialogPrimitive.Content
+				ref={ref}
+				onOpenAutoFocus={(e) => {
+					if (isOpen) e.preventDefault();
+				}}
+				onCloseAutoFocus={(e) => {
+					if (isOpen) e.preventDefault();
+				}}
+				onInteractOutside={(e) => {
+					if (isOpen) e.preventDefault();
+					const target = e.target as HTMLElement;
+					if (target?.closest(".keyboard-container")) {
+						e.preventDefault();
+					}
+				}}
+				onPointerDownOutside={(e) => {
+					if (isOpen) e.preventDefault();
+					const target = e.target as HTMLElement;
+					if (target?.closest(".keyboard-container")) {
+						e.preventDefault();
+					}
+				}}
+				onFocusOutside={(e) => {
+					if (isOpen) e.preventDefault();
+					const target = e.target as HTMLElement;
+					if (target?.closest(".keyboard-container")) {
+						e.preventDefault();
+					}
+				}}
+				className={cn(
+					"absolute left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[95%] overflow-y-auto",
+					isOpen && "!flex-1 !w-full left-[50%] right-0 h-fit",
+					className,
+				)}
+				{...props}
+			>
+				{children}
+				<DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+					<X className="h-4 w-4" />
+					<span className="sr-only">Close</span>
+				</DialogPrimitive.Close>
+			</DialogPrimitive.Content>
+		</DialogPortal>
+	);
+});
+DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({
-  className,
-  ...props
+	className,
+	...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn(
-      "flex flex-col space-y-1.5 text-left",
-      className
-    )}
-    {...props}
-  />
-)
-DialogHeader.displayName = "DialogHeader"
+	<div
+		className={cn("flex flex-col space-y-1.5 text-left", className)}
+		{...props}
+	/>
+);
+DialogHeader.displayName = "DialogHeader";
 
 const DialogFooter = ({
-  className,
-  ...props
+	className,
+	...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      className
-    )}
-    {...props}
-  />
-)
-DialogFooter.displayName = "DialogFooter"
+	<div
+		className={cn(
+			"flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+			className,
+		)}
+		{...props}
+	/>
+);
+DialogFooter.displayName = "DialogFooter";
 
 const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+	React.ElementRef<typeof DialogPrimitive.Title>,
+	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
-      className
-    )}
-    {...props}
-  />
-))
-DialogTitle.displayName = DialogPrimitive.Title.displayName
+	<DialogPrimitive.Title
+		ref={ref}
+		className={cn(
+			"text-lg font-semibold leading-none tracking-tight",
+			className,
+		)}
+		{...props}
+	/>
+));
+DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
 const DialogDescription = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+	React.ElementRef<typeof DialogPrimitive.Description>,
+	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
-))
-DialogDescription.displayName = DialogPrimitive.Description.displayName
+	<DialogPrimitive.Description
+		ref={ref}
+		className={cn("text-sm text-muted-foreground", className)}
+		{...props}
+	/>
+));
+DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
-  Dialog,
-  DialogPortal,
-  DialogOverlay,
-  DialogTrigger,
-  DialogClose,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-}
+	Dialog,
+	DialogPortal,
+	DialogOverlay,
+	DialogTrigger,
+	DialogClose,
+	DialogContent,
+	DialogHeader,
+	DialogFooter,
+	DialogTitle,
+	DialogDescription,
+};

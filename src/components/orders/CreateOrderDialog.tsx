@@ -282,7 +282,7 @@ export const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({
 			}),
 			order_type: orderType,
 			table_number: orderType === "table" ? tableNumber : undefined,
-			payment_mode: paymentMode,
+			payment_mode: orderType === "customer" ? paymentMode : null,
 			amount_tendered: paymentMode === "cash" ? parseFloat(amountTendered || "0") : 0,
 			tax,
 			notes,

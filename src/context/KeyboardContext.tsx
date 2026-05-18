@@ -47,12 +47,7 @@ export const KeyboardProvider: React.FC<{ children: React.ReactNode }> = ({
 			// Determine mode automatically if not specified
 			let finalMode = requestedMode;
 			if (!requestedMode) {
-				if (
-					input.type === "number" ||
-					input.inputMode === "numeric" ||
-					input.type === "date" ||
-					input.type === "time"
-				) {
+				if (input.type === "number" || input.inputMode === "numeric") {
 					finalMode = "numeric";
 				} else {
 					finalMode = "all";

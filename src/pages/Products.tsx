@@ -82,7 +82,6 @@ export default function Products() {
 	const { getStockStatus } = useStock();
 	const { format: formatCurrency, currency } = useCurrency();
 	const { settings } = useSettings();
-	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -102,7 +101,8 @@ export default function Products() {
 	const canManageProducts =
 		user?.role === "admin" ||
 		user?.role === "manager" ||
-		(user?.role === "cashier" && settings?.pos?.allowCashierInventoryManagement);
+		(user?.role === "cashier" &&
+			settings?.pos?.allowCashierInventoryManagement);
 	const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
 
 	useEffect(() => {
@@ -269,7 +269,7 @@ export default function Products() {
 	}, [products]);
 
 	return (
-		<div className="flex flex-col h-[calc(100%-1px)] overflow-hidden">
+		<div className="flex flex-col h-full">
 			{/* Page Header */}
 			<div className="bg-white border-b">
 				<div className="flex items-center justify-between px-4 py-2">
@@ -287,38 +287,10 @@ export default function Products() {
 						</Button>
 					)}
 				</div>
-				<div className="flex border-t gap-4 px-4 py-2">
-					<Button
-						variant={activeTab === "products" ? "default" : "outline"}
-						onClick={() => setActiveTab("products")}
-						className={cn(
-							ClassStyles.tabButton,
-							activeTab === "products" ? "text-white" : (
-								"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-							),
-						)}
-					>
-						<Beer />
-						Drinks
-					</Button>
-					<Button
-						variant={activeTab === "categories" ? "default" : "outline"}
-						onClick={() => setActiveTab("categories")}
-						className={cn(
-							ClassStyles.tabButton,
-							activeTab === "categories" ? "text-white" : (
-								"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-							),
-						)}
-					>
-						<ShoppingBasket />
-						Categories
-					</Button>
-				</div>
 			</div>
 
 			{/* Main Content */}
-			<div className="flex flex-1">
+			<div className="flex flex-1 h-[calc(100%-62px)]">
 				<div
 					className={cn(
 						"w-[250px] border-r overflow-y-auto bg-white h-full",
@@ -337,7 +309,7 @@ export default function Products() {
 							</Button>
 						)}
 					</div>
-					<div className="flex-1 h-[calc(100dvh-225px)] overflow-y-auto p-4 pb-12 space-y-4">
+					<div className="flex-1 p-4 pb-12 space-y-4">
 						{categories.map((cat) => (
 							<CategoryComponent
 								key={cat.id}
@@ -346,11 +318,37 @@ export default function Products() {
 								setActiveCategory={handleSelectCategory}
 							/>
 						))}
-						<div className="!h-[100px]" />
 					</div>
 				</div>
-				<div className="flex-1 h-[calc(100dvh-170px)] overflow-y-auto">
+				<div className="flex-1 h-full overflow-y-auto">
 					<div className="h-14 flex items-center gap-4 px-4 py-2 bg-card border-b sticky top-0 z-10">
+						<Button
+							variant={activeTab === "products" ? "default" : "outline"}
+							onClick={() => setActiveTab("products")}
+							className={cn(
+								ClassStyles.tabButton,
+								activeTab === "products" ? "text-white" : (
+									"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+								),
+							)}
+						>
+							<Beer />
+							Drinks
+						</Button>
+						<Button
+							variant={activeTab === "categories" ? "default" : "outline"}
+							onClick={() => setActiveTab("categories")}
+							className={cn(
+								ClassStyles.tabButton,
+								activeTab === "categories" ? "text-white" : (
+									"text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+								),
+							)}
+						>
+							<ShoppingBasket />
+							Categories
+						</Button>
+						<div className="w-px h-10 bg-border" />
 						<div className="relative flex flex-1 max-w-lg items-center">
 							<Search className="h-4 w-4 absolute left-3 text-muted-foreground" />
 							<Input
@@ -368,7 +366,7 @@ export default function Products() {
 								}
 							/>
 						</div>
-						{activeTab === "products" && !isKeyboardOpen ?
+						{activeTab === "products" ?
 							<>
 								<Select
 									value={filters.stockLevel || "all"}
@@ -444,10 +442,7 @@ export default function Products() {
 								<>
 									<div
 										className={cn(
-											"mb-6 grid gap-4",
-											isKeyboardOpen ?
-												"grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
-											:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+											"mb-6 grid gap-4 grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
 										)}
 									>
 										<Card className="bg-white">
@@ -578,10 +573,7 @@ export default function Products() {
 							: viewMode === "grid" ?
 								<div
 									className={cn(
-										"grid gap-4",
-										isKeyboardOpen ?
-											"grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 "
-										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+										"grid gap-4 grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
 									)}
 								>
 									{filteredProducts.map((product) => {

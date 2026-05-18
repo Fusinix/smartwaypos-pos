@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useKeyboard } from "@/context/KeyboardContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,16 +8,18 @@ import {
 	Delete,
 	Type,
 	Hash,
-	Globe,
 	ChevronRight,
 	CornerDownLeft,
 	Space,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/hooks/useSettings";
 
 export const SideKeyboard: React.FC = () => {
 	const { isOpen, mode, currentInput, closeKeyboard, setCurrentInput } =
 		useKeyboard();
+	const { settings } = useSettings();
+
 	const [layout, setLayout] = useState<"lowercase" | "uppercase" | "symbols">(
 		"lowercase",
 	);
@@ -168,12 +170,19 @@ export const SideKeyboard: React.FC = () => {
 		});
 	};
 
-	const Key = ({ value, label, className, variant = "outline" }: any) => (
+	const Key = ({
+		value,
+		label,
+		isBottomPosition,
+		className,
+		variant = "outline",
+	}: any) => (
 		<Button
 			variant={variant}
 			tabIndex={-1}
 			className={cn(
-				"h-16 sm:h-20 text-xl sm:text-2xl font-black rounded-xl transition-all active:scale-90 !shadow-none border-2 border-border/40",
+				"text-xl sm:text-xl font-bold rounded-xl transition-all active:scale-90 !shadow-none border-border/40",
+				isBottomPosition ? "h-10 sm:h-11 " : "h-16 sm:!h-20 ",
 				className,
 			)}
 			onPointerDown={(e) => {
@@ -194,20 +203,7 @@ export const SideKeyboard: React.FC = () => {
 		</Button>
 	);
 
-	const numericKeys = [
-		"1",
-		"2",
-		"3",
-		"4",
-		"5",
-		"6",
-		"7",
-		"8",
-		"9",
-		".",
-		"0",
-		"BACKSPACE",
-	];
+	const numericKeys = [1, 2, 3, 4, 5, 6, 7, 8, 9, ".", 0, "BACKSPACE"];
 	const alphabet = [
 		["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
 		["a", "s", "d", "f", "g", "h", "j", "k", "l"],
@@ -216,11 +212,28 @@ export const SideKeyboard: React.FC = () => {
 	];
 
 	const symbolKeys = [
-		["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+		[1, 2, 3, 4, 5, 6, 7, 8, 9, 0],
 		["-", "/", ":", ";", "(", ")", "$", "&", "@", '"'],
-		["#+=", ".", ",", "?", "!", "'", "BACKSPACE"],
+		["#", "+", "=", ".", ",", "?", "!", "'", "BACKSPACE"],
 		["ABC", "SPACE", "ENTER"],
 	];
+
+	const bottomPositionClass = cn(
+		"!z-[1000] transition-all duration-300 ease-in-out overflow-hidden flex flex-col keyboard-container flex-shrink-0 w-[100%]",
+		// "h-screen",
+		// isOpen ? "w-[400px] sm:w-[500px]" : "w-0 border-l-0 shadow-none",
+		isOpen ? "h-fit" : "h-0 border-l-0 shadow-none",
+		// "absolute bottom-0 left-0 right-0 z-10",
+	);
+
+	const rightPositionClass = cn(
+		"bg-card border-l-2 border-border !z-[1000] transition-all duration-300 ease-in-out shadow-none overflow-hidden flex flex-col keyboard-container flex-shrink-0 h-screen",
+		isOpen ? "w-[400px] sm:w-[500px]" : "w-0 border-l-0 shadow-none",
+	);
+
+	const isBottomPosition = settings?.pos?.keyboardPosition === "b";
+
+	if (!isOpen) return null;
 
 	return (
 		<div
@@ -248,83 +261,23 @@ export const SideKeyboard: React.FC = () => {
 				e.nativeEvent.stopImmediatePropagation();
 			}}
 			className={cn(
-				"h-screen bg-card border-l-2 border-border z-[1000] transition-all duration-300 ease-in-out shadow-none overflow-hidden flex flex-col keyboard-container flex-shrink-0",
-				isOpen ? "w-[400px] sm:w-[500px]" : "w-0 border-l-0 shadow-none",
+				"relative bg-muted border-t z-[1000] transition-all duration-300 ease-in-out shadow-none flex flex-col keyboard-container flex-shrink-0 p-2",
+				bottomPositionClass,
+				// isBottomPosition ? bottomPositionClass : rightPositionClass,
 			)}
 		>
-			<div className="flex items-center justify-between px-6 py-2 border-b-2 border-border/30 bg-muted/20">
-				<div className="flex items-center gap-3">
-					<div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-						{mode === "numeric" ?
-							<Hash className="size-5" />
-						:	<Type className="size-5" />}
-					</div>
-					<span className="text-sm font-black uppercase tracking-[0.2em] italic text-primary">
-						{mode === "numeric" ? "Smart-Num" : "Smart-Alpha"}
-					</span>
-				</div>
-				<Button
-					variant="ghost"
-					size="icon"
-					tabIndex={-1}
-					onPointerDown={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						e.nativeEvent.stopImmediatePropagation();
-					}}
-					onMouseDown={(e) => {
-						e.preventDefault();
-					}}
-					onClick={(e) => {
-						e.stopPropagation();
-						e.nativeEvent.stopImmediatePropagation();
-						closeKeyboard();
-					}}
-					className="rounded-full size-12 hover:bg-destructive/10 hover:text-destructive"
-				>
-					<X className="size-6" />
-				</Button>
-			</div>
-
-			<div className="flex-1 p-5 overflow-y-auto bg-gradient-to-b from-card via-card to-muted/10">
-				{mode === "numeric" ?
-					<div className="grid grid-cols-3 gap-4 h-full max-h-[600px]">
-						{numericKeys.map((key) => (
-							<Key
-								key={key}
-								value={key}
-								label={
-									key === "BACKSPACE" ? <Delete className="size-8" /> : key
-								}
-								className={
-									key === "BACKSPACE" ?
-										"bg-muted/50 text-destructive border-destructive/20"
-									:	"bg-card hover:bg-muted/50"
-								}
-							/>
-						))}
-						<Button
-							variant="default"
-							tabIndex={-1}
-							className="col-span-3 h-20 rounded-xl text-xl font-black uppercase italic tracking-widest shadow-xl shadow-primary/30 mt-2"
-							onPointerDown={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-								e.nativeEvent.stopImmediatePropagation();
-							}}
-							onMouseDown={(e) => {
-								e.preventDefault();
-							}}
-							onClick={(e) => {
-								e.stopPropagation();
-								e.nativeEvent.stopImmediatePropagation();
-								closeKeyboard();
-							}}
-						>
-							Confirm Entry
-						</Button>
-					</div>
-				:	<div className="flex flex-col gap-3">
+			<div
+				className={cn(
+					"relative overflow-y-auto flex-1 p-6 bg-white flex divide-x gap-6 w-full lg:max-w-[90%] xl:max-w-[65%] mx-auto rounded-xl shadow-xl",
+				)}
+			>
+				{mode != "numeric" || isBottomPosition ?
+					<div
+						className={cn(
+							"flex flex-col gap-3",
+							isBottomPosition ? "flex-1" : "",
+						)}
+					>
 						{(layout === "symbols" ? symbolKeys : alphabet).map((row, i) => (
 							<div key={i} className="flex justify-center gap-2">
 								{row.map((key) => {
@@ -335,9 +288,10 @@ export const SideKeyboard: React.FC = () => {
 												variant="outline"
 												tabIndex={-1}
 												className={cn(
-													"h-16 sm:h-20 flex-1 rounded-xl border-2",
+													"flex-1 rounded-xl shadow-none border-0 bg-muted/90",
+													isBottomPosition ? "h-10 sm:h-12" : "h-16 sm:h-20 ",
 													layout === "uppercase" &&
-														"bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20",
+														"bg-primary text-primary-foreground border-primary shadow-none shadow-primary/20",
 												)}
 												onPointerDown={(e) => {
 													e.preventDefault();
@@ -370,7 +324,10 @@ export const SideKeyboard: React.FC = () => {
 												key="mode"
 												variant="outline"
 												tabIndex={-1}
-												className="h-16 sm:h-20 flex-1 rounded-xl border-2 text-sm font-black"
+												className={cn(
+													"flex-1 rounded-xl shadow-none bg-muted/90 border-0 text-sm font-black",
+													isBottomPosition ? "h-10 sm:h-12" : "h-16 sm:h-20 ",
+												)}
 												onPointerDown={(e) => {
 													e.preventDefault();
 													e.stopPropagation();
@@ -396,8 +353,9 @@ export const SideKeyboard: React.FC = () => {
 											<Key
 												key="space"
 												value="SPACE"
+												isBottomPosition={isBottomPosition}
 												label={<Space className="size-6" />}
-												className="flex-[3]"
+												className="flex-[3] bg-muted/90 border-none"
 											/>
 										);
 									}
@@ -406,6 +364,7 @@ export const SideKeyboard: React.FC = () => {
 											<Key
 												key="enter"
 												value="ENTER"
+												isBottomPosition={isBottomPosition}
 												label={<CornerDownLeft className="size-6" />}
 												variant="default"
 												className="flex-1 shadow-xl shadow-primary/30"
@@ -417,17 +376,22 @@ export const SideKeyboard: React.FC = () => {
 											<Key
 												key="back"
 												value="BACKSPACE"
+												isBottomPosition={isBottomPosition}
 												label={<Delete className="size-6" />}
 												className="flex-1 bg-destructive text-white"
 											/>
 										);
 									}
 
-									const char = layout === "uppercase" ? key.toUpperCase() : key;
+									const char =
+										layout === "uppercase" && typeof key !== "number" ?
+											key.toUpperCase()
+										:	key;
 									return (
 										<Key
 											key={key}
 											value={char}
+											isBottomPosition={isBottomPosition}
 											className="flex-1 min-w-0 px-0 shadow-none"
 										/>
 									);
@@ -435,10 +399,80 @@ export const SideKeyboard: React.FC = () => {
 							</div>
 						))}
 					</div>
-				}
+				:	null}
+				{mode === "numeric" || isBottomPosition ?
+					<div
+						className={cn(
+							"grid grid-cols-3 gap-4 max-h-[600px]",
+							isBottomPosition ? "pl-6" : "",
+						)}
+					>
+						{numericKeys.map((key) => (
+							<Key
+								key={key}
+								value={key}
+								isBottomPosition={isBottomPosition}
+								label={
+									key === "BACKSPACE" ? <Delete className="size-8" /> : key
+								}
+								className={
+									key === "BACKSPACE" ?
+										isBottomPosition ?
+											"hidden"
+										:	"bg-muted/50 text-destructive border-destructive/20"
+									:	"bg-card hover:bg-muted/50"
+								}
+							/>
+						))}
+						<Button
+							variant="default"
+							tabIndex={-1}
+							className={cn(
+								"col-span-3 h-20 rounded-xl text-xl font-black uppercase italic tracking-widest shadow-xl shadow-primary/30 mt-2",
+								isBottomPosition ? "hidden" : "",
+							)}
+							onPointerDown={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								e.nativeEvent.stopImmediatePropagation();
+							}}
+							onMouseDown={(e) => {
+								e.preventDefault();
+							}}
+							onClick={(e) => {
+								e.stopPropagation();
+								e.nativeEvent.stopImmediatePropagation();
+								closeKeyboard();
+							}}
+						>
+							Confirm Entry
+						</Button>
+					</div>
+				:	null}
+				<Button
+					variant="ghost"
+					size="icon"
+					tabIndex={-1}
+					onPointerDown={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						e.nativeEvent.stopImmediatePropagation();
+					}}
+					onMouseDown={(e) => {
+						e.preventDefault();
+					}}
+					onClick={(e) => {
+						e.stopPropagation();
+						e.nativeEvent.stopImmediatePropagation();
+						closeKeyboard();
+					}}
+					className="absolute -top-1 -right-1 z-[999] rounded-full size-10 hover:bg-destructive/10 hover:text-destructive bg-card !shadow-none !border-0"
+				>
+					<X className="size-4" />
+				</Button>
 			</div>
 
-			<div className="p-4 border-t border-border/30 bg-muted/20">
+			<div className="p-4 border-t border-border/30 bg-muted/20 hidden">
 				<p className="text-[10px] text-center font-bold text-muted-foreground uppercase tracking-tighter">
 					Smartway POS Keyboard v1.0
 				</p>

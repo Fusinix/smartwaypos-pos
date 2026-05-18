@@ -3,56 +3,68 @@
 import type { Order } from "@/types";
 
 export const useReceipt = () => {
-    const printReceipt = async (order: Order, openDrawer?: boolean) => {
-            if (!order || !order.items) return;
-    
-            // Calculate subtotal from items to ensure accuracy
-            let calculatedSubtotal = 0;
-            (order.items as any[]).forEach((item: any) => {
-                const itemPrice = item.item_type === "food" ? (item.food_price || item.price || 0) : (item.price || 0);
-                const quantity = item.quantity || 1;
-                let itemTotal = itemPrice * quantity;
-                if (item.item_type === "food" && item.extras && item.extras.length > 0) {
-                    const extrasTotal = item.extras.reduce((sum: number, e: any) => sum + (e.price || 0) * (e.quantity || 1), 0);
-                    itemTotal += extrasTotal * quantity;
-                }
-                calculatedSubtotal += itemTotal;
-            });
-    
-            const subtotal = calculatedSubtotal;
-            const taxRate = order.tax || 0;
-            const taxAmount = subtotal * (taxRate / 100);
-            const total = subtotal + taxAmount;
-    
-            let businessName = "SmartWay Pos";
-            let receiptCurrency = "GHS";
-            const currentSettings = await window.electron.invoke('get-settings');
-            let pName = "";
-    
-            let businessLogo = "";
-            if (currentSettings?.general) {
-                const gen = typeof currentSettings.general === "string" ? JSON.parse(currentSettings.general) : currentSettings.general;
-                businessName = gen.businessName || businessName;
-                receiptCurrency = gen.defaultCurrency || receiptCurrency;
-                businessLogo = gen.businessLogo || "";
-            }
-    
-            if (currentSettings?.pos) {
-                const pos = typeof currentSettings.pos === "string" ? JSON.parse(currentSettings.pos) : currentSettings.pos;
-                pName = pos.receiptPrinter || "";
-            }
-    
-            // Safe formatting helper
-            const safeFormat = (val: any) => {
-                const n = parseFloat(val);
-                return isNaN(n) ? "0.00" : n.toFixed(2);
-            };
-    
-            console.log("Preparing receipt HTML...");
-            await new Promise(r => setTimeout(r, 100)); // Stability pause
-    
-            // Create receipt HTML
-            const receiptHTML = `
+	const printReceipt = async (order: Order, openDrawer?: boolean) => {
+		if (!order || !order.items) return;
+
+		// Calculate subtotal from items to ensure accuracy
+		let calculatedSubtotal = 0;
+		(order.items as any[]).forEach((item: any) => {
+			const itemPrice =
+				item.item_type === "food" ?
+					item.food_price || item.price || 0
+				:	item.price || 0;
+			const quantity = item.quantity || 1;
+			let itemTotal = itemPrice * quantity;
+			if (item.item_type === "food" && item.extras && item.extras.length > 0) {
+				const extrasTotal = item.extras.reduce(
+					(sum: number, e: any) => sum + (e.price || 0) * (e.quantity || 1),
+					0,
+				);
+				itemTotal += extrasTotal * quantity;
+			}
+			calculatedSubtotal += itemTotal;
+		});
+
+		const subtotal = calculatedSubtotal;
+		const taxRate = order.tax || 0;
+		const taxAmount = subtotal * (taxRate / 100);
+		const total = subtotal + taxAmount;
+
+		let businessName = "SmartWay Pos";
+		let receiptCurrency = "GHS";
+		const currentSettings = await window.electron.invoke("get-settings");
+		let pName = "";
+
+		let businessLogo = "";
+		if (currentSettings?.general) {
+			const gen =
+				typeof currentSettings.general === "string" ?
+					JSON.parse(currentSettings.general)
+				:	currentSettings.general;
+			businessName = gen.businessName || businessName;
+			receiptCurrency = gen.defaultCurrency || receiptCurrency;
+			businessLogo = gen.businessLogo || "";
+		}
+
+		if (currentSettings?.pos) {
+			const pos =
+				typeof currentSettings.pos === "string" ?
+					JSON.parse(currentSettings.pos)
+				:	currentSettings.pos;
+			pName = pos.receiptPrinter || "";
+		}
+
+		// Safe formatting helper
+		const safeFormat = (val: any) => {
+			const n = parseFloat(val);
+			return isNaN(n) ? "0.00" : n.toFixed(2);
+		};
+
+		console.log("Preparing receipt HTML...");
+		await new Promise((r) => setTimeout(r, 100)); // Stability pause
+
+		// Create receipt HTML
+		const receiptHTML = `
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -101,22 +113,37 @@ export const useReceipt = () => {
                     
                     <div style="margin-bottom: 12px; font-size: 10pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between;"><span>ORDER:</span><span>#${order.order_number ?? order.id ?? "N/A"}</span></div>
-                        <div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                        <div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
                     </div>
     
                     <div style="border-bottom: 1.5pt dashed #000; border-top: 1.5pt dashed #000; padding: 8px 0; margin-bottom: 10px;">
-                        ${(order.items || []).map((item: any) => {
-                            const name = item.food_item_name || item.product_name || "Item";
-                            const price = parseFloat(item.food_price || item.price || 0);
-                            const qty = parseInt(item.quantity || 1);
-                            let itemTotal = price * qty;
-                            
-                            if (item.item_type === "food" && item.extras?.length > 0) {
-                                const extrasTotal = item.extras.reduce((s: number, e: any) => s + (parseFloat(e.price) || 0) * (e.quantity || 1), 0);
-                                itemTotal += extrasTotal * qty;
-                            }
-                            
-                            return `
+                        ${(order.items || [])
+													.map((item: any) => {
+														const name =
+															item.food_item_name ||
+															item.product_name ||
+															"Item";
+														const price = parseFloat(
+															item.food_price || item.price || 0,
+														);
+														const qty = parseInt(item.quantity || 1);
+														let itemTotal = price * qty;
+
+														if (
+															item.item_type === "food" &&
+															item.extras?.length > 0
+														) {
+															const extrasTotal = item.extras.reduce(
+																(s: number, e: any) =>
+																	s +
+																	(parseFloat(e.price) || 0) *
+																		(e.quantity || 1),
+																0,
+															);
+															itemTotal += extrasTotal * qty;
+														}
+
+														return `
                                 <div style="margin: 8px 0;">
                                     <div style="display: flex; justify-content: space-between; font-weight: 700;">
                                         <span>${qty}x ${name}</span>
@@ -124,7 +151,8 @@ export const useReceipt = () => {
                                     </div>
                                 </div>
                             `;
-                        }).join("")}
+													})
+													.join("")}
                     </div>
     
                     <div style="font-size: 11pt; font-weight: 700;">
@@ -135,10 +163,14 @@ export const useReceipt = () => {
     
                     <div style="margin-top: 15px; border-top: 1.5pt dashed #000; padding-top: 10px; font-size: 11pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between;"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
-                        ${order.amount_tendered && order.amount_tendered > 0 ? `
+                        ${
+													order.amount_tendered && order.amount_tendered > 0 ?
+														`
                             <div style="display:flex; justify-content:space-between; margin-top: 4px;"><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
                             <div style="display:flex; justify-content:space-between; margin-top: 4px; border-top: 1pt solid #000; padding-top: 2px;"><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
-                        ` : ""}
+                        `
+													:	""
+												}
                     </div>
     
                     <div style="text-align: center; margin-top: 25px; font-size: 10pt; border-top: 1.5pt dashed #000; padding-top: 10px;">
@@ -151,34 +183,46 @@ export const useReceipt = () => {
     </body>
                 </html>
             `;
-    
-            // Always attempt silent printing first (it handles auto-detecion in the background)
-            try {
-                await window.electron.invoke('print-receipt-silent', receiptHTML, "");
-                return; // If it worked (or found a default), we stop here
-            } catch (err) {
-                console.error("Silent print failed, falling back to window.print", err);
-            }
-    
-            // Fallback to manual printing only if silent fails
-            const printWin = window.open("", "_blank");
-            if (printWin) {
-                printWin.document.write(receiptHTML);
-                printWin.document.write('<script>window.focus(); setTimeout(() => { window.print(); window.close(); }, 500);</script>');
-                printWin.document.close();
-            }
-        };
-    
-        const printKitchenOrder = async (order: Order) => {
-            if (!order || !order.items) return;
-    
-            // Get order details
-            const orderNum = order.order_number ?? order.id;
-            const tableNum = order.table_number || "";
-            const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    
-            // Create kitchen order HTML with thermal styling
-            const kitchenHTML = `
+
+		// Always attempt silent printing first (it handles auto-detecion in the background)
+		try {
+			await window.electron.invoke("print-receipt-silent", receiptHTML, "");
+			return; // If it worked (or found a default), we stop here
+		} catch (err) {
+			console.error("Silent print failed, falling back to window.print", err);
+		}
+
+		// Fallback to manual printing only if silent fails
+		const printWin = window.open("", "_blank");
+		if (printWin) {
+			printWin.document.write(receiptHTML);
+			printWin.document.write(
+				"<script>window.focus(); setTimeout(() => { window.print(); window.close(); }, 500);</script>",
+			);
+			printWin.document.close();
+		}
+	};
+
+	const printKitchenOrder = async (order: Order) => {
+		if (!order || !order.items) return;
+
+		// Filter to only include food items for the kitchen
+		const foodItems = (order.items || []).filter(
+			(item: any) => item.item_type === "food" || item.itemType === "food"
+		);
+
+		if (foodItems.length === 0) return;
+
+		// Get order details
+		const orderNum = order.order_number ?? order.id;
+		const tableNum = order.table_number || "";
+		const time = new Date().toLocaleTimeString([], {
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+
+		// Create kitchen order HTML with thermal styling
+		const kitchenHTML = `
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -251,25 +295,34 @@ export const useReceipt = () => {
                     </div>
     
                     <div class="items">
-                        ${(order.items || []).map((item: any) => {
-                            const name = item.food_item_name || item.product_name || "Item";
-                            const qty = item.quantity || 1;
-                            const extrasArr = item.extras || [];
-                            return `
+                        ${foodItems
+													.map((item: any) => {
+														const name =
+															item.food_item_name ||
+															item.product_name ||
+															"Item";
+														const qty = item.quantity || 1;
+														const extrasArr = item.extras || [];
+														return `
                                 <div class="item">
                                     <div class="item-main">
                                         <span class="qty">${qty}</span>
                                         <span>${name}</span>
                                     </div>
-                                    ${extrasArr.length > 0 ? `
+                                    ${
+																			extrasArr.length > 0 ?
+																				`
                                         <div class="notes">
                                             + ${extrasArr.map((e: any) => e.name).join(", ")}
                                         </div>
-                                    ` : ""}
+                                    `
+																			:	""
+																		}
                                     ${item.notes ? `<div class="notes" style="background-color: #eee; border: 1.5pt solid #000; padding: 4px; margin-top: 6px;">NOTE: ${item.notes}</div>` : ""}
                                 </div>
                             `;
-                        }).join("")}
+													})
+													.join("")}
                     </div>
     
                     <div class="footer">
@@ -280,16 +333,16 @@ export const useReceipt = () => {
                 </body>
                 </html>
             `;
-    
-            try {
-                await window.electron.invoke("print-receipt-silent", kitchenHTML);
-            } catch (error) {
-                console.error("Failed to print kitchen order:", error);
-            }
-        };
 
-    return {
-        printReceipt,
-        printKitchenOrder
-    };
+		try {
+			await window.electron.invoke("print-receipt-silent", kitchenHTML);
+		} catch (error) {
+			console.error("Failed to print kitchen order:", error);
+		}
+	};
+
+	return {
+		printReceipt,
+		printKitchenOrder,
+	};
 };

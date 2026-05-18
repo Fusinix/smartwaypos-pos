@@ -93,7 +93,7 @@ export const CreateOrder: React.FC = () => {
 	const { foodItems, foodCategories, fetchFoodItems, fetchFoodCategories } =
 		useFood();
 	const { extras: foodExtras, fetchExtras } = useFoodExtras();
-	const { settings } = useSettings();
+	const { settings, keyboardBottom } = useSettings();
 	const { categories, fetchCategories } = useCategory();
 	const { format: formatCurrency } = useCurrency();
 	const { tables, getTables } = useTables();
@@ -423,17 +423,19 @@ export const CreateOrder: React.FC = () => {
 	const onOrderCreated = (newOrder: Order) => {
 		resetState();
 
-		setTimeout(() => {
-			showConfirm({
-				title: "Print Receipt?",
-				description: "Would you like to print a receipt for this order?",
-				confirmText: "Print Receipt",
-				cancelText: "Skip",
-				onConfirm: async () => {
-					await printReceipt(newOrder);
-				},
-			});
-		}, 500);
+		if (newOrder.order_type === "customer") {
+			setTimeout(() => {
+				showConfirm({
+					title: "Print Receipt?",
+					description: "Would you like to print a receipt for this order?",
+					confirmText: "Print Receipt",
+					cancelText: "Skip",
+					onConfirm: async () => {
+						await printReceipt(newOrder);
+					},
+				});
+			}, 500);
+		}
 	};
 
 	const handlePlaceOrder = async () => {
@@ -459,7 +461,7 @@ export const CreateOrder: React.FC = () => {
 			}),
 			order_type: orderType,
 			table_number: orderType === "table" ? tableNumber : undefined,
-			payment_mode: paymentMode,
+			payment_mode: orderType === "customer" ? paymentMode : null,
 			amount_tendered:
 				paymentMode === "cash" ? parseFloat(amountTendered || "0") : 0,
 			tax,
@@ -495,28 +497,30 @@ export const CreateOrder: React.FC = () => {
 
 	return (
 		<>
-			<div className="w-full h-[calc(100%-1px)] p-0 !overflow-hidden !relative">
-				<div className="flex h-full min-h-0 !overflow-hidden">
+			<div className="h-full flex-1">
+				<div className="flex h-full">
 					{/* Left: Product/Food selection */}
-					<div className="flex-1 border-r flex flex-col min-h-0">
-						<div className="bg-white">
-							<div className="p-2 pr-8 py-2 bg-white flex gap-4 items-center justify-start border-b">
-								<Button
-									variant={"ghost"}
-									size="icon"
-									onClick={() => navigate(-1)}
-								>
-									<ChevronLeft />
-								</Button>
-								<h2 className="font-bold text-2xl capitalize">
-									Create {activeTab} Order
-								</h2>
-							</div>
+					<div className="flex-1 border-r flex flex-col h-full">
+						<div className="p-2 pr-8 py-2 bg-white flex gap-4 items-center justify-start border-b">
+							<Button
+								variant={"ghost"}
+								size="icon"
+								onClick={() => navigate(-1)}
+							>
+								<ChevronLeft />
+							</Button>
+							<h2 className="font-bold text-2xl capitalize">
+								Create {activeTab} Order
+							</h2>
 						</div>
 
 						{/* Product/Food Grid */}
-						<div className="flex-1 flex flex-row">
-							<div className="w-[250px] border-r overflow-y-auto bg-white h-[calc(100dvh-120px)]">
+						<div className="flex-1 flex flex-row h-[calc(100%-62px)]">
+							<div
+								className={cn(
+									"w-[250px] border-r overflow-y-auto bg-white h-auto",
+								)}
+							>
 								<div className="h-14 border-b bg-card sticky top-0 z-10 flex items-center justify-between px-4">
 									<h2 className="font-semibold text-md">Categories</h2>
 									{(category != "all" || foodCategory != "all") && (
@@ -546,11 +550,10 @@ export const CreateOrder: React.FC = () => {
 											}
 										/>
 									))}
-									<div className="h-[100px]" />
 								</div>
 							</div>
-							<div className="flex-1 h-[calc(100dvh-118px)] overflow-y-auto">
-								<div className="px-4 py-2 border-b flex items-center space-x-4 bg-card h-14 sticky top-0 z-10">
+							<div className="flex-1 h-full overflow-y-auto">
+								<div className="px-4 py-2 border-b flex items-center gap-4 bg-card h-14 sticky top-0 z-10">
 									<Button
 										variant={activeTab === "drinks" ? "default" : "outline"}
 										className={cn(
@@ -569,7 +572,7 @@ export const CreateOrder: React.FC = () => {
 										variant={activeTab === "food" ? "default" : "outline"}
 										className={cn(
 											ClassStyles.tabButton,
-											"hover:bg-primary/10 text-primary shadow-none !mr-4",
+											"hover:bg-primary/10 text-primary shadow-none",
 											activeTab === "food" ?
 												"text-primary-foreground hover:bg-primary"
 											:	"text-muted-foreground",
@@ -579,7 +582,8 @@ export const CreateOrder: React.FC = () => {
 										<Salad />
 										Food
 									</Button>
-									<div className="flex-1 flex items-center relative !ml-auto max-w-lg">
+									<div className="w-px h-10 bg-border" />
+									<div className="flex-1 flex items-center relative max-w-lg">
 										<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
 										<Input
 											className="flex-1 text-base rounded-md pl-11 bg-muted/80 h-10"
@@ -598,15 +602,9 @@ export const CreateOrder: React.FC = () => {
 								<div
 									className={cn(
 										"grid gap-4 p-4",
-										isKeyboardOpen ?
-											cart.length > 0 ?
-												activeTab === "drinks" ?
-													"grid-cols-1 md:grid-cols-1 lg:grid-cols-2"
-												:	"grid-cols-1 md:grid-cols-1 lg:grid-cols-2"
-											:	"grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-										: activeTab === "drinks" ?
-											"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+										cart.length > 0 ?
+											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3 xl:grid-cols-4"
+										:	"grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5",
 									)}
 								>
 									{activeTab === "drinks" ?
@@ -652,7 +650,7 @@ export const CreateOrder: React.FC = () => {
 																		className="w-full h-full object-cover"
 																	/>
 																:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-																		🍺
+																		<Beer className="!size-12" />
 																	</div>
 																}
 															</div>
@@ -710,7 +708,7 @@ export const CreateOrder: React.FC = () => {
 																	className="w-full h-full object-cover rounded-xl"
 																/>
 															:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl rounded-xl">
-																	🍽️
+																	<Salad className="!size-12" />
 																</div>
 															}
 														</div>
@@ -738,9 +736,8 @@ export const CreateOrder: React.FC = () => {
 					{/* Right: Cart and finalization */}
 					<div
 						className={cn(
-							"w-1/4 bg-white flex flex-col h-full min-h-0",
+							"w-1/3 xl:w-1/4 bg-white flex flex-col h-full",
 							cart.length === 0 && "hidden",
-							isKeyboardOpen && cart.length > 0 && "w-1/3",
 						)}
 					>
 						{/* Cart Header */}
@@ -782,18 +779,12 @@ export const CreateOrder: React.FC = () => {
 							style={{ WebkitOverflowScrolling: "touch" }}
 						>
 							{cart.length === 0 ?
-								<div className="flex flex-col items-center justify-center text-center text-gray-400 px-6 py-20">
-									<div className="w-20 h-20 mb-4 flex items-center justify-center text-6xl">
-										🛒
-									</div>
-									<div className="text-lg font-semibold mb-2 text-gray-600">
-										Cart is Empty
-									</div>
-									<div className="text-base text-gray-500">
-										Add products to get started
-									</div>
-								</div>
-							:	<ul className="divide-y divide-gray-100 px-6 py-4  h-[35%] overflow-y-auto">
+								<EmptyState
+									icon={ShoppingBasket}
+									title="Cart is empty"
+									description="Add products to get started"
+								/>
+							:	<ul className="divide-y divide-gray-100 px-6 py-4  max-h-[60%] overflow-y-auto">
 									{cart.map((item, index) => {
 										const isDrink = item.itemType === "drink";
 
@@ -1045,6 +1036,21 @@ export const CreateOrder: React.FC = () => {
 										</div>
 									</div>
 								)}
+
+								<div className="space-y-2">
+									<p className="text-sm font-medium text-gray-700">
+										Order Notes:
+									</p>
+									<Textarea
+										id="order-notes"
+										name="order-notes"
+										value={notes}
+										onChange={(e) => setNotes(e.target.value)}
+										placeholder="Order notes..."
+										className="w-full h-20 text-base resize-none rounded-xl bg-muted"
+									/>
+								</div>
+
 								<div className="space-y-2">
 									<p className="text-sm font-medium text-gray-700">Payment:</p>
 									<div className="flex gap-2 overflow-x-auto">
@@ -1109,20 +1115,6 @@ export const CreateOrder: React.FC = () => {
 										)}
 									</div>
 								)}
-
-								<div className="space-y-2">
-									<p className="text-sm font-medium text-gray-700">
-										Order Notes:
-									</p>
-									<Textarea
-										id="order-notes"
-										name="order-notes"
-										value={notes}
-										onChange={(e) => setNotes(e.target.value)}
-										placeholder="Order notes..."
-										className="w-full h-20 text-base resize-none rounded-xl bg-muted"
-									/>
-								</div>
 
 								<div className="space-y-3 pt-3 border-t border-gray-200">
 									<p className="text-md font-semibold">Payment Summary:</p>

@@ -126,7 +126,8 @@ export default function Food() {
 
 	const canManageFood =
 		user?.role === "admin" ||
-		(user?.role === "cashier" && settings?.pos?.allowCashierInventoryManagement);
+		(user?.role === "cashier" &&
+			settings?.pos?.allowCashierInventoryManagement);
 	const canDeleteFood = user?.role === "admin";
 
 	const handleDeleteItem = (item: FoodItem) => {
@@ -258,69 +259,10 @@ export default function Food() {
 						)}
 					</div>
 				</div>
-				{/* Tabs */}
-				<div className="flex gap-2 py-2 px-4">
-					<Button
-						variant={activeTab === "items" ? "default" : "outline"}
-						onClick={() => {
-							setActiveTab("items");
-							setSearch("");
-						}}
-						className={ClassStyles.tabButton}
-					>
-						<Salad /> Food Items
-					</Button>
-					{canManageFood && (
-						<Button
-							variant={activeTab === "categories" ? "default" : "outline"}
-							onClick={() => {
-								setActiveTab("categories");
-								setCategorySearch("");
-							}}
-							className={ClassStyles.tabButton}
-						>
-							<ShoppingBasket />
-							Categories
-						</Button>
-					)}
-					{canManageFood && (
-						<Button
-							variant={activeTab === "extras" ? "default" : "outline"}
-							onClick={() => {
-								setActiveTab("extras");
-								setExtrasSearch("");
-							}}
-							className={ClassStyles.tabButton}
-						>
-							<Dessert />
-							Extras
-						</Button>
-					)}
-				</div>
-				<div className={cn("py-2 px-4 border-t flex items-center gap-4")}>
-					<div className="flex-1 w-full max-w-lg flex items-center relative">
-						<Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
-						<Input
-							className="pl-8 rounded-md h-10 bg-muted/80"
-							placeholder={`Search ${activeTab === "items" ? "food items" : activeTab}...`}
-							value={
-								activeTab === "items" ? search
-								: activeTab === "categories" ?
-									categorySearch
-								:	extrasSearch
-							}
-							onChange={(e) =>
-								(activeTab === "items" ? setSearch
-								: activeTab === "categories" ? setCategorySearch
-								: setExtrasSearch)(e.target.value)
-							}
-						/>
-					</div>
-				</div>
 			</div>
 
 			{/* Main Content */}
-			<div className="flex flex-1 border-t">
+			<div className="flex flex-1 h-[calc(100%-62px)]">
 				<div
 					className={cn(
 						"w-[250px] border-r overflow-y-auto bg-white h-full",
@@ -351,402 +293,459 @@ export default function Food() {
 						<div className="!h-[100px]" />
 					</div>
 				</div>
-				<div className="flex-1 p-4 overflow-y-auto h-[calc(100dvh-230px)]">
-					<SimpleAlert
-						open={!!error}
-						onOpenChange={() => setError(null)}
-						message={error || ""}
-					/>
+				<div className="flex-1 overflow-y-auto h-full">
+					{/* Tabs */}
+					<div className="bg-white flex gap-4 py-2 px-4 sticky top-0 z-10 border-b h-14">
+						<Button
+							variant={activeTab === "items" ? "default" : "outline"}
+							onClick={() => {
+								setActiveTab("items");
+								setSearch("");
+							}}
+							className={ClassStyles.tabButton}
+						>
+							<Salad /> Food Items
+						</Button>
+						{canManageFood && (
+							<Button
+								variant={activeTab === "categories" ? "default" : "outline"}
+								onClick={() => {
+									setActiveTab("categories");
+									setCategorySearch("");
+								}}
+								className={ClassStyles.tabButton}
+							>
+								<ShoppingBasket />
+								Categories
+							</Button>
+						)}
+						{canManageFood && (
+							<Button
+								variant={activeTab === "extras" ? "default" : "outline"}
+								onClick={() => {
+									setActiveTab("extras");
+									setExtrasSearch("");
+								}}
+								className={ClassStyles.tabButton}
+							>
+								<Dessert />
+								Extras
+							</Button>
+						)}
 
-					{/* ── ITEMS TAB ── */}
-					{activeTab === "items" && (
-						<>
-							{user?.role === "admin" && (
-								<div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-									<Card className="bg-white">
-										<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-											<CardTitle className="text-sm font-medium">
-												Total Food Items
-											</CardTitle>
-											<Salad className="h-4 w-4 text-muted-foreground" />
-										</CardHeader>
-										<CardContent>
-											<div className="text-2xl font-bold">
-												{activeFoodItems.length?.toLocaleString()}
-											</div>
-											<p className="text-xs text-muted-foreground">
-												Active food items
-											</p>
-										</CardContent>
-									</Card>
-									<Card className="bg-white">
-										<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-											<CardTitle className="text-sm font-medium">
-												Total Food Sales
-											</CardTitle>
-											<Salad className="h-4 w-4 text-muted-foreground" />
-										</CardHeader>
-										<CardContent>
-											<div className="text-2xl font-bold">
-												{statsLoading ?
-													"Loading..."
-												:	formatCurrency(foodStats.totalFoodSales)}
-											</div>
-											<p className="text-xs text-muted-foreground">
-												Total revenue from food items
-											</p>
-										</CardContent>
-									</Card>
-									<Card className="bg-white">
-										<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-											<CardTitle className="text-sm font-medium">
-												Total Extras Sales
-											</CardTitle>
-											<Salad className="h-4 w-4 text-muted-foreground" />
-										</CardHeader>
-										<CardContent>
-											<div className="text-2xl font-bold">
-												{statsLoading ?
-													"Loading..."
-												:	formatCurrency(foodStats.totalExtrasSales)}
-											</div>
-											<p className="text-xs text-muted-foreground">
-												Total revenue from extras
-											</p>
-										</CardContent>
-									</Card>
-								</div>
-							)}
+						<div className="w-px h-10 bg-border" />
+						<div className="flex-1 w-full max-w-lg flex items-center relative">
+							<Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
+							<Input
+								className="pl-8 rounded-md h-10 bg-muted/80"
+								placeholder={`Search ${activeTab === "items" ? "food items" : activeTab}...`}
+								value={
+									activeTab === "items" ? search
+									: activeTab === "categories" ?
+										categorySearch
+									:	extrasSearch
+								}
+								onChange={(e) =>
+									(activeTab === "items" ? setSearch
+									: activeTab === "categories" ? setCategorySearch
+									: setExtrasSearch)(e.target.value)
+								}
+							/>
+						</div>
+					</div>
+					<div className="h-full p-4 flex-1">
+						<SimpleAlert
+							open={!!error}
+							onOpenChange={() => setError(null)}
+							message={error || ""}
+						/>
 
-							{loading ?
-								<div className="text-center py-4 text-lg">Loading...</div>
-							: filteredFoodItems.length === 0 ?
-								<EmptyState
-									icon={Salad}
-									title="No food items found."
-									description="Add food items to get started."
-								/>
-							:	<div
-									className={cn(
-										"grid gap-4",
-										isKeyboardOpen ?
-											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
-										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
-									)}
-								>
-									{/* Add some dummy items */}
-									{/* eslint-disable */}
-									{filteredFoodItems.map((item) => {
-										const category = foodCategories.find(
-											(c) => c.id === item.category_id,
-										);
-										const itemExtras = foodExtras.filter((e) =>
-											item.extras?.some((ie) => ie.id === e.id),
-										);
-										return (
-											<div
-												key={item.id}
-												className="bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all h-fit p-1"
-											>
-												<div className="w-full aspect-square bg-gray-100 rounded-md relative overflow-hidden">
-													{item.image ?
-														<img
-															src={item.image}
-															alt={item.name}
-															className="w-full h-full object-cover"
-														/>
-													:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-6xl">
-															🍽️
+						{/* ── ITEMS TAB ── */}
+						{activeTab === "items" && (
+							<>
+								{user?.role === "admin" && (
+									<div className="mb-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Total Food Items
+												</CardTitle>
+												<Salad className="h-4 w-4 text-muted-foreground" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{activeFoodItems.length?.toLocaleString()}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Active food items
+												</p>
+											</CardContent>
+										</Card>
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Total Food Sales
+												</CardTitle>
+												<Salad className="h-4 w-4 text-muted-foreground" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{statsLoading ?
+														"Loading..."
+													:	formatCurrency(foodStats.totalFoodSales)}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Total revenue from food items
+												</p>
+											</CardContent>
+										</Card>
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Total Extras Sales
+												</CardTitle>
+												<Salad className="h-4 w-4 text-muted-foreground" />
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{statsLoading ?
+														"Loading..."
+													:	formatCurrency(foodStats.totalExtrasSales)}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Total revenue from extras
+												</p>
+											</CardContent>
+										</Card>
+									</div>
+								)}
+
+								{loading ?
+									<div className="text-center py-4 text-lg">Loading...</div>
+								: filteredFoodItems.length === 0 ?
+									<EmptyState
+										icon={Salad}
+										title="No food items found."
+										description="Add food items to get started."
+									/>
+								:	<div
+										className={cn(
+											"h-full grid gap-4 grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+										)}
+									>
+										{/* Add some dummy items */}
+										{/* eslint-disable */}
+										{filteredFoodItems.map((item) => {
+											const category = foodCategories.find(
+												(c) => c.id === item.category_id,
+											);
+											const itemExtras = foodExtras.filter((e) =>
+												item.extras?.some((ie) => ie.id === e.id),
+											);
+											return (
+												<div
+													key={item.id}
+													className="bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all h-fit p-1"
+												>
+													<div className="w-full aspect-square bg-gray-100 rounded-md relative overflow-hidden">
+														{item.image ?
+															<img
+																src={item.image}
+																alt={item.name}
+																className="w-full h-full object-cover"
+															/>
+														:	<div className="w-full h-full flex items-center justify-center text-gray-400 text-6xl">
+																<Salad className="!size-12" />
+															</div>
+														}
+														<div className="absolute top-2 right-2">
+															<span
+																className={`px-2 py-1 inline-flex text-xs font-semibold capitalize rounded-full ${item.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+															>
+																{item.status}
+															</span>
 														</div>
-													}
-													<div className="absolute top-2 right-2">
-														<span
-															className={`px-2 py-1 inline-flex text-xs font-semibold capitalize rounded-full ${item.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-														>
-															{item.status}
-														</span>
+													</div>
+													<div className="">
+														<div className="p-3">
+															<h3 className="font-bold text-lg text-gray-900 line-clamp-2">
+																{item.name} -{" "}
+																<span className="font-bold text-sm text-gray-900">
+																	({formatCurrency(Number(item?.price) || 0)})
+																</span>
+															</h3>
+															<p className="text-sm text-gray-500 capitalize mt-1 flex items-center gap-2 bg-primary/10 p-1 px-2 rounded-full w-fit">
+																<ShoppingBasket className="size-4" />{" "}
+																{category?.name || "Uncategorized"}
+															</p>
+														</div>
+														<div className="p-3 border-t border-gray-200">
+															<p className="text-xs text-gray-500 mb-1">
+																Available Extras:
+															</p>
+															<div className="flex flex-wrap gap-1">
+																{itemExtras.length > 0 ?
+																	itemExtras.map((extra) => (
+																		<span
+																			key={extra.id}
+																			className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
+																		>
+																			{extra.name}
+																		</span>
+																	))
+																:	<span className="text-xs text-muted-foreground/80 italic">
+																		No extras added
+																	</span>
+																}
+															</div>
+														</div>
+
+														{(canManageFood || canDeleteFood) && (
+															<div className="flex gap-2 p-3 border-t border-gray-200 flex-wrap">
+																{canManageFood && (
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		onClick={() => setEditingFoodItem(item)}
+																		className="flex-1 text-base"
+																	>
+																		Edit
+																	</Button>
+																)}
+																{canDeleteFood && (
+																	<Button
+																		variant="destructive"
+																		size="sm"
+																		onClick={() => handleDeleteItem(item)}
+																		className="flex-1 text-base"
+																	>
+																		Delete
+																	</Button>
+																)}
+															</div>
+														)}
 													</div>
 												</div>
-												<div className="">
-													<div className="p-3">
-														<h3 className="font-bold text-lg text-gray-900 line-clamp-2">
-															{item.name} -{" "}
-															<span className="font-bold text-sm text-gray-900">
-																({formatCurrency(Number(item?.price) || 0)})
-															</span>
-														</h3>
-														<p className="text-sm text-gray-500 capitalize mt-1 flex items-center gap-2 bg-primary/10 p-1 px-2 rounded-full w-fit">
-															<ShoppingBasket className="size-4" />{" "}
-															{category?.name || "Uncategorized"}
-														</p>
-													</div>
-													<div className="p-3 border-t border-gray-200">
-														<p className="text-xs text-gray-500 mb-1">
-															Available Extras:
-														</p>
-														<div className="flex flex-wrap gap-1">
-															{itemExtras.length > 0 ?
-																itemExtras.map((extra) => (
-																	<span
-																		key={extra.id}
-																		className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
-																	>
-																		{extra.name}
-																	</span>
-																))
-															:	<span className="text-xs text-muted-foreground/80 italic">
-																	No extras added
-																</span>
-															}
-														</div>
-													</div>
+											);
+										})}
+									</div>
+								}
 
-													{(canManageFood || canDeleteFood) && (
-														<div className="flex gap-2 p-3 border-t border-gray-200 flex-wrap">
-															{canManageFood && (
+								{/* Item Dialogs */}
+								<AddEditFoodItemDialog
+									open={isAddDialogOpen}
+									foodCategories={foodCategories}
+									foodExtras={foodExtras}
+									onClose={() => setIsAddDialogOpen(false)}
+									onSave={addFoodItem}
+								/>
+								{editingFoodItem && (
+									<AddEditFoodItemDialog
+										foodItem={editingFoodItem}
+										open={!!editingFoodItem}
+										foodCategories={foodCategories}
+										foodExtras={foodExtras}
+										onClose={() => setEditingFoodItem(null)}
+										onSave={(item) => updateFoodItem(editingFoodItem.id, item)}
+									/>
+								)}
+							</>
+						)}
+
+						{/* ── CATEGORIES TAB ── */}
+						{activeTab === "categories" && (
+							<>
+								{loading ?
+									<div className="text-center py-4 text-lg">Loading...</div>
+								: filteredCategories.length === 0 ?
+									<div className="text-center py-12 text-gray-400 text-lg">
+										No categories found.
+									</div>
+								:	<div className="bg-white border rounded-lg">
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead className="text-base">Name</TableHead>
+													<TableHead className="text-base">
+														Description
+													</TableHead>
+													<TableHead className="text-base">Status</TableHead>
+													{canManageFood && (
+														<TableHead className="text-right text-base">
+															Actions
+														</TableHead>
+													)}
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{filteredCategories.map((category) => (
+													<TableRow key={category.id}>
+														<TableCell className="font-medium text-base">
+															{category.name}
+														</TableCell>
+														<TableCell className="text-base">
+															{category.description || "-"}
+														</TableCell>
+														<TableCell>
+															<span
+																className={`px-3 py-1 rounded-full text-sm ${category.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+															>
+																{category.status}
+															</span>
+														</TableCell>
+														{canManageFood && (
+															<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium">
 																<Button
 																	variant="outline"
-																	size="sm"
-																	onClick={() => setEditingFoodItem(item)}
-																	className="flex-1 text-base"
+																	size="default"
+																	onClick={() => setEditingCategory(category)}
+																	className="mr-2 text-base"
 																>
 																	Edit
 																</Button>
-															)}
-															{canDeleteFood && (
 																<Button
 																	variant="destructive"
-																	size="sm"
-																	onClick={() => handleDeleteItem(item)}
-																	className="flex-1 text-base"
+																	size="default"
+																	onClick={() => handleDeleteCategory(category)}
+																	className="text-base"
 																>
 																	Delete
 																</Button>
-															)}
-														</div>
-													)}
-												</div>
-											</div>
-										);
-									})}
-								</div>
-							}
+															</TableCell>
+														)}
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</div>
+								}
 
-							{/* Item Dialogs */}
-							<AddEditFoodItemDialog
-								open={isAddDialogOpen}
-								foodCategories={foodCategories}
-								foodExtras={foodExtras}
-								onClose={() => setIsAddDialogOpen(false)}
-								onSave={addFoodItem}
-							/>
-							{editingFoodItem && (
-								<AddEditFoodItemDialog
-									foodItem={editingFoodItem}
-									open={!!editingFoodItem}
-									foodCategories={foodCategories}
-									foodExtras={foodExtras}
-									onClose={() => setEditingFoodItem(null)}
-									onSave={(item) => updateFoodItem(editingFoodItem.id, item)}
-								/>
-							)}
-						</>
-					)}
-
-					{/* ── CATEGORIES TAB ── */}
-					{activeTab === "categories" && (
-						<>
-							{loading ?
-								<div className="text-center py-4 text-lg">Loading...</div>
-							: filteredCategories.length === 0 ?
-								<div className="text-center py-12 text-gray-400 text-lg">
-									No categories found.
-								</div>
-							:	<div className="bg-white border rounded-lg overflow-hidden">
-									<Table>
-										<TableHeader>
-											<TableRow>
-												<TableHead className="text-base">Name</TableHead>
-												<TableHead className="text-base">Description</TableHead>
-												<TableHead className="text-base">Status</TableHead>
-												{canManageFood && (
-													<TableHead className="text-right text-base">
-														Actions
-													</TableHead>
-												)}
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{filteredCategories.map((category) => (
-												<TableRow key={category.id}>
-													<TableCell className="font-medium text-base">
-														{category.name}
-													</TableCell>
-													<TableCell className="text-base">
-														{category.description || "-"}
-													</TableCell>
-													<TableCell>
-														<span
-															className={`px-3 py-1 rounded-full text-sm ${category.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-														>
-															{category.status}
-														</span>
-													</TableCell>
-													{canManageFood && (
-														<TableCell className="px-6 py-5 whitespace-nowrap text-right text-base font-medium">
-															<Button
-																variant="outline"
-																size="default"
-																onClick={() => setEditingCategory(category)}
-																className="mr-2 text-base"
-															>
-																Edit
-															</Button>
-															<Button
-																variant="destructive"
-																size="default"
-																onClick={() => handleDeleteCategory(category)}
-																className="text-base"
-															>
-																Delete
-															</Button>
-														</TableCell>
-													)}
-												</TableRow>
-											))}
-										</TableBody>
-									</Table>
-								</div>
-							}
-
-							{/* Category Dialogs */}
-							<AddEditFoodCategoryDialog
-								open={isAddCategoryDialogOpen}
-								onClose={() => setIsAddCategoryDialogOpen(false)}
-								onSave={async (category) => {
-									await addFoodCategory(category);
-									setIsAddCategoryDialogOpen(false);
-								}}
-							/>
-							{editingCategory && (
+								{/* Category Dialogs */}
 								<AddEditFoodCategoryDialog
-									category={editingCategory}
-									open={!!editingCategory}
-									onClose={() => setEditingCategory(null)}
+									open={isAddCategoryDialogOpen}
+									onClose={() => setIsAddCategoryDialogOpen(false)}
 									onSave={async (category) => {
-										await updateFoodCategory(editingCategory.id, category);
-										setEditingCategory(null);
+										await addFoodCategory(category);
+										setIsAddCategoryDialogOpen(false);
 									}}
 								/>
-							)}
-						</>
-					)}
-
-					{/* ── EXTRAS TAB ── */}
-					{activeTab === "extras" && (
-						<>
-							{user?.role === "admin" && (
-								<div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-									<Card className="bg-white">
-										<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-											<CardTitle className="text-sm font-medium">
-												Total Extras
-											</CardTitle>
-										</CardHeader>
-										<CardContent>
-											<div className="text-2xl font-bold">
-												{activeExtras.length}
-											</div>
-											<p className="text-xs text-muted-foreground">
-												Active extras available
-											</p>
-										</CardContent>
-									</Card>
-								</div>
-							)}
-							{extrasLoading ?
-								<div className="text-center py-4 text-lg">Loading...</div>
-							: filteredExtras.length === 0 ?
-								<div className="text-center py-12 text-gray-400 text-lg">
-									No extras found.
-								</div>
-							:	<div
-									className={cn(
-										"grid gap-4",
-										isKeyboardOpen ?
-											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
-										:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
-									)}
-								>
-									{filteredExtras.map((extra) => (
-										<div
-											key={extra.id}
-											className="bg-white border rounded-lg p-4 hover:shadow-lg transition-all"
-										>
-											<h3 className="font-bold text-lg text-gray-900">
-												{extra.name}
-											</h3>
-											<p className="text-sm text-gray-500">
-												Price: {formatCurrency(Number(extra.price) || 0)}
-											</p>
-											<span
-												className={`mt-2 inline-block px-2 py-1 text-xs font-semibold rounded-full ${extra.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-											>
-												{extra.status}
-											</span>
-											{canManageFood && (
-												<div className="flex gap-2 pt-3 mt-3 border-t border-gray-200 flex-wrap">
-													<Button
-														variant="outline"
-														size="sm"
-														className="flex-1"
-														onClick={() => setEditingExtra(extra)}
-													>
-														Edit
-													</Button>
-													<Button
-														variant="destructive"
-														size="sm"
-														className="flex-1"
-														onClick={() => handleDeleteExtra(extra)}
-													>
-														Delete
-													</Button>
-												</div>
-											)}
-										</div>
-									))}
-								</div>
-							}
-
-							{/* Extra Dialogs */}
-							<Dialog
-								open={isAddExtraDialogOpen || !!editingExtra}
-								onOpenChange={(open) => {
-									if (!open) {
-										setIsAddExtraDialogOpen(false);
-										setEditingExtra(null);
-									}
-								}}
-							>
-								<DialogContent>
-									<DialogHeader>
-										<DialogTitle>
-											{editingExtra ? "Edit Extra" : "Add New Extra"}
-										</DialogTitle>
-									</DialogHeader>
-									<ExtraForm
-										extra={editingExtra}
-										onSave={handleExtraSave}
-										onCancel={() => {
-											setIsAddExtraDialogOpen(false);
-											setEditingExtra(null);
+								{editingCategory && (
+									<AddEditFoodCategoryDialog
+										category={editingCategory}
+										open={!!editingCategory}
+										onClose={() => setEditingCategory(null)}
+										onSave={async (category) => {
+											await updateFoodCategory(editingCategory.id, category);
+											setEditingCategory(null);
 										}}
 									/>
-								</DialogContent>
-							</Dialog>
-						</>
-					)}
+								)}
+							</>
+						)}
+
+						{/* ── EXTRAS TAB ── */}
+						{activeTab === "extras" && (
+							<>
+								{user?.role === "admin" && (
+									<div className="mb-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+										<Card className="bg-white">
+											<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+												<CardTitle className="text-sm font-medium">
+													Total Extras
+												</CardTitle>
+											</CardHeader>
+											<CardContent>
+												<div className="text-2xl font-bold">
+													{activeExtras.length}
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Active extras available
+												</p>
+											</CardContent>
+										</Card>
+									</div>
+								)}
+								{extrasLoading ?
+									<div className="text-center py-4 text-lg">Loading...</div>
+								: filteredExtras.length === 0 ?
+									<div className="text-center py-12 text-gray-400 text-lg">
+										No extras found.
+									</div>
+								:	<div
+										className={cn(
+											"grid gap-4 grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+										)}
+									>
+										{filteredExtras.map((extra) => (
+											<div
+												key={extra.id}
+												className="bg-white border rounded-lg p-4 hover:shadow-lg transition-all"
+											>
+												<h3 className="font-bold text-lg text-gray-900">
+													{extra.name}
+												</h3>
+												<p className="text-sm text-gray-500">
+													Price: {formatCurrency(Number(extra.price) || 0)}
+												</p>
+												<span
+													className={`mt-2 inline-block px-2 py-1 text-xs font-semibold rounded-full ${extra.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+												>
+													{extra.status}
+												</span>
+												{canManageFood && (
+													<div className="flex gap-2 pt-3 mt-3 border-t border-gray-200 flex-wrap">
+														<Button
+															variant="outline"
+															size="sm"
+															className="flex-1"
+															onClick={() => setEditingExtra(extra)}
+														>
+															Edit
+														</Button>
+														<Button
+															variant="destructive"
+															size="sm"
+															className="flex-1"
+															onClick={() => handleDeleteExtra(extra)}
+														>
+															Delete
+														</Button>
+													</div>
+												)}
+											</div>
+										))}
+									</div>
+								}
+
+								{/* Extra Dialogs */}
+								<Dialog
+									open={isAddExtraDialogOpen || !!editingExtra}
+									onOpenChange={(open) => {
+										if (!open) {
+											setIsAddExtraDialogOpen(false);
+											setEditingExtra(null);
+										}
+									}}
+								>
+									<DialogContent>
+										<DialogHeader>
+											<DialogTitle>
+												{editingExtra ? "Edit Extra" : "Add New Extra"}
+											</DialogTitle>
+										</DialogHeader>
+										<ExtraForm
+											extra={editingExtra}
+											onSave={handleExtraSave}
+											onCancel={() => {
+												setIsAddExtraDialogOpen(false);
+												setEditingExtra(null);
+											}}
+										/>
+									</DialogContent>
+								</Dialog>
+							</>
+						)}
+					</div>
 				</div>
 			</div>
 		</div>

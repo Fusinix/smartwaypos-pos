@@ -67,7 +67,6 @@ export const Orders: React.FC = () => {
 	const [amountTendered, setAmountTendered] = useState<string>("");
 	const { format: formatCurrency } = useCurrency();
 	const { printReceipt, printKitchenOrder } = useReceipt();
-	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [lastEnterPress, setLastEnterPress] = useState<number>(0);
 	const [enterCount, setEnterCount] = useState<number>(0);
@@ -300,7 +299,11 @@ export const Orders: React.FC = () => {
 	const handleGenerateReport = async () => {
 		setIsGeneratingReport(true);
 		try {
-			const data = await window.electron.invoke("get-daily-inventory-report");
+			const data = await window.electron.invoke(
+				"get-daily-inventory-report",
+				undefined,
+				user,
+			);
 			setReportData(data);
 			setReportDialogOpen(true);
 		} catch (error) {
@@ -459,10 +462,16 @@ export const Orders: React.FC = () => {
 	const OrderTypeIcon =
 		selectedOrder ? OrderTypeIcons[selectedOrder.order_type] : null;
 	const PaymentIcon =
-		selectedOrder ? PaymentModeIcons[selectedOrder.payment_mode] : null;
+		(
+			selectedOrder &&
+			selectedOrder.payment_mode &&
+			selectedOrder.payment_mode in PaymentModeIcons
+		) ?
+			PaymentModeIcons[selectedOrder.payment_mode as PaymentModes]
+		:	null;
 
 	return (
-		<div className="h-full flex flex-col flex-1">
+		<div className="h-full flex flex-col">
 			{/* Page Header */}
 			<div className="bg-white border-b px-4 py-2">
 				<div className="flex justify-between items-center">
@@ -510,96 +519,93 @@ export const Orders: React.FC = () => {
 			</div>
 
 			{/* Main Content */}
-			<div className="flex-1 flex overflow-hidden">
+			<div className="flex-1 flex h-[calc(100%-62px)]">
 				{/* Left Panel */}
 				<div className="flex-1 h-full border-r bg-white flex flex-col">
 					{/* Filter Header */}
-					<div className="flex items-center gap-3 px-4 py-2 border-b !h-14">
-						<div className="flex mr-auto gap-2">
-							<Button
-								variant={activeTab === "active" ? "default" : "outline"}
-								size="default"
-								className={cn(
-									ClassStyles.tabButton,
-									"text-base w-full shadow-none -mb-[0.5px]",
-									activeTab === "active" ? "" : (
-										" hover:bg-muted/20 text-muted-foreground"
-									),
-								)}
-								onClick={() => setActiveTab("active")}
-							>
-								<FileText className="!size-4" />
-								Open
-							</Button>
-							<Button
-								variant={activeTab === "closed" ? "default" : "outline"}
-								size="default"
-								className={cn(
-									ClassStyles.tabButton,
-									"text-base w-full shadow-none -mb-[0.5px]",
-									activeTab === "closed" ? "" : (
-										" hover:bg-muted/20 text-muted-foreground"
-									),
-								)}
-								onClick={() => setActiveTab("closed")}
-							>
-								<Lock className="!size-4" />
-								Closed
-							</Button>
+					<div className="flex items-center gap-4 px-4 py-2 border-b !h-14">
+						<Button
+							variant={activeTab === "active" ? "default" : "outline"}
+							size="default"
+							className={cn(
+								ClassStyles.tabButton,
+								"text-base shadow-none",
+								activeTab === "active" ? "" : (
+									" hover:bg-muted/20 text-muted-foreground"
+								),
+							)}
+							onClick={() => setActiveTab("active")}
+						>
+							<FileText className="!size-4" />
+							Open
+						</Button>
+						<Button
+							variant={activeTab === "closed" ? "default" : "outline"}
+							size="default"
+							className={cn(
+								ClassStyles.tabButton,
+								"text-base  shadow-none",
+								activeTab === "closed" ? "" : (
+									" hover:bg-muted/20 text-muted-foreground"
+								),
+							)}
+							onClick={() => setActiveTab("closed")}
+						>
+							<Lock className="!size-4" />
+							Closed
+						</Button>
+						<div className="w-px h-10 bg-border" />
+						<div className="flex-1 flex items-center relative w-full max-w-lg">
+							<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
+							<Input
+								className="w-full flex-1 text-base rounded-md pl-11 h-10 bg-muted/80"
+								placeholder="Search by Order # or Table #"
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+							/>
 						</div>
-						<div className="flex items-center justify-end space-x-2 flex-1">
-							<div className="flex-1 flex items-center relative w-full max-w-lg">
-								<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
-								<Input
-									className="w-full flex-1 text-base rounded-md pl-11 h-10 bg-muted/80"
-									placeholder="Search by Order # or Table #"
-									value={search}
-									onChange={(e) => setSearch(e.target.value)}
-								/>
-							</div>
-							{/* Date Filter */}
-							<div
-								className={cn(
-									"flex items-center space-x-2",
-									isKeyboardOpen && selectedOrder?.id ? "hidden" : "",
-								)}
-							>
-								<Select value={dateFilter} onValueChange={setDateFilter}>
-									<SelectTrigger className="w-40 text-base">
-										<SelectValue placeholder="Filter by Date" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="all">All Dates</SelectItem>
-										<SelectItem value="today">Today</SelectItem>
-										<SelectItem value="week">Last 7 Days</SelectItem>
-										<SelectItem value="month">This Month</SelectItem>
-										<SelectItem value="custom">Custom Range</SelectItem>
-									</SelectContent>
-								</Select>
-								{dateFilter === "custom" && (
-									<>
-										<Input
-											type="date"
-											className="w-40 text-base"
-											placeholder="Start Date"
-											value={customDateStart}
-											onChange={(e) => setCustomDateStart(e.target.value)}
-										/>
-										<Input
-											type="date"
-											className="w-40 text-base"
-											placeholder="End Date"
-											value={customDateEnd}
-											onChange={(e) => setCustomDateEnd(e.target.value)}
-										/>
-									</>
-								)}
-							</div>
+						{/* Date Filter */}
+						<div className={cn("flex items-center space-x-2")}>
+							<Select value={dateFilter} onValueChange={setDateFilter}>
+								<SelectTrigger className="w-40 text-base">
+									<SelectValue placeholder="Filter by Date" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Dates</SelectItem>
+									<SelectItem value="today">Today</SelectItem>
+									<SelectItem value="week">Last 7 Days</SelectItem>
+									<SelectItem value="month">This Month</SelectItem>
+									<SelectItem value="custom">Custom Range</SelectItem>
+								</SelectContent>
+							</Select>
+							{dateFilter === "custom" && (
+								<>
+									<Input
+										type="date"
+										className="w-40 text-base"
+										placeholder="Start Date"
+										value={customDateStart}
+										onChange={(e) => setCustomDateStart(e.target.value)}
+									/>
+									<Input
+										type="date"
+										className="w-40 text-base"
+										placeholder="End Date"
+										value={customDateEnd}
+										onChange={(e) => setCustomDateEnd(e.target.value)}
+									/>
+								</>
+							)}
 						</div>
 					</div>
 
 					{/* Order List - Responsive Grid */}
-					<div className="flex-1 overflow-y-auto p-4 bg-muted relative">
+					<div
+						className={cn(
+							"flex-1 overflow-y-auto p-4 pb-20 bg-muted relative",
+							// keyboardBottom ? "pb-[40dvh]" : "",
+						)}
+					>
 						{loading && groupedOrders.length > 0 && (
 							<div className="absolute top-0 left-0 right-0 z-20">
 								<div className="h-1 bg-primary/20 w-full overflow-hidden">
@@ -632,17 +638,20 @@ export const Orders: React.FC = () => {
 										<div
 											className={cn(
 												"grid gap-4 px-0",
-												isKeyboardOpen ?
-													selectedOrder?.id ?
-														"grid-cols-1 md:grid-cols-1 lg:grid-cols-2"
-													:	"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
-												:	"grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+												selectedOrder?.id ?
+													"grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 "
+												:	"grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
 											)}
 										>
 											{ordersInGroup.map((order) => {
 												const isOpen = order.status === "open";
 												const PaymentIcon =
-													PaymentModeIcons[order.payment_mode];
+													(
+														order.payment_mode &&
+														order.payment_mode in PaymentModeIcons
+													) ?
+														PaymentModeIcons[order.payment_mode as PaymentModes]
+													:	PaymentModeIcons["cash"];
 
 												return (
 													<div
@@ -736,7 +745,7 @@ export const Orders: React.FC = () => {
 				{/* Right Panel: Order Details */}
 				<div
 					className={cn(
-						"min-w-[200px] max-w-[450px] w-full bg-white flex flex-col h-full overflow-y-auto",
+						"bg-white flex flex-col !h-full overflow-y-auto w-1/3 xl:w-1/4",
 						!selectedOrder && "hidden",
 					)}
 				>
@@ -758,7 +767,7 @@ export const Orders: React.FC = () => {
 						/>
 					:	<div className="flex-1 flex flex-col pt-1 space-y-6">
 							{/* Cart Section */}
-							<div className="border-b p-6 pt-0 pb-12 h-[40%] overflow-y-auto">
+							<div className="border-b p-6 pt-0 pb-12 max-h-[60%] overflow-y-auto">
 								{selectedOrderLoading ?
 									<div className="py-2 text-base text-gray-400">
 										Loading order details...
@@ -925,6 +934,26 @@ export const Orders: React.FC = () => {
 								<div
 									className={cn(
 										"",
+										selectedOrder.status === "closed" && !selectedOrder.notes ?
+											"flex items-center justify-between"
+										:	"",
+									)}
+								>
+									<div className="text-base text-gray-500">Notes:</div>
+									{selectedOrder.status === "open" ?
+										<Textarea
+											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
+											defaultValue={selectedOrder.notes || ""}
+											placeholder="Order notes..."
+										/>
+									:	<div className="text-base">
+											{selectedOrder.notes || "---"}
+										</div>
+									}
+								</div>
+								<div
+									className={cn(
+										"",
 										selectedOrder.status === "closed" ?
 											"flex items-center justify-between"
 										:	"",
@@ -964,26 +993,6 @@ export const Orders: React.FC = () => {
 													</Button>
 												);
 											})}
-										</div>
-									}
-								</div>
-								<div
-									className={cn(
-										"",
-										selectedOrder.status === "closed" && !selectedOrder.notes ?
-											"flex items-center justify-between"
-										:	"",
-									)}
-								>
-									<div className="text-base text-gray-500">Notes:</div>
-									{selectedOrder.status === "open" ?
-										<Textarea
-											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
-											defaultValue={selectedOrder.notes || ""}
-											placeholder="Order notes..."
-										/>
-									:	<div className="text-base">
-											{selectedOrder.notes || "---"}
 										</div>
 									}
 								</div>
@@ -1116,7 +1125,7 @@ export const Orders: React.FC = () => {
 										<Button
 											variant="outline"
 											onClick={() => printKitchenOrder(selectedOrder)}
-											className="text-base w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+											className="text-base w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 mb-2"
 										>
 											Print Kitchen Order
 										</Button>
@@ -1129,9 +1138,10 @@ export const Orders: React.FC = () => {
 												onClick={handleCloseOrder}
 												className="text-base flex-1"
 												disabled={
-													selectedOrder?.payment_mode === "cash" &&
-													parseFloat(amountTendered || "0") <
-														(selectedOrderTotal || 0)
+													!selectedOrder?.payment_mode ||
+													(selectedOrder.payment_mode === "cash" &&
+														parseFloat(amountTendered || "0") <
+															(selectedOrderTotal || 0))
 												}
 											>
 												Close Order
