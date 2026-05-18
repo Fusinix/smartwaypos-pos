@@ -26,8 +26,7 @@ const Accounting = React.lazy(() => import("./pages/Accounting"));
 
 import { SideKeyboard } from "./components/keyboard/SideKeyboard";
 import { useKeyboard } from "./context/KeyboardContext";
-import { useSettings } from "./hooks/useSettings";
-import { cn } from "./lib/utils";
+
 
 /** Thin wrapper so useOnScreenKeyboard runs inside AuthProvider */
 const KeyboardListener: React.FC = () => {
@@ -38,7 +37,6 @@ const KeyboardListener: React.FC = () => {
 /** Main app content wrapper to handle global keyboard shifting */
 const AppContent: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const { isOpen, portalContainer } = useKeyboard();
-	const { keyboardBottom, settings } = useSettings();
 
 	React.useEffect(() => {
 		if (isOpen) {
@@ -49,22 +47,10 @@ const AppContent: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	}, [isOpen]);
 
 	return (
-		<div
-			className={cn(
-				"min-h-screen bg-gray-50 flex overflow-hidden w-full relative",
-				keyboardBottom ? "flex-col" : "flex-row",
-			)}
-		>
+		<div className="h-screen bg-gray-50 flex flex-col overflow-hidden w-full">
 			<div
 				ref={portalContainer}
-				className={cn(
-					"flex transition-all duration-300 ease-in-out w-full overflow-hidden relative",
-					isOpen ?
-						settings?.pos?.fullscreen ?
-							"!h-[74.3dvh]"
-						:	"!h-[72.4dvh]"
-					:	"h-[100dvh]",
-				)}
+				className="flex flex-1 min-h-0 overflow-hidden w-full relative"
 			>
 				{children}
 			</div>

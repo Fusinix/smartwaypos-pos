@@ -291,6 +291,7 @@ async function createWindow() {
         amount_bt REAL DEFAULT 0,
         status TEXT,
         admin_id INTEGER,
+        edited_by INTEGER,
         amount_tendered REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -551,6 +552,13 @@ async function createWindow() {
         }
         catch {
             // Column already exists — safe to ignore
+        }
+        // Migration: add edited_by column to orders if it doesn't exist
+        try {
+            await db.run("ALTER TABLE orders ADD COLUMN edited_by INTEGER");
+        }
+        catch (error) {
+            // Column might already exist, safe to ignore
         }
         // Create default admin user if not exists
         const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", [
@@ -2366,7 +2374,16 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             context: { orderId, amount, amount_bt, ...orderData },
         });
         // Fetch the full order with items and extras (same logic as get-order-by-id)
-        const createdOrder = await db.get("SELECT * FROM orders WHERE id = ?", [orderId]);
+        const createdOrder = await db.get(`
+			SELECT 
+				o.*,
+				u_creator.username AS creator_name,
+				u_editor.username AS editor_name
+			FROM orders o
+			LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+			LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+			WHERE o.id = ?
+		`, [orderId]);
         const orderItems = await db.all(`
 			SELECT 
 				oi.id,
@@ -2427,7 +2444,15 @@ electron_1.ipcMain.handle("get-orders", async (_event, payload = {}) => {
         // console.log('get-orders handler called with payload:', payload);
         const result = await withRetry(async () => {
             const db = await (0, database_1.getDatabase)();
-            const orders = await db.all("SELECT * FROM orders");
+            const orders = await db.all(`
+				SELECT 
+					o.*,
+					u_creator.username AS creator_name,
+					u_editor.username AS editor_name
+				FROM orders o
+				LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+				LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+			`);
             // Log action within the retry wrapper
             const author = payload.author || {};
             await logAction({
@@ -2455,7 +2480,16 @@ electron_1.ipcMain.handle("get-order-by-id", async (_event, orderId, payload = {
         const result = await withRetry(async () => {
             const db = await (0, database_1.getDatabase)();
             // Get the order
-            const order = await db.get("SELECT * FROM orders WHERE id = ?", [
+            const order = await db.get(`
+					SELECT 
+						o.*,
+						u_creator.username AS creator_name,
+						u_editor.username AS editor_name
+					FROM orders o
+					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+					WHERE o.id = ?
+				`, [
                 orderId,
             ]);
             if (!order) {
@@ -2553,6 +2587,8 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 const taxRate = order.tax || 0;
                 amount = amount_bt + (amount_bt * taxRate) / 100;
             }
+            const author = order.author || {};
+            const editorId = author.id || null;
             await db.run(`
         UPDATE orders
         SET sale_id = ?,
@@ -2565,6 +2601,7 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
             amount_bt = ?,
             status = ?,
             admin_id = ?,
+            edited_by = ?,
             amount_tendered = ?,
             notes = ?,
             updated_at = CURRENT_TIMESTAMP
@@ -2580,12 +2617,12 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 amount_bt,
                 order.status,
                 order.admin_id,
+                editorId,
                 order.amount_tendered || 0,
                 order.notes || null,
                 order.id,
             ]);
             // Log action within the retry wrapper
-            const author = order.author || {};
             await logAction({
                 db,
                 admin_id: author.id || null,
@@ -2719,10 +2756,11 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
             ]);
             const taxRate = order?.tax || 0;
             const amount = amount_bt + (amount_bt * taxRate) / 100;
-            // Update order amounts
-            await db.run("UPDATE orders SET amount = ?, amount_bt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [amount, amount_bt, orderId]);
-            // Log action within the retry wrapper
             const author = payload.author || {};
+            const editorId = author.id || null;
+            // Update order amounts and edited_by
+            await db.run("UPDATE orders SET amount = ?, amount_bt = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [amount, amount_bt, editorId, orderId]);
+            // Log action within the retry wrapper
             await logAction({
                 db,
                 admin_id: author.id || null,
@@ -2739,7 +2777,16 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
                 },
             });
             // Return updated order with items (using same query as get-order-by-id)
-            const updatedOrder = await db.get("SELECT * FROM orders WHERE id = ?", [
+            const updatedOrder = await db.get(`
+					SELECT 
+						o.*,
+						u_creator.username AS creator_name,
+						u_editor.username AS editor_name
+					FROM orders o
+					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+					WHERE o.id = ?
+				`, [
                 orderId,
             ]);
             const updatedItems = await db.all(`
@@ -3045,6 +3092,37 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
             ((currentAverageOrder - prevAverageOrder) / prevAverageOrder) * 100
             : currentAverageOrder > 0 ? 100
                 : 0;
+        // Get breakdown of sales by item type (drinks vs. food)
+        const breakdownResult = await db.all(`
+			SELECT 
+				oi.item_type,
+				COALESCE(SUM(oi.quantity), 0) as count,
+				COALESCE(SUM(oi.quantity * COALESCE(p.price, fi.price)), 0) as revenue
+			FROM order_items oi
+			INNER JOIN orders o ON oi.order_id = o.id 
+				AND o.status = 'closed'
+				AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+				AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+			LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
+			LEFT JOIN food_items fi ON oi.food_item_id = fi.id AND oi.item_type = 'food'
+			GROUP BY oi.item_type
+		`, [startDateStr, endDateStr]);
+        const breakdown = {
+            drinks: { revenue: 0, count: 0 },
+            food: { revenue: 0, count: 0 },
+            others: { revenue: 0, count: 0 }
+        };
+        breakdownResult.forEach((row) => {
+            if (row.item_type === 'drink') {
+                breakdown.drinks = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+            }
+            else if (row.item_type === 'food') {
+                breakdown.food = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+            }
+            else {
+                breakdown.others = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+            }
+        });
         // Get active orders (all open orders, not filtered by date)
         const activeOrdersResult = await db.all(`
       SELECT COUNT(*) as count FROM orders WHERE status = 'open'
@@ -3057,6 +3135,7 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
             revenueChange,
             ordersChange,
             averageOrderChange,
+            breakdown,
         };
     }
     catch (error) {
@@ -3121,35 +3200,60 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
       `, [startDateStr, endDateStr]);
             // 2. Top Products (only closed orders)
             const topProducts = await db.all(`
-        SELECT p.name as product, c.name as category, SUM(oi.quantity) as sold, SUM(oi.quantity * p.price) as revenue
-        FROM products p
-        LEFT JOIN order_items oi ON p.id = oi.product_id
+        SELECT 
+          COALESCE(p.name, f.name) as product, 
+          COALESCE(c_drink.name, c_food.name, 'Uncategorized') as category, 
+          SUM(oi.quantity) as sold, 
+          SUM(oi.quantity * COALESCE(p.price, f.price)) as revenue
+        FROM order_items oi
         LEFT JOIN orders o ON oi.order_id = o.id
-        LEFT JOIN categories c ON p.category = c.id
+        LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
+        LEFT JOIN food_items f ON oi.food_item_id = f.id AND oi.item_type = 'food'
+        LEFT JOIN categories c_drink ON p.category = c_drink.id
+        LEFT JOIN food_categories c_food ON f.category_id = c_food.id
         WHERE o.status = 'closed'
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-        GROUP BY p.id, p.name, c.name
+        GROUP BY oi.item_type, COALESCE(p.id, f.id), COALESCE(p.name, f.name), COALESCE(c_drink.name, c_food.name)
         ORDER BY revenue DESC
         LIMIT 10
       `, [startDateStr, endDateStr]);
             // 3. Category Performance (only closed orders)
             const categoryPerformance = await db.all(`
-        SELECT c.name as category, SUM(oi.quantity * p.price) as revenue, COUNT(DISTINCT o.id) as orders
-        FROM categories c
-        LEFT JOIN products p ON c.id = p.category
-        LEFT JOIN order_items oi ON p.id = oi.product_id
-        LEFT JOIN orders o ON oi.order_id = o.id
-        WHERE o.status = 'closed'
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-        GROUP BY c.id, c.name
+        SELECT 
+          category,
+          SUM(revenue) as revenue,
+          SUM(orders) as orders
+        FROM (
+          SELECT 
+            c.name as category,
+            COALESCE(SUM(oi.quantity * p.price), 0) as revenue,
+            COUNT(DISTINCT o.id) as orders
+          FROM categories c
+          LEFT JOIN products p ON c.id = p.category
+          LEFT JOIN order_items oi ON p.id = oi.product_id AND oi.item_type = 'drink'
+          LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+          GROUP BY c.id, c.name
+
+          UNION ALL
+
+          SELECT 
+            fc.name as category,
+            COALESCE(SUM(oi.quantity * fi.price), 0) as revenue,
+            COUNT(DISTINCT o.id) as orders
+          FROM food_categories fc
+          LEFT JOIN food_items fi ON fc.id = fi.category_id
+          LEFT JOIN order_items oi ON fi.id = oi.food_item_id AND oi.item_type = 'food'
+          LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+          GROUP BY fc.id, fc.name
+        )
+        GROUP BY category
         ORDER BY revenue DESC
-      `, [
-                filters.startDate ||
-                    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-                filters.endDate || new Date().toISOString(),
-            ]);
+      `, [startDateStr, endDateStr, startDateStr, endDateStr]);
             // 4. Peak Hours (only closed orders)
             const peakHours = await db.all(`
         SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as orders, SUM(amount) as revenue
@@ -3472,19 +3576,21 @@ electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
         const endDateStr = formatDate(end);
         const topProducts = await db.all(`
       SELECT 
-        p.id,
-        p.name,
-        COALESCE(c.name, 'Uncategorized') as category,
-        COALESCE(SUM(oi.quantity), 0) as sold,
-        COALESCE(SUM(oi.quantity * p.price), 0) as revenue
-      FROM products p
-      INNER JOIN order_items oi ON p.id = oi.product_id
+        COALESCE(p.id, f.id) as id,
+        COALESCE(p.name, f.name) as name,
+        COALESCE(c_drink.name, c_food.name, 'Uncategorized') as category,
+        SUM(oi.quantity) as sold,
+        SUM(oi.quantity * COALESCE(p.price, f.price)) as revenue
+      FROM order_items oi
       INNER JOIN orders o ON oi.order_id = o.id 
         AND o.status = 'closed'
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-      LEFT JOIN categories c ON p.category = c.id
-      GROUP BY p.id, p.name, c.name
+      LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
+      LEFT JOIN food_items f ON oi.food_item_id = f.id AND oi.item_type = 'food'
+      LEFT JOIN categories c_drink ON p.category = c_drink.id
+      LEFT JOIN food_categories c_food ON f.category_id = c_food.id
+      GROUP BY oi.item_type, COALESCE(p.id, f.id), COALESCE(p.name, f.name), COALESCE(c_drink.name, c_food.name)
       ORDER BY revenue DESC
       LIMIT 10
     `, [startDateStr, endDateStr]);
@@ -3542,19 +3648,39 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
         const endDateStr = formatDate(end);
         const categoryData = await db.all(`
       SELECT 
-        c.name as category,
-        SUM(oi.quantity * p.price) as revenue,
-        COUNT(DISTINCT o.id) as orders
-      FROM categories c
-      LEFT JOIN products p ON c.id = p.category
-      LEFT JOIN order_items oi ON p.id = oi.product_id
-      LEFT JOIN orders o ON oi.order_id = o.id
-      WHERE o.status = 'closed'
-      AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-      GROUP BY c.id, c.name
+        category,
+        SUM(revenue) as revenue,
+        SUM(orders) as orders
+      FROM (
+        SELECT 
+          c.name as category,
+          COALESCE(SUM(oi.quantity * p.price), 0) as revenue,
+          COUNT(DISTINCT o.id) as orders
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category
+        LEFT JOIN order_items oi ON p.id = oi.product_id AND oi.item_type = 'drink'
+        LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+        GROUP BY c.id, c.name
+
+        UNION ALL
+
+        SELECT 
+          fc.name as category,
+          COALESCE(SUM(oi.quantity * fi.price), 0) as revenue,
+          COUNT(DISTINCT o.id) as orders
+        FROM food_categories fc
+        LEFT JOIN food_items fi ON fc.id = fi.category_id
+        LEFT JOIN order_items oi ON fi.id = oi.food_item_id AND oi.item_type = 'food'
+        LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+        GROUP BY fc.id, fc.name
+      )
+      GROUP BY category
       ORDER BY revenue DESC
-    `, [startDateStr, endDateStr]);
+    `, [startDateStr, endDateStr, startDateStr, endDateStr]);
         // Calculate percentages
         const totalRevenue = categoryData.reduce((sum, cat) => sum + cat.revenue, 0);
         return categoryData.map((cat) => ({
