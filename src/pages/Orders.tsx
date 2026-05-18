@@ -31,6 +31,7 @@ import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
 import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
 import { Label } from "@/components/ui/label";
 import { AlertWithActions } from "@/components/alerts/alert-with-actions";
+import { useAlertStore } from "@/stores/useAlertStore";
 import { useReceipt } from "@/hooks/useReceipt";
 import { useNavigate } from "react-router-dom";
 import { useKeyboard } from "@/context/KeyboardContext";
@@ -55,7 +56,8 @@ export const Orders: React.FC = () => {
 	const navigate = useNavigate();
 	const { fetchCategories } = useCategory();
 	const { settings } = useSettings();
-	const [activeTab, setActiveTab] = useState<"active" | "closed">("active");
+	const { showConfirm } = useAlertStore();
+	const [activeTab, setActiveTab] = useState<"active" | "closed" | "cancelled">("active");
 	const [search, setSearch] = useState("");
 	const [dateFilter, setDateFilter] = useState<string>("today"); // "all", "today", "week", "month", "custom"
 	const [customDateStart, setCustomDateStart] = useState<string>("");
@@ -131,6 +133,7 @@ export const Orders: React.FC = () => {
 			// Tab filter
 			if (activeTab === "active" && order.status !== "open") return false;
 			if (activeTab === "closed" && order.status !== "closed") return false;
+			if (activeTab === "cancelled" && order.status !== "cancelled") return false;
 
 			// Date filter
 			if (dateFilter !== "all" && order.created_at) {
@@ -290,6 +293,34 @@ export const Orders: React.FC = () => {
 		} catch (error) {
 			console.error("Failed to close order:", error);
 		}
+	};
+
+	const handleCancelOrder = () => {
+		if (!selectedOrder) return;
+		showConfirm({
+			title: "Cancel Order?",
+			description: `Are you sure you want to cancel Order #${selectedOrder.order_number ?? selectedOrder.id}? This action cannot be undone.`,
+			confirmText: "Cancel Order",
+			variant: "destructive",
+			onConfirm: async () => {
+				try {
+					await updateOrder({
+						...selectedOrder,
+						status: "cancelled",
+					});
+					// Refresh details
+					if (selectedOrder.id) {
+						const updated = await getOrderById(selectedOrder.id);
+						setSelectedOrder(updated);
+						// Refresh orders list to update UI
+						await fetchOrders();
+					}
+				} catch (error) {
+					console.error("Failed to cancel order:", error);
+					toast.error("Failed to cancel order");
+				}
+			},
+		});
 	};
 
 	const handleEditItems = () => {
@@ -554,6 +585,21 @@ export const Orders: React.FC = () => {
 							<Lock className="!size-4" />
 							Closed
 						</Button>
+						<Button
+							variant={activeTab === "cancelled" ? "default" : "outline"}
+							size="default"
+							className={cn(
+								ClassStyles.tabButton,
+								"text-base  shadow-none",
+								activeTab === "cancelled" ? "" : (
+									" hover:bg-muted/20 text-muted-foreground"
+								),
+							)}
+							onClick={() => setActiveTab("cancelled")}
+						>
+							<X className="!size-4" />
+							Cancelled
+						</Button>
 						<div className="w-px h-10 bg-border" />
 						<div className="flex-1 flex items-center relative w-full max-w-lg">
 							<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
@@ -666,6 +712,10 @@ export const Orders: React.FC = () => {
 													>
 														{isOpen ?
 															<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink" />
+														: order.status === "cancelled" ?
+															<div className="absolute top-3 right-3 text-red-500">
+																<X className="h-5 w-5" strokeWidth={3} />
+															</div>
 														:	<div className="absolute top-3 right-3 text-muted-foreground/60">
 																<Lock strokeWidth={3} />
 															</div>
@@ -673,8 +723,13 @@ export const Orders: React.FC = () => {
 														<div className="space-y-3">
 															<div className="">
 																<div className="flex-1 pb-2 space-y-1">
-																	<div className="font-bold text-2xl text-gray-900">
+																	<div className="font-bold text-2xl text-gray-900 truncate">
 																		Order #{order.order_number ?? order.id}
+																		{order.customer_name && (
+																			<span className="text-base font-normal text-muted-foreground ml-2">
+																				({order.customer_name})
+																			</span>
+																		)}
 																	</div>
 																	<p className="text-sm text-gray-900 line-clamp-2">
 																		{order.notes}
@@ -685,6 +740,8 @@ export const Orders: React.FC = () => {
 																				"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
 																				isOpen ?
 																					"bg-primary/10 text-primary"
+																				: order.status === "cancelled" ?
+																					"bg-red-100 text-red-800"
 																				:	"bg-muted text-muted-foreground",
 																			)}
 																		>
@@ -905,6 +962,14 @@ export const Orders: React.FC = () => {
 							{/* Order Info Section */}
 							<div className="space-y-4 p-6 py-0">
 								<div className="text-base font-semibold">Payment Info</div>
+								{selectedOrder.customer_name && (
+									<div className="flex items-center justify-between gap-x-2">
+										<span className="text-base text-gray-500">Order Name:</span>
+										<span className="text-base font-medium">
+											{selectedOrder.customer_name}
+										</span>
+									</div>
+								)}
 								<div className="flex items-center justify-between gap-x-2">
 									<span className="text-base text-gray-500">Order Type:</span>
 
@@ -1128,6 +1193,16 @@ export const Orders: React.FC = () => {
 											className="text-base w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 mb-2"
 										>
 											Print Kitchen Order
+										</Button>
+									)}
+								{selectedOrder.status === "open" &&
+									(selectedOrder.order_type === "table" || selectedOrder.order_type === "takeout") && (
+										<Button
+											variant="destructive"
+											onClick={handleCancelOrder}
+											className="text-base w-full bg-red-50 hover:bg-red-100 border-red-200 text-red-700 hover:text-red-800 shadow-none mb-2"
+										>
+											Cancel Order
 										</Button>
 									)}
 								<div className="flex space-x-4">

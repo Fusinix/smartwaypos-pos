@@ -248,9 +248,11 @@ export const Layout: React.FC = () => {
 						<Button
 							onClick={() => {
 								logout();
-								updateSettings({
-									pos: { ...settings?.pos, fullscreen: false },
-								});
+								if (settings?.pos) {
+									updateSettings({
+										pos: { ...settings.pos, fullscreen: false },
+									});
+								}
 								window.electron.invoke("set-fullscreen", !isFullScreen);
 								setIsFullScreen(false);
 							}}
@@ -502,12 +504,14 @@ export const Layout: React.FC = () => {
 							size="icon"
 							className="text-white bg-white/20"
 							onClick={() => {
-								updateSettings({
-									pos: {
-										...settings?.pos,
-										fullscreen: !settings?.pos?.fullscreen,
-									},
-								});
+								if (settings?.pos) {
+									updateSettings({
+										pos: {
+											...settings.pos,
+											fullscreen: !settings.pos.fullscreen,
+										},
+									});
+								}
 								window.electron.invoke("set-fullscreen", !isFullScreen);
 								setIsFullScreen(!isFullScreen);
 							}}

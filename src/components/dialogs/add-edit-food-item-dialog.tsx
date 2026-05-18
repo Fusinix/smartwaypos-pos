@@ -143,7 +143,7 @@ export default function AddEditFoodItemDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-			<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+			<DialogContent className="sm:max-w-2xl max-h-[70vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>
 						{foodItem ? "Edit Food Item" : "Add New Food Item"}

@@ -113,6 +113,7 @@ export const useReceipt = () => {
                     
                     <div style="margin-bottom: 12px; font-size: 10pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between;"><span>ORDER:</span><span>#${order.order_number ?? order.id ?? "N/A"}</span></div>
+                        ${order.customer_name ? `<div style="display: flex; justify-content: space-between;"><span>NAME:</span><span>${order.customer_name.toUpperCase()}</span></div>` : ""}
                         <div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
                     </div>
     
@@ -291,6 +292,7 @@ export const useReceipt = () => {
                     <div class="header">
                         <h1>KITCHEN TICKET</h1>
                         <div style="font-size: 14pt; font-weight: 900; margin-top: 4px;">ORDER #${orderNum} ${tableNum ? `- TABLE ${tableNum}` : ""}</div>
+                        ${order.customer_name ? `<div style="font-size: 14pt; font-weight: 900; margin-top: 4px;">NAME: ${order.customer_name.toUpperCase()}</div>` : ""}
                         <div style="font-size: 11pt;">${time}</div>
                     </div>
     

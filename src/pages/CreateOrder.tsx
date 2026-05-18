@@ -10,20 +10,12 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { useCategory } from "@/hooks/useCategory";
 import { orderTypes, paymentModes, useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { useFood } from "@/hooks/useFood";
 import { useFoodExtras } from "@/hooks/useFoodExtras";
 import { useSettings } from "@/hooks/useSettings";
-import { useTables } from "@/hooks/useTables";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn, parseJSONString } from "@/lib/utils";
 import {
@@ -96,7 +88,6 @@ export const CreateOrder: React.FC = () => {
 	const { settings, keyboardBottom } = useSettings();
 	const { categories, fetchCategories } = useCategory();
 	const { format: formatCurrency } = useCurrency();
-	const { tables, getTables } = useTables();
 	const { createOrder, orders, fetchOrders, loading } = useOrders();
 	const { printReceipt } = useReceipt();
 	const { isOpen: isKeyboardOpen } = useKeyboard();
@@ -121,6 +112,7 @@ export const CreateOrder: React.FC = () => {
 	);
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
 	const [notes, setNotes] = useState("");
+	const [customerName, setCustomerName] = useState("");
 	const [amountTendered, setAmountTendered] = useState("");
 	const [orderToPrint, setOrderToPrint] = useState<any>(null);
 	const { showConfirm } = useAlertStore();
@@ -151,6 +143,7 @@ export const CreateOrder: React.FC = () => {
 				if (data.paymentMode) setPaymentMode(data.paymentMode);
 				if (data.notes) setNotes(data.notes);
 				if (data.amountTendered) setAmountTendered(data.amountTendered);
+				if (data.customerName) setCustomerName(data.customerName);
 			} catch (e) {
 				console.error("Failed to load cart from localStorage", e);
 			}
@@ -166,9 +159,10 @@ export const CreateOrder: React.FC = () => {
 			paymentMode,
 			notes,
 			amountTendered,
+			customerName,
 		};
 		localStorage.setItem("pos_current_cart", JSON.stringify(data));
-	}, [cart, orderType, tableNumber, paymentMode, notes, amountTendered]);
+	}, [cart, orderType, tableNumber, paymentMode, notes, amountTendered, customerName]);
 
 	const saveDraft = () => {
 		if (cart.length === 0) {
@@ -183,6 +177,7 @@ export const CreateOrder: React.FC = () => {
 			tableNumber,
 			paymentMode,
 			notes,
+			customerName,
 			subtotal,
 		};
 		const updatedDrafts = [newDraft, ...drafts];
@@ -197,6 +192,7 @@ export const CreateOrder: React.FC = () => {
 		setTableNumber(draft.tableNumber || "");
 		setPaymentMode(draft.paymentMode || "cash");
 		setNotes(draft.notes || "");
+		setCustomerName(draft.customerName || "");
 		setShowDraftsDialog(false);
 		toast.success("Draft restored");
 	};
@@ -236,7 +232,6 @@ export const CreateOrder: React.FC = () => {
 		fetchCategories();
 		fetchFoodItems();
 		fetchFoodCategories();
-		getTables();
 		fetchExtras();
 		fetchOrders();
 	}, []);
@@ -414,6 +409,7 @@ export const CreateOrder: React.FC = () => {
 		setPaymentMode("cash");
 		setAmountTendered("");
 		setNotes("");
+		setCustomerName("");
 		setSearch("");
 		setActiveTab("drinks");
 		setSelectedFoodItem(null);
@@ -466,6 +462,7 @@ export const CreateOrder: React.FC = () => {
 				paymentMode === "cash" ? parseFloat(amountTendered || "0") : 0,
 			tax,
 			notes,
+			customer_name: customerName || undefined,
 			status: orderType === "customer" ? "closed" : "open",
 		};
 		try {
@@ -979,51 +976,9 @@ export const CreateOrder: React.FC = () => {
 										<span className="text-sm font-medium text-gray-700">
 											Table:
 										</span>
-										{(() => {
-											// Get tables with active orders
-											const tablesWithActiveOrders = new Set(
-												orders
-													.filter(
-														(order) =>
-															order.status === "open" && order.table_number,
-													)
-													.map((order) => order.table_number?.toString()),
-											);
-
-											// Filter available tables (active and not assigned to an active order)
-											const availableTables = tables.filter(
-												(table) =>
-													table.status === "active" &&
-													!tablesWithActiveOrders.has(table.name),
-											);
-
-											if (availableTables.length === 0) {
-												return (
-													<div className="w-full h-11 text-base px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 flex items-center">
-														No available tables
-													</div>
-												);
-											}
-
-											return (
-												<Select
-													value={tableNumber}
-													onValueChange={setTableNumber}
-												>
-													<SelectTrigger className="w-full h-11 text-base">
-														<SelectValue placeholder="Select Table" />
-													</SelectTrigger>
-													<SelectContent>
-														{availableTables.map((table) => (
-															<SelectItem key={table.id} value={table.name}>
-																{table.name}
-																{table.capacity && ` (${table.capacity} seats)`}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
-											);
-										})()}
+										<div className="w-full h-11 text-base px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 flex items-center">
+											Will be auto-assigned (DINE-XXX)
+										</div>
 									</div>
 								)}
 								{orderType === "takeout" && (
@@ -1036,6 +991,20 @@ export const CreateOrder: React.FC = () => {
 										</div>
 									</div>
 								)}
+
+								<div className="space-y-2">
+									<p className="text-sm font-medium text-gray-700">
+										Order Name:
+									</p>
+									<Input
+										id="customer-name"
+										name="customer-name"
+										value={customerName}
+										onChange={(e) => setCustomerName(e.target.value)}
+										placeholder="Customer / Order name..."
+										className="h-11 text-base rounded-xl bg-muted border-0"
+									/>
+								</div>
 
 								<div className="space-y-2">
 									<p className="text-sm font-medium text-gray-700">
@@ -1149,7 +1118,6 @@ export const CreateOrder: React.FC = () => {
 										disabled={
 											cart.length === 0 ||
 											loading ||
-											(orderType === "table" && !tableNumber) ||
 											(paymentMode === "cash" &&
 												orderType === "customer" &&
 												(!amountTendered ||
