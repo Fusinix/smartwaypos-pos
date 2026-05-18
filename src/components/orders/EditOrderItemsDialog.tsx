@@ -491,7 +491,9 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 
 						{/* Right: Order items and totals */}
 						<div
-							className={"w-1/3 flex flex-col h-full min-h-0 overflow-y-auto"}
+							className={
+								"w-1/3 flex flex-col h-full min-h-0 overflow-y-auto overflow-x-hidden"
+							}
 						>
 							<div className="flex items-center justify-between p-4 h-14 py-1 border-b">
 								<h2 className="text-lg font-semibold py-0.5">

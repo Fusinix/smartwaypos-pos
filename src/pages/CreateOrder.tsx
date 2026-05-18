@@ -557,7 +557,7 @@ export const CreateOrder: React.FC = () => {
 									))}
 								</div>
 							</div>
-							<div className="flex-1 h-full overflow-y-auto">
+							<div className="flex-1 h-full overflow-y-auto overflow-x-hidden">
 								<div className="px-4 py-2 border-b flex items-center gap-4 bg-card h-14 sticky top-0 z-10">
 									<Button
 										variant={activeTab === "drinks" ? "default" : "outline"}

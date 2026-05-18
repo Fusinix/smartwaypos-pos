@@ -803,7 +803,7 @@ export const Orders: React.FC = () => {
 				{/* Right Panel: Order Details */}
 				<div
 					className={cn(
-						"bg-white flex flex-col !h-full overflow-y-auto w-1/3",
+						"bg-white flex flex-col !h-full overflow-y-auto overflow-x-hidden w-1/3",
 						!selectedOrder && "hidden",
 					)}
 				>
