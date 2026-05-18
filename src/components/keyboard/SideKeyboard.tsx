@@ -170,19 +170,12 @@ export const SideKeyboard: React.FC = () => {
 		});
 	};
 
-	const Key = ({
-		value,
-		label,
-		isBottomPosition,
-		className,
-		variant = "outline",
-	}: any) => (
+	const Key = ({ value, label, className, variant = "outline" }: any) => (
 		<Button
 			variant={variant}
 			tabIndex={-1}
 			className={cn(
-				"text-xl sm:text-xl font-bold rounded-xl transition-all active:scale-90 !shadow-none border-border/40",
-				isBottomPosition ? "h-10 sm:h-11 " : "h-16 sm:!h-20 ",
+				"text-xl sm:text-xl font-bold rounded-xl transition-all active:scale-90 !shadow-none border-border/40 h-10 sm:h-11",
 				className,
 			)}
 			onPointerDown={(e) => {
@@ -226,13 +219,6 @@ export const SideKeyboard: React.FC = () => {
 		// "absolute bottom-0 left-0 right-0 z-10",
 	);
 
-	const rightPositionClass = cn(
-		"bg-card border-l-2 border-border !z-[1000] transition-all duration-300 ease-in-out shadow-none overflow-hidden flex flex-col keyboard-container flex-shrink-0 h-screen",
-		isOpen ? "w-[400px] sm:w-[500px]" : "w-0 border-l-0 shadow-none",
-	);
-
-	const isBottomPosition = settings?.pos?.keyboardPosition === "b";
-
 	if (!isOpen) return null;
 
 	return (
@@ -268,139 +254,131 @@ export const SideKeyboard: React.FC = () => {
 		>
 			<div
 				className={cn(
-					"relative overflow-y-auto flex-1 p-6 bg-white flex divide-x gap-6 w-full lg:max-w-[90%] xl:max-w-[65%] mx-auto rounded-xl shadow-xl",
+					"relative overflow-y-auto overflow-x-hidden flex-1 p-6 bg-white flex divide-x gap-6 w-full !max-w-[80%] xl:!max-w-[65%] mx-auto rounded-xl shadow-xl",
 				)}
 			>
-				{mode != "numeric" || isBottomPosition ?
-					<div
-						className={cn(
-							"flex flex-col gap-3",
-							isBottomPosition ? "flex-1" : "",
-						)}
-					>
-						{(layout === "symbols" ? symbolKeys : alphabet).map((row, i) => (
-							<div key={i} className="flex justify-center gap-2">
-								{row.map((key) => {
-									if (key === "SHIFT") {
-										return (
-											<Button
-												key="shift"
-												variant="outline"
-												tabIndex={-1}
+				{/* {mode != "numeric" ? */}
+				<div className={cn("flex flex-col gap-3 flex-1")}>
+					{(layout === "symbols" || mode === "numeric" ?
+						symbolKeys
+					:	alphabet
+					).map((row, i) => (
+						<div key={i} className="flex justify-center gap-2">
+							{row.map((key) => {
+								if (key === "SHIFT") {
+									return (
+										<Button
+											key="shift"
+											variant="outline"
+											tabIndex={-1}
+											className={cn(
+												"flex-1 rounded-xl shadow-none border-0 bg-muted/90 h-10 sm:h-12",
+												layout === "uppercase" &&
+													"bg-primary text-primary-foreground border-primary shadow-none shadow-primary/20",
+											)}
+											onPointerDown={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+												e.nativeEvent.stopImmediatePropagation();
+											}}
+											onMouseDown={(e) => {
+												e.preventDefault();
+											}}
+											onClick={(e) => {
+												e.stopPropagation();
+												e.nativeEvent.stopImmediatePropagation();
+												setLayout((prev) =>
+													prev === "lowercase" ? "uppercase" : "lowercase",
+												);
+											}}
+										>
+											<ChevronRight
 												className={cn(
-													"flex-1 rounded-xl shadow-none border-0 bg-muted/90",
-													isBottomPosition ? "h-10 sm:h-12" : "h-16 sm:h-20 ",
-													layout === "uppercase" &&
-														"bg-primary text-primary-foreground border-primary shadow-none shadow-primary/20",
+													"size-6 transition-transform",
+													layout === "uppercase" ? "-rotate-90" : "",
 												)}
-												onPointerDown={(e) => {
-													e.preventDefault();
-													e.stopPropagation();
-													e.nativeEvent.stopImmediatePropagation();
-												}}
-												onMouseDown={(e) => {
-													e.preventDefault();
-												}}
-												onClick={(e) => {
-													e.stopPropagation();
-													e.nativeEvent.stopImmediatePropagation();
-													setLayout((prev) =>
-														prev === "lowercase" ? "uppercase" : "lowercase",
-													);
-												}}
-											>
-												<ChevronRight
-													className={cn(
-														"size-6 transition-transform",
-														layout === "uppercase" ? "-rotate-90" : "",
-													)}
-												/>
-											</Button>
-										);
-									}
-									if (key === "123" || key === "ABC") {
-										return (
-											<Button
-												key="mode"
-												variant="outline"
-												tabIndex={-1}
-												className={cn(
-													"flex-1 rounded-xl shadow-none bg-muted/90 border-0 text-sm font-black",
-													isBottomPosition ? "h-10 sm:h-12" : "h-16 sm:h-20 ",
-												)}
-												onPointerDown={(e) => {
-													e.preventDefault();
-													e.stopPropagation();
-													e.nativeEvent.stopImmediatePropagation();
-												}}
-												onMouseDown={(e) => {
-													e.preventDefault();
-												}}
-												onClick={(e) => {
-													e.stopPropagation();
-													e.nativeEvent.stopImmediatePropagation();
-													setLayout((prev) =>
-														prev === "symbols" ? "lowercase" : "symbols",
-													);
-												}}
-											>
-												{key}
-											</Button>
-										);
-									}
-									if (key === "SPACE") {
-										return (
-											<Key
-												key="space"
-												value="SPACE"
-												isBottomPosition={isBottomPosition}
-												label={<Space className="size-6" />}
-												className="flex-[3] bg-muted/90 border-none"
 											/>
-										);
-									}
-									if (key === "ENTER") {
-										return (
-											<Key
-												key="enter"
-												value="ENTER"
-												isBottomPosition={isBottomPosition}
-												label={<CornerDownLeft className="size-6" />}
-												variant="default"
-												className="flex-1 shadow-xl shadow-primary/30"
-											/>
-										);
-									}
-									if (key === "BACKSPACE") {
-										return (
-											<Key
-												key="back"
-												value="BACKSPACE"
-												isBottomPosition={isBottomPosition}
-												label={<Delete className="size-6" />}
-												className="flex-1 bg-destructive text-white"
-											/>
-										);
-									}
-
-									const char =
-										layout === "uppercase" && typeof key !== "number" ?
-											key.toUpperCase()
-										:	key;
+										</Button>
+									);
+								}
+								if (key === "123" || key === "ABC") {
+									return (
+										<Button
+											key="mode"
+											variant="outline"
+											tabIndex={-1}
+											className={cn(
+												"flex-1 rounded-xl shadow-none bg-muted/90 border-0 text-sm font-black h-10 sm:h-12",
+											)}
+											onPointerDown={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+												e.nativeEvent.stopImmediatePropagation();
+											}}
+											onMouseDown={(e) => {
+												e.preventDefault();
+											}}
+											onClick={(e) => {
+												e.stopPropagation();
+												e.nativeEvent.stopImmediatePropagation();
+												setLayout((prev) =>
+													prev === "symbols" ? "lowercase" : "symbols",
+												);
+											}}
+										>
+											{key}
+										</Button>
+									);
+								}
+								if (key === "SPACE") {
 									return (
 										<Key
-											key={key}
-											value={char}
-											isBottomPosition={isBottomPosition}
-											className="flex-1 min-w-0 px-0 shadow-none"
+											key="space"
+											value="SPACE"
+											label={<Space className="size-6" />}
+											className="flex-[3] bg-muted/90 border-none"
 										/>
 									);
-								})}
-							</div>
-						))}
-					</div>
-				:	null}
-				{mode === "numeric" || isBottomPosition ?
+								}
+								if (key === "ENTER") {
+									return (
+										<Key
+											key="enter"
+											value="ENTER"
+											label={<CornerDownLeft className="size-6" />}
+											variant="default"
+											className="flex-1 shadow-xl shadow-primary/30"
+										/>
+									);
+								}
+								if (key === "BACKSPACE") {
+									return (
+										<Key
+											key="back"
+											value="BACKSPACE"
+											label={<Delete className="size-6" />}
+											className="flex-1 bg-destructive text-white"
+										/>
+									);
+								}
+
+								const char =
+									layout === "uppercase" && typeof key !== "number" ?
+										key.toUpperCase()
+									:	key;
+								return (
+									<Key
+										key={key}
+										value={char}
+										className="flex-1 min-w-0 px-0 shadow-none"
+									/>
+								);
+							})}
+						</div>
+					))}
+				</div>
+				{/* :	null} */}
+				{/* {mode === "numeric" ?
 					<div
 						className={cn(
 							"grid grid-cols-3 gap-4 max-h-[600px]",
@@ -411,7 +389,7 @@ export const SideKeyboard: React.FC = () => {
 							<Key
 								key={key}
 								value={key}
-								isBottomPosition={isBottomPosition}
+							
 								label={
 									key === "BACKSPACE" ? <Delete className="size-8" /> : key
 								}
@@ -448,7 +426,7 @@ export const SideKeyboard: React.FC = () => {
 							Confirm Entry
 						</Button>
 					</div>
-				:	null}
+				:	null} */}
 				<Button
 					variant="ghost"
 					size="icon"
