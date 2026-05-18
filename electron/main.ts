@@ -3697,6 +3697,38 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 			: currentAverageOrder > 0 ? 100
 			: 0;
 
+		// Get breakdown of sales by item type (drinks vs. food)
+		const breakdownResult = await db.all(`
+			SELECT 
+				oi.item_type,
+				COALESCE(SUM(oi.quantity), 0) as count,
+				COALESCE(SUM(oi.quantity * COALESCE(p.price, fi.price)), 0) as revenue
+			FROM order_items oi
+			INNER JOIN orders o ON oi.order_id = o.id 
+				AND o.status = 'closed'
+				AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+				AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+			LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
+			LEFT JOIN food_items fi ON oi.food_item_id = fi.id AND oi.item_type = 'food'
+			GROUP BY oi.item_type
+		`, [startDateStr, endDateStr]);
+
+		const breakdown = {
+			drinks: { revenue: 0, count: 0 },
+			food: { revenue: 0, count: 0 },
+			others: { revenue: 0, count: 0 }
+		};
+
+		breakdownResult.forEach((row: any) => {
+			if (row.item_type === 'drink') {
+				breakdown.drinks = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+			} else if (row.item_type === 'food') {
+				breakdown.food = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+			} else {
+				breakdown.others = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+			}
+		});
+
 		// Get active orders (all open orders, not filtered by date)
 		const activeOrdersResult = await db.all(`
       SELECT COUNT(*) as count FROM orders WHERE status = 'open'
@@ -3710,6 +3742,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 			revenueChange,
 			ordersChange,
 			averageOrderChange,
+			breakdown,
 		};
 	} catch (error) {
 		console.error("Error getting dashboard stats:", error);
@@ -3786,15 +3819,21 @@ ipcMain.handle(
 				// 2. Top Products (only closed orders)
 				const topProducts = await db.all(
 					`
-        SELECT p.name as product, c.name as category, SUM(oi.quantity) as sold, SUM(oi.quantity * p.price) as revenue
-        FROM products p
-        LEFT JOIN order_items oi ON p.id = oi.product_id
+        SELECT 
+          COALESCE(p.name, f.name) as product, 
+          COALESCE(c_drink.name, c_food.name, 'Uncategorized') as category, 
+          SUM(oi.quantity) as sold, 
+          SUM(oi.quantity * COALESCE(p.price, f.price)) as revenue
+        FROM order_items oi
         LEFT JOIN orders o ON oi.order_id = o.id
-        LEFT JOIN categories c ON p.category = c.id
+        LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
+        LEFT JOIN food_items f ON oi.food_item_id = f.id AND oi.item_type = 'food'
+        LEFT JOIN categories c_drink ON p.category = c_drink.id
+        LEFT JOIN food_categories c_food ON f.category_id = c_food.id
         WHERE o.status = 'closed'
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-        GROUP BY p.id, p.name, c.name
+        GROUP BY oi.item_type, COALESCE(p.id, f.id), COALESCE(p.name, f.name), COALESCE(c_drink.name, c_food.name)
         ORDER BY revenue DESC
         LIMIT 10
       `,
@@ -3804,22 +3843,41 @@ ipcMain.handle(
 				// 3. Category Performance (only closed orders)
 				const categoryPerformance = await db.all(
 					`
-        SELECT c.name as category, SUM(oi.quantity * p.price) as revenue, COUNT(DISTINCT o.id) as orders
-        FROM categories c
-        LEFT JOIN products p ON c.id = p.category
-        LEFT JOIN order_items oi ON p.id = oi.product_id
-        LEFT JOIN orders o ON oi.order_id = o.id
-        WHERE o.status = 'closed'
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-        GROUP BY c.id, c.name
+        SELECT 
+          category,
+          SUM(revenue) as revenue,
+          SUM(orders) as orders
+        FROM (
+          SELECT 
+            c.name as category,
+            COALESCE(SUM(oi.quantity * p.price), 0) as revenue,
+            COUNT(DISTINCT o.id) as orders
+          FROM categories c
+          LEFT JOIN products p ON c.id = p.category
+          LEFT JOIN order_items oi ON p.id = oi.product_id AND oi.item_type = 'drink'
+          LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+          GROUP BY c.id, c.name
+
+          UNION ALL
+
+          SELECT 
+            fc.name as category,
+            COALESCE(SUM(oi.quantity * fi.price), 0) as revenue,
+            COUNT(DISTINCT o.id) as orders
+          FROM food_categories fc
+          LEFT JOIN food_items fi ON fc.id = fi.category_id
+          LEFT JOIN order_items oi ON fi.id = oi.food_item_id AND oi.item_type = 'food'
+          LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+          GROUP BY fc.id, fc.name
+        )
+        GROUP BY category
         ORDER BY revenue DESC
       `,
-					[
-						filters.startDate ||
-							new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-						filters.endDate || new Date().toISOString(),
-					]
+					[startDateStr, endDateStr, startDateStr, endDateStr]
 				);
 
 				// 4. Peak Hours (only closed orders)
@@ -4201,19 +4259,21 @@ ipcMain.handle("get-top-products", async (_event, filters = {}) => {
 		const topProducts = await db.all(
 			`
       SELECT 
-        p.id,
-        p.name,
-        COALESCE(c.name, 'Uncategorized') as category,
-        COALESCE(SUM(oi.quantity), 0) as sold,
-        COALESCE(SUM(oi.quantity * p.price), 0) as revenue
-      FROM products p
-      INNER JOIN order_items oi ON p.id = oi.product_id
+        COALESCE(p.id, f.id) as id,
+        COALESCE(p.name, f.name) as name,
+        COALESCE(c_drink.name, c_food.name, 'Uncategorized') as category,
+        SUM(oi.quantity) as sold,
+        SUM(oi.quantity * COALESCE(p.price, f.price)) as revenue
+      FROM order_items oi
       INNER JOIN orders o ON oi.order_id = o.id 
         AND o.status = 'closed'
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
         AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-      LEFT JOIN categories c ON p.category = c.id
-      GROUP BY p.id, p.name, c.name
+      LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
+      LEFT JOIN food_items f ON oi.food_item_id = f.id AND oi.item_type = 'food'
+      LEFT JOIN categories c_drink ON p.category = c_drink.id
+      LEFT JOIN food_categories c_food ON f.category_id = c_food.id
+      GROUP BY oi.item_type, COALESCE(p.id, f.id), COALESCE(p.name, f.name), COALESCE(c_drink.name, c_food.name)
       ORDER BY revenue DESC
       LIMIT 10
     `,
@@ -4284,20 +4344,40 @@ ipcMain.handle("get-category-performance", async (_event, filters = {}) => {
 		const categoryData = await db.all(
 			`
       SELECT 
-        c.name as category,
-        SUM(oi.quantity * p.price) as revenue,
-        COUNT(DISTINCT o.id) as orders
-      FROM categories c
-      LEFT JOIN products p ON c.id = p.category
-      LEFT JOIN order_items oi ON p.id = oi.product_id
-      LEFT JOIN orders o ON oi.order_id = o.id
-      WHERE o.status = 'closed'
-      AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
-      GROUP BY c.id, c.name
+        category,
+        SUM(revenue) as revenue,
+        SUM(orders) as orders
+      FROM (
+        SELECT 
+          c.name as category,
+          COALESCE(SUM(oi.quantity * p.price), 0) as revenue,
+          COUNT(DISTINCT o.id) as orders
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category
+        LEFT JOIN order_items oi ON p.id = oi.product_id AND oi.item_type = 'drink'
+        LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+        GROUP BY c.id, c.name
+
+        UNION ALL
+
+        SELECT 
+          fc.name as category,
+          COALESCE(SUM(oi.quantity * fi.price), 0) as revenue,
+          COUNT(DISTINCT o.id) as orders
+        FROM food_categories fc
+        LEFT JOIN food_items fi ON fc.id = fi.category_id
+        LEFT JOIN order_items oi ON fi.id = oi.food_item_id AND oi.item_type = 'food'
+        LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
+          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+        GROUP BY fc.id, fc.name
+      )
+      GROUP BY category
       ORDER BY revenue DESC
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr, startDateStr, endDateStr]
 		);
 
 		// Calculate percentages

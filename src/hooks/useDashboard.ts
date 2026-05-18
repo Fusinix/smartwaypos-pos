@@ -16,6 +16,11 @@ export interface DashboardStats {
   revenueChange: number;
   ordersChange: number;
   averageOrderChange: number;
+  breakdown?: {
+    drinks: { revenue: number; count: number };
+    food: { revenue: number; count: number };
+    others?: { revenue: number; count: number };
+  };
 }
 
 export const useDashboard = () => {
@@ -29,7 +34,12 @@ export const useDashboard = () => {
     averageOrderValue: 0,
     revenueChange: 0,
     ordersChange: 0,
-    averageOrderChange: 0
+    averageOrderChange: 0,
+    breakdown: {
+      drinks: { revenue: 0, count: 0 },
+      food: { revenue: 0, count: 0 },
+      others: { revenue: 0, count: 0 }
+    }
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
