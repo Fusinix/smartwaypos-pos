@@ -162,7 +162,15 @@ export const CreateOrder: React.FC = () => {
 			customerName,
 		};
 		localStorage.setItem("pos_current_cart", JSON.stringify(data));
-	}, [cart, orderType, tableNumber, paymentMode, notes, amountTendered, customerName]);
+	}, [
+		cart,
+		orderType,
+		tableNumber,
+		paymentMode,
+		notes,
+		amountTendered,
+		customerName,
+	]);
 
 	const saveDraft = () => {
 		if (cart.length === 0) {
@@ -600,7 +608,7 @@ export const CreateOrder: React.FC = () => {
 									className={cn(
 										"grid gap-4 p-4",
 										cart.length > 0 ?
-											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3 xl:grid-cols-4"
+											"grid-cols-1 md:grid-cols-1 lg:grid-cols-3"
 										:	"grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5",
 									)}
 								>
@@ -733,7 +741,7 @@ export const CreateOrder: React.FC = () => {
 					{/* Right: Cart and finalization */}
 					<div
 						className={cn(
-							"w-1/3 xl:w-1/4 bg-white flex flex-col h-full",
+							"w-1/3 bg-white flex flex-col h-full",
 							cart.length === 0 && "hidden",
 						)}
 					>

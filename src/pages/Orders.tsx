@@ -34,7 +34,6 @@ import { AlertWithActions } from "@/components/alerts/alert-with-actions";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useReceipt } from "@/hooks/useReceipt";
 import { useNavigate } from "react-router-dom";
-import { useKeyboard } from "@/context/KeyboardContext";
 import { useAuth } from "@/context/AuthContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -57,7 +56,9 @@ export const Orders: React.FC = () => {
 	const { fetchCategories } = useCategory();
 	const { settings } = useSettings();
 	const { showConfirm } = useAlertStore();
-	const [activeTab, setActiveTab] = useState<"active" | "closed" | "cancelled">("active");
+	const [activeTab, setActiveTab] = useState<"active" | "closed" | "cancelled">(
+		"active",
+	);
 	const [search, setSearch] = useState("");
 	const [dateFilter, setDateFilter] = useState<string>("today"); // "all", "today", "week", "month", "custom"
 	const [customDateStart, setCustomDateStart] = useState<string>("");
@@ -133,7 +134,8 @@ export const Orders: React.FC = () => {
 			// Tab filter
 			if (activeTab === "active" && order.status !== "open") return false;
 			if (activeTab === "closed" && order.status !== "closed") return false;
-			if (activeTab === "cancelled" && order.status !== "cancelled") return false;
+			if (activeTab === "cancelled" && order.status !== "cancelled")
+				return false;
 
 			// Date filter
 			if (dateFilter !== "all" && order.created_at) {
@@ -685,7 +687,7 @@ export const Orders: React.FC = () => {
 											className={cn(
 												"grid gap-4 px-0",
 												selectedOrder?.id ?
-													"grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 "
+													"grid-cols-1 md:grid-cols-2 lg:grid-cols-3 "
 												:	"grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
 											)}
 										>
@@ -738,8 +740,7 @@ export const Orders: React.FC = () => {
 																		<div
 																			className={cn(
 																				"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
-																				isOpen ?
-																					"bg-primary/10 text-primary"
+																				isOpen ? "bg-primary/10 text-primary"
 																				: order.status === "cancelled" ?
 																					"bg-red-100 text-red-800"
 																				:	"bg-muted text-muted-foreground",
@@ -802,7 +803,7 @@ export const Orders: React.FC = () => {
 				{/* Right Panel: Order Details */}
 				<div
 					className={cn(
-						"bg-white flex flex-col !h-full overflow-y-auto w-1/3 xl:w-1/4",
+						"bg-white flex flex-col !h-full overflow-y-auto w-1/3",
 						!selectedOrder && "hidden",
 					)}
 				>
@@ -1196,7 +1197,8 @@ export const Orders: React.FC = () => {
 										</Button>
 									)}
 								{selectedOrder.status === "open" &&
-									(selectedOrder.order_type === "table" || selectedOrder.order_type === "takeout") && (
+									(selectedOrder.order_type === "table" ||
+										selectedOrder.order_type === "takeout") && (
 										<Button
 											variant="destructive"
 											onClick={handleCancelOrder}
