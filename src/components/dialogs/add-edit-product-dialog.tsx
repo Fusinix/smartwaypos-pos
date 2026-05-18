@@ -25,6 +25,12 @@ import type { NewProduct, Product } from "@/types/product";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const STOCK_REASONS = [
+	{ value: "restock", label: "Restock (Added New Inventory)" },
+	{ value: "adjustment", label: "Correction (Fixing Count)" },
+	{ value: "wastage", label: "Damage / Spoilage" },
+];
+
 interface AddEditProductDialogProps {
 	product?: Product;
 	open: boolean;
@@ -70,9 +76,41 @@ export default function AddEditProductDialog({
 		product?.image || null,
 	);
 	const [reason, setReason] = useState<string>("adjustment");
+	const [adjustmentValue, setAdjustmentValue] = useState<number>(0);
 	const navigate = useNavigate();
 
 	const stockChanged = product && Number(product.stock) !== formData.stock;
+
+	const handleReasonChange = (newReason: string) => {
+		setReason(newReason);
+		setAdjustmentValue(0);
+		if (!product) return;
+		const oldStock = Number(product.stock);
+		setFormData((prev) => ({
+			...prev,
+			stock: oldStock,
+		}));
+	};
+
+	const handleAdjustmentValueChange = (val: number) => {
+		setAdjustmentValue(val);
+		if (!product) return;
+		const oldStock = Number(product.stock);
+
+		let newStock = oldStock;
+		if (reason === "restock") {
+			newStock = oldStock + val;
+		} else if (reason === "wastage") {
+			newStock = oldStock - val;
+		} else {
+			newStock = val;
+		}
+
+		setFormData((prev) => ({
+			...prev,
+			stock: Math.max(0, newStock),
+		}));
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -85,6 +123,8 @@ export default function AddEditProductDialog({
 				stockChanged ? reason : undefined,
 			);
 			setFormData(defaultProd);
+			setAdjustmentValue(0);
+			setReason("adjustment");
 			onClose();
 		} catch (error) {
 			console.error("Error saving product:", error);
@@ -213,22 +253,86 @@ export default function AddEditProductDialog({
 							/>
 						</div>
 
-						<div>
-							<Label htmlFor="stock">Stock Quantity</Label>
-							<Input
-								id="stock"
-								type="number"
-								min="0"
-								value={formData.stock}
-								onChange={(e) =>
-									setFormData((prev) => ({
-										...prev,
-										stock: parseInt(e.target.value, 10),
-									}))
-								}
-								required
-							/>
-						</div>
+						{product ?
+							<>
+								<div className="space-y-2 mt-4 p-4 border rounded-md bg-orange-50/50 border-orange-200">
+									<Label
+										htmlFor="reason"
+										className="text-orange-800 font-semibold flex items-center gap-2"
+									>
+										Reason for Stock Change
+									</Label>
+									<Select value={reason} onValueChange={handleReasonChange}>
+										<SelectTrigger id="reason" className="bg-white">
+											<SelectValue placeholder="Select reason" />
+										</SelectTrigger>
+										<SelectContent>
+											{STOCK_REASONS.map((item) => (
+												<SelectItem key={item.value} value={item.value}>
+													{item.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+
+								<div>
+									<Label htmlFor="old-stock">Old Stock Quantity</Label>
+									<Input
+										id="old-stock"
+										type="number"
+										value={product.stock}
+										disabled
+										className="bg-gray-100 cursor-not-allowed"
+									/>
+								</div>
+
+								<div>
+									<Label htmlFor="stock">
+										{reason === "restock" && "Quantity to Add"}
+										{reason === "wastage" && "Quantity to Remove (Damage/Spoil)"}
+										{reason === "adjustment" && "New Corrected Stock Quantity"}
+									</Label>
+									<Input
+										id="stock"
+										type="number"
+										min="0"
+										value={reason === "adjustment" ? formData.stock : adjustmentValue}
+										onChange={(e) => {
+											const val = parseInt(e.target.value, 10) || 0;
+											if (reason === "adjustment") {
+												setFormData((prev) => ({ ...prev, stock: val }));
+											} else {
+												handleAdjustmentValueChange(val);
+											}
+										}}
+										required
+									/>
+								</div>
+
+								{stockChanged && (
+									<div className="text-xs font-semibold text-orange-700 bg-orange-50 p-2 border border-orange-200 rounded">
+										Calculated New Stock: {formData.stock}
+									</div>
+								)}
+							</>
+						:	<div>
+								<Label htmlFor="stock">Stock Quantity</Label>
+								<Input
+									id="stock"
+									type="number"
+									min="0"
+									value={formData.stock}
+									onChange={(e) =>
+										setFormData((prev) => ({
+											...prev,
+											stock: parseInt(e.target.value, 10) || 0,
+										}))
+									}
+									required
+								/>
+							</div>
+						}
 
 						<div>
 							<Label htmlFor="low_stock_threshold">Low Stock Threshold</Label>
@@ -246,31 +350,6 @@ export default function AddEditProductDialog({
 								required
 							/>
 						</div>
-
-						{stockChanged && (
-							<div className="space-y-2 mt-4 p-4 border rounded-md bg-orange-50/50 border-orange-200">
-								<Label
-									htmlFor="reason"
-									className="text-orange-800 font-semibold flex items-center gap-2"
-								>
-									Reason for Stock Change
-								</Label>
-								<Select value={reason} onValueChange={setReason}>
-									<SelectTrigger id="reason" className="bg-white">
-										<SelectValue placeholder="Select reason" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="restock">
-											Restock (Added New Inventory)
-										</SelectItem>
-										<SelectItem value="adjustment">
-											Correction (Fixing Count)
-										</SelectItem>
-										<SelectItem value="wastage">Damage / Spoilage</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						)}
 
 						<div className="flex items-center space-x-2">
 							<Switch

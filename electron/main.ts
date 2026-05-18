@@ -347,6 +347,7 @@ async function createWindow() {
         amount_bt REAL DEFAULT 0,
         status TEXT,
         admin_id INTEGER,
+        edited_by INTEGER,
         amount_tendered REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -628,6 +629,13 @@ async function createWindow() {
 			await db.run("ALTER TABLE order_item_extras ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
 		} catch {
 			// Column already exists — safe to ignore
+		}
+
+		// Migration: add edited_by column to orders if it doesn't exist
+		try {
+			await db.run("ALTER TABLE orders ADD COLUMN edited_by INTEGER");
+		} catch (error: any) {
+			// Column might already exist, safe to ignore
 		}
 
 		// Create default admin user if not exists
@@ -2813,7 +2821,16 @@ ipcMain.handle("create-order", async (_event, order) => {
 		});
 
 		// Fetch the full order with items and extras (same logic as get-order-by-id)
-		const createdOrder = await db.get("SELECT * FROM orders WHERE id = ?", [orderId]);
+		const createdOrder = await db.get(`
+			SELECT 
+				o.*,
+				u_creator.username AS creator_name,
+				u_editor.username AS editor_name
+			FROM orders o
+			LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+			LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+			WHERE o.id = ?
+		`, [orderId]);
 		const orderItems = await db.all(`
 			SELECT 
 				oi.id,
@@ -2876,7 +2893,15 @@ ipcMain.handle("get-orders", async (_event, payload = {}) => {
 		// console.log('get-orders handler called with payload:', payload);
 		const result = await withRetry(async () => {
 			const db = await getDatabase();
-			const orders = await db.all("SELECT * FROM orders");
+			const orders = await db.all(`
+				SELECT 
+					o.*,
+					u_creator.username AS creator_name,
+					u_editor.username AS editor_name
+				FROM orders o
+				LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+				LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+			`);
 
 			// Log action within the retry wrapper
 			const author = payload.author || {};
@@ -2910,7 +2935,16 @@ ipcMain.handle(
 				const db = await getDatabase();
 
 				// Get the order
-				const order = await db.get("SELECT * FROM orders WHERE id = ?", [
+				const order = await db.get(`
+					SELECT 
+						o.*,
+						u_creator.username AS creator_name,
+						u_editor.username AS editor_name
+					FROM orders o
+					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+					WHERE o.id = ?
+				`, [
 					orderId,
 				]);
 
@@ -3030,6 +3064,9 @@ ipcMain.handle("update-order", async (_, order) => {
 				amount = amount_bt + (amount_bt * taxRate) / 100;
 			}
 
+			const author = order.author || {};
+			const editorId = author.id || null;
+
 			await db.run(
 				`
         UPDATE orders
@@ -3043,6 +3080,7 @@ ipcMain.handle("update-order", async (_, order) => {
             amount_bt = ?,
             status = ?,
             admin_id = ?,
+            edited_by = ?,
             amount_tendered = ?,
             notes = ?,
             updated_at = CURRENT_TIMESTAMP
@@ -3059,6 +3097,7 @@ ipcMain.handle("update-order", async (_, order) => {
 					amount_bt,
 					order.status,
 					order.admin_id,
+					editorId,
 					order.amount_tendered || 0,
 					order.notes || null,
 					order.id,
@@ -3066,7 +3105,6 @@ ipcMain.handle("update-order", async (_, order) => {
 			);
 
 			// Log action within the retry wrapper
-			const author = order.author || {};
 			await logAction({
 				db,
 				admin_id: author.id || null,
@@ -3248,14 +3286,16 @@ ipcMain.handle(
 				const taxRate = order?.tax || 0;
 				const amount = amount_bt + (amount_bt * taxRate) / 100;
 
-				// Update order amounts
+				const author = payload.author || {};
+				const editorId = author.id || null;
+
+				// Update order amounts and edited_by
 				await db.run(
-					"UPDATE orders SET amount = ?, amount_bt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-					[amount, amount_bt, orderId]
+					"UPDATE orders SET amount = ?, amount_bt = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+					[amount, amount_bt, editorId, orderId]
 				);
 
 				// Log action within the retry wrapper
-				const author = payload.author || {};
 				await logAction({
 					db,
 					admin_id: author.id || null,
@@ -3273,7 +3313,16 @@ ipcMain.handle(
 				});
 
 				// Return updated order with items (using same query as get-order-by-id)
-				const updatedOrder = await db.get("SELECT * FROM orders WHERE id = ?", [
+				const updatedOrder = await db.get(`
+					SELECT 
+						o.*,
+						u_creator.username AS creator_name,
+						u_editor.username AS editor_name
+					FROM orders o
+					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+					WHERE o.id = ?
+				`, [
 					orderId,
 				]);
 				const updatedItems = await db.all(

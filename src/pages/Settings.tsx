@@ -1247,29 +1247,29 @@ export const Settings: React.FC = () => {
 											</tr>
 										</thead>
 										<tbody className="bg-white divide-y divide-gray-200">
-											{users.map((user) => (
-												<tr key={user.id}>
+											{users.map((u) => (
+												<tr key={u.id}>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														{user.username}
+														{u.username}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-														{user.role}
+														{u.role}
 													</td>
 
 													<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
 														<Button
 															variant="outline"
 															size="sm"
-															onClick={() => setEditingUser(user)}
+															onClick={() => setEditingUser(u)}
 															className="mr-2"
 														>
 															Edit
 														</Button>
-														{user.role !== "admin" && (
+														{isAdmin && user?.id != u.id && (
 															<Button
 																variant="destructive"
 																size="sm"
-																onClick={() => handleDeleteUser(user.id)}
+																onClick={() => handleDeleteUser(u.id)}
 															>
 																Delete
 															</Button>

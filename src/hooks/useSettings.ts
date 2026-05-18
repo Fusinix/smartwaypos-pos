@@ -220,12 +220,40 @@ export const useSettings = () => {
 		}
 	};
 
+	const toggleFullScreenMode = async (value?: boolean) => {
+		try {
+			setGlobalLoading(true, "Updating settings...");
+			window.electron.invoke(
+				"set-fullscreen",
+				value || !settings?.pos?.fullscreen,
+			);
+			await window.electron.invoke("update-settings", {
+				pos: {
+					...settings?.pos,
+					fullscreen: value || !settings?.pos?.fullscreen,
+				},
+				author: adminUser,
+			});
+			const updatedSettings = await window.electron.invoke("get-settings");
+			setSettings(updatedSettings);
+		} catch (err) {
+			console.error("Error updating settings:", err);
+			const errorMessage =
+				err instanceof Error ? err.message : "Failed to update settings";
+			showError(errorMessage);
+			throw err;
+		} finally {
+			setGlobalLoading(false);
+		}
+	};
+
 	return {
 		settings,
 		users,
 		loading,
 		error,
 		keyboardBottom: settings?.pos?.keyboardPosition === "b",
+		toggleFullScreenMode,
 		updateSettings,
 		addUser,
 		updateUser,

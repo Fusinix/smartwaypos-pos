@@ -246,16 +246,7 @@ export const Layout: React.FC = () => {
 					</div>
 					{sidebarOpen && (
 						<Button
-							onClick={() => {
-								logout();
-								if (settings?.pos) {
-									updateSettings({
-										pos: { ...settings.pos, fullscreen: false },
-									});
-								}
-								window.electron.invoke("set-fullscreen", !isFullScreen);
-								setIsFullScreen(false);
-							}}
+							onClick={logout}
 							variant="ghost"
 							size="sm"
 							className="w-full text-base bg-destructive/10 text-destructive hover:bg-destructive/20"
@@ -504,14 +495,6 @@ export const Layout: React.FC = () => {
 							size="icon"
 							className="text-white bg-white/20"
 							onClick={() => {
-								if (settings?.pos) {
-									updateSettings({
-										pos: {
-											...settings.pos,
-											fullscreen: !settings.pos.fullscreen,
-										},
-									});
-								}
 								window.electron.invoke("set-fullscreen", !isFullScreen);
 								setIsFullScreen(!isFullScreen);
 							}}

@@ -55,7 +55,10 @@ export const Login: React.FC = () => {
 		if (isRecoveryOpen && recoveryStep === 2) {
 			pollInterval = setInterval(async () => {
 				try {
-					const result = await window.electron.invoke("check-reset-status", licenseKey);
+					const result = await window.electron.invoke(
+						"check-reset-status",
+						licenseKey,
+					);
 					if (result.status === "approved") {
 						setRecoveryStep(3);
 						toast.success("Identity verified! Please set your new password.");
@@ -104,7 +107,7 @@ export const Login: React.FC = () => {
 			setIsProcessing(true);
 			const result = await window.electron.invoke(
 				"request-password-reset",
-				licenseKey
+				licenseKey,
 			);
 			if (result.success) {
 				setVerificationNumber(result.verificationNumber);
@@ -138,10 +141,10 @@ export const Login: React.FC = () => {
 			const result = await window.electron.invoke(
 				"complete-password-reset",
 				licenseKey,
-				newPassword
+				newPassword,
 			);
 			toast.success(
-				`Password for admin "${result.username}" reset successfully!`
+				`Password for admin "${result.username}" reset successfully!`,
 			);
 			setIsRecoveryOpen(false);
 			setUsername(result.username);
@@ -153,7 +156,7 @@ export const Login: React.FC = () => {
 	};
 
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8 w-full">
+		<div className="h-[calc(100%-1px)] flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8 w-full">
 			<form
 				className="w-full max-w-md mx-auto bg-white"
 				onSubmit={handleSubmit}
@@ -161,7 +164,8 @@ export const Login: React.FC = () => {
 				<div className="p-8">
 					<Logo size="md" />
 					<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-4 leading-relaxed hidden">
-						The best offline System for <span className="text-primary">Desktop & Tablet</span> devices
+						The best offline System for{" "}
+						<span className="text-primary">Desktop & Tablet</span> devices
 					</p>
 				</div>
 				<div className="rounded-md shadow-none space-y-4 p-6">
@@ -219,7 +223,11 @@ export const Login: React.FC = () => {
 						</div>
 					)}
 
-					<Button type="submit" className="w-fit mt-12 ml-auto" disabled={isLoading}>
+					<Button
+						type="submit"
+						className="w-fit mt-12 ml-auto"
+						disabled={isLoading}
+					>
 						{isLoading ? "Signing in..." : "Sign in"}
 						{!isLoading && <ArrowRight className="ml-2 size-4" />}
 					</Button>
@@ -232,15 +240,16 @@ export const Login: React.FC = () => {
 					<DialogHeader>
 						<DialogTitle className="mt-12">Admin Password Recovery</DialogTitle>
 						<DialogDescription>
-							{recoveryStep === 1 
-								? "Enter your License Key to verify ownership of this system."
-								: recoveryStep === 2
-								? "Authorization Required. Log in to your Smartway Portal to approve this request."
-								: "Identity verified! You can now set a new password for the primary admin account."}
+							{recoveryStep === 1 ?
+								"Enter your License Key to verify ownership of this system."
+							: recoveryStep === 2 ?
+								"Authorization Required. Log in to your Smartway Portal to approve this request."
+							:	"Identity verified! You can now set a new password for the primary admin account."
+							}
 						</DialogDescription>
 					</DialogHeader>
 
-					{recoveryStep === 1 ? (
+					{recoveryStep === 1 ?
 						<form onSubmit={handleVerifyKey} className="space-y-4 py-4">
 							<div className="space-y-2">
 								<Label htmlFor="licenseKey">License Key</Label>
@@ -253,7 +262,7 @@ export const Login: React.FC = () => {
 									autoFocus
 								/>
 							</div>
-							
+
 							{recoveryError && (
 								<div className="text-destructive text-sm bg-destructive/10 p-2 rounded border border-destructive/20 flex items-center gap-2">
 									<X className="size-4" />
@@ -274,22 +283,25 @@ export const Login: React.FC = () => {
 								</Button>
 							</DialogFooter>
 						</form>
-					) : recoveryStep === 2 ? (
+					: recoveryStep === 2 ?
 						<div className="space-y-6 py-6 text-center">
 							<div className="space-y-2">
-								<p className="text-sm text-muted-foreground">Select the number below in your Portal dashboard:</p>
+								<p className="text-sm text-muted-foreground">
+									Select the number below in your Portal dashboard:
+								</p>
 								<div className="text-6xl font-bold text-primary tracking-tighter">
 									{verificationNumber}
 								</div>
 							</div>
-							
+
 							<div className="flex flex-col items-center gap-2">
 								<div className="flex items-center gap-2 text-xs text-muted-foreground">
 									<div className="size-2 rounded-full bg-primary animate-pulse" />
 									Waiting for Admin approval...
 								</div>
 								<p className="text-[10px] text-muted-foreground px-6">
-									Check your phone or computer where you are logged into the Smartway Portal.
+									Check your phone or computer where you are logged into the
+									Smartway Portal.
 								</p>
 							</div>
 
@@ -303,8 +315,7 @@ export const Login: React.FC = () => {
 								Back to License Key
 							</Button>
 						</div>
-					) : (
-						<form onSubmit={handleResetPassword} className="space-y-4 py-4">
+					:	<form onSubmit={handleResetPassword} className="space-y-4 py-4">
 							<div className="space-y-2">
 								<Label htmlFor="newPassword">New Password</Label>
 								<Input
@@ -349,7 +360,7 @@ export const Login: React.FC = () => {
 								</Button>
 							</DialogFooter>
 						</form>
-					)}
+					}
 				</DialogContent>
 			</Dialog>
 		</div>

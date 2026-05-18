@@ -2201,18 +2201,18 @@ async function generateDineInTableNumber(db) {
     const lastDineInOrder = await db.get(`SELECT table_number FROM orders 
      WHERE order_type = 'table' 
      AND strftime('%Y-%m', created_at) = ?
-     AND table_number LIKE 'DI-%'
+     AND table_number LIKE 'DINE-%'
      ORDER BY CAST(SUBSTR(table_number, 4) AS INTEGER) DESC LIMIT 1`, [`${year}-${month}`]);
     let nextNumber = 1;
     if (lastDineInOrder?.table_number) {
-        // Extract number from "DI-001" format
-        const match = lastDineInOrder.table_number.match(/DI-(\d+)/);
+        // Extract number from "DINE-001" format
+        const match = lastDineInOrder.table_number.match(/DINE-(\d+)/);
         if (match) {
             nextNumber = parseInt(match[1], 10) + 1;
         }
     }
-    // Format as DI-001, DI-002, etc.
-    return `DI-${String(nextNumber).padStart(3, "0")}`;
+    // Format as DINE-001, DINE-002, etc.
+    return `DINE-${String(nextNumber).padStart(3, "0")}`;
 }
 // Order handlers
 electron_1.ipcMain.handle("create-order", async (_event, order) => {
@@ -2262,7 +2262,7 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
        WHERE strftime('%Y-%m', created_at) = ?
        ORDER BY order_number DESC LIMIT 1`, [`${year}-${month}`]);
         const orderNumber = lastOrder?.order_number ? lastOrder.order_number + 1 : 1;
-        // Generate table numbers on the fly
+        // Generate take-out or dine-in table number
         let tableNumber = orderData.table_number || null;
         if (orderData.order_type === "takeout") {
             tableNumber = await generateTakeOutTableNumber(db);

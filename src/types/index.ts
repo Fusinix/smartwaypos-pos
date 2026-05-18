@@ -34,6 +34,9 @@ export interface Order {
   amount_bt?: number;
   status: 'open' | 'closed' | 'available' | string;
   admin_id?: number;
+  edited_by?: number;
+  creator_name?: string;
+  editor_name?: string;
   amount_tendered?: number;
   created_at?: string;
   notes?: string;
