@@ -3,7 +3,7 @@
 import type { Order } from "@/types";
 
 export const useReceipt = () => {
-	const printReceipt = async (order: Order, openDrawer?: boolean) => {
+	const printReceipt = async (order: Order, openDrawer = false) => {
 		if (!order || !order.items) return;
 
 		// Calculate subtotal from items to ensure accuracy
@@ -185,7 +185,16 @@ export const useReceipt = () => {
                 </html>
             `;
 
-		// Always attempt silent printing first (it handles auto-detecion in the background)
+		// Trigger cash drawer only when explicitly requested AND payment is cash
+		if (openDrawer && order.payment_mode?.toLowerCase() === "cash") {
+			try {
+				await window.electron.invoke("trigger-cash-drawer");
+			} catch (drawerErr) {
+				console.error("Failed to trigger cash drawer after print:", drawerErr);
+			}
+		}
+
+		// Always attempt silent printing first (it handles auto-detection in the background)
 		try {
 			await window.electron.invoke("print-receipt-silent", receiptHTML, "");
 			return; // If it worked (or found a default), we stop here
@@ -337,7 +346,18 @@ export const useReceipt = () => {
             `;
 
 		try {
-			await window.electron.invoke("print-receipt-silent", kitchenHTML);
+			// Use kitchen printer if configured, otherwise fall back to default.
+			// Kitchen receipts must NEVER trigger the cash drawer.
+			const currentSettings = await window.electron.invoke("get-settings");
+			let kitchenPrinterName = "";
+			if (currentSettings?.pos) {
+				const pos =
+					typeof currentSettings.pos === "string" ?
+						JSON.parse(currentSettings.pos)
+					:	currentSettings.pos;
+				kitchenPrinterName = pos.kitchenPrinter || "";
+			}
+			await window.electron.invoke("print-receipt-silent", kitchenHTML, kitchenPrinterName);
 		} catch (error) {
 			console.error("Failed to print kitchen order:", error);
 		}
