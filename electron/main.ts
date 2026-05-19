@@ -4989,21 +4989,93 @@ ipcMain.handle("trigger-cash-drawer", async (event) => {
 		// CASE 1: RJ11 Drawer connected to Printer (Preferred)
 		if (finalPrinterName) {
 			console.log(`Attempting to kick drawer on: ${finalPrinterName}`);
-			// Use lpr -P with raw mode, it's more robust with spaces in names
-			// Force-cancel any stuck jobs in the CUPS queue, then Reset, Kick, and Reset again.
-			// Append '2>/dev/null || true' to prevent cancel command errors from failing the execution.
-			const command = `/usr/bin/cancel -a "${finalPrinterName}" 2>/dev/null || true ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
-							
-			return new Promise((resolve, reject) => {
-				exec(command, (error: any) => {
-					if (error) {
-						console.error("Cash drawer trigger error:", error);
-						return reject(error);
-					}
-					console.log("Cash drawer triggered successfully!");
-					resolve(true);
+			
+			if (process.platform === "win32") {
+				// Windows raw print command using dynamically compiled P/Invoke C# winspool.drv in PowerShell
+				const psScript = `
+$source = @"
+using System;
+using System.Runtime.InteropServices;
+public class RawPrinterHelper {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true)]
+    public static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
+    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+}
+"@
+Add-Type -TypeDefinition $source -ErrorAction SilentlyContinue
+function Send-RawBytes {
+    param([string]$name, [byte[]]$bytes)
+    $h = [IntPtr]::Zero
+    if ([RawPrinterHelper]::OpenPrinter($name, [ref]$h, [IntPtr]::Zero)) {
+        $di = New-Object RawPrinterHelper+DOCINFOA
+        $di.pDocName = "Drawer Kick"
+        $di.pDataType = "RAW"
+        if ([RawPrinterHelper]::StartDocPrinter($h, 1, $di)) {
+            [RawPrinterHelper]::StartPagePrinter($h)
+            $p = [System.Runtime.InteropServices.Marshal]::AllocCoTaskMem($bytes.Length)
+            [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $p, $bytes.Length)
+            $w = 0
+            [RawPrinterHelper]::WritePrinter($h, $p, $bytes.Length, [ref]$w)
+            [System.Runtime.InteropServices.Marshal]::FreeCoTaskMem($p)
+            [RawPrinterHelper]::EndPagePrinter($h)
+            [RawPrinterHelper]::EndDocPrinter($h)
+        }
+        [RawPrinterHelper]::ClosePrinter($h)
+    }
+}
+$b = [byte[]]@(27, 64, 27, 112, 0, 50, 250, 27, 64)
+Send-RawBytes -name "${finalPrinterName.replace(/"/g, '\\"')}" -bytes $b
+`;
+				const buffer = Buffer.from(psScript, "utf16le");
+				const base64 = buffer.toString("base64");
+				const command = `powershell -NoProfile -NonInteractive -EncodedCommand ${base64}`;
+
+				return new Promise((resolve, reject) => {
+					exec(command, (error: any, stdout: string, stderr: string) => {
+						if (error) {
+							console.error("Windows Cash drawer trigger error:", error);
+							console.error("stderr:", stderr);
+							return reject(error);
+						}
+						console.log("Windows Cash drawer triggered successfully via PowerShell!");
+						resolve(true);
+					});
 				});
-			});
+			} else {
+				// macOS / Linux raw print command
+				// Use lpr -P with raw mode, it's more robust with spaces in names
+				// Force-cancel any stuck jobs in the CUPS queue, then Reset, Kick, and Reset again.
+				// Append '2>/dev/null || true' to prevent cancel command errors from failing the execution.
+				const command = `/usr/bin/cancel -a "${finalPrinterName}" 2>/dev/null || true ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
+								
+				return new Promise((resolve, reject) => {
+					exec(command, (error: any) => {
+						if (error) {
+							console.error("macOS/Linux Cash drawer trigger error:", error);
+							return reject(error);
+						}
+						console.log("macOS/Linux Cash drawer triggered successfully!");
+						resolve(true);
+					});
+				});
+			}
 		}
 
 		// CASE 2: Direct USB/Serial Drawer
