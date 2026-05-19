@@ -106,18 +106,18 @@ export const useReceipt = () => {
                 </head>
                 <body style="font-family: 'Courier New', Courier, monospace; font-size: 9pt; font-weight: 600; line-height: 1.15; width: 72mm; margin: 0; padding: 0; color: #000; background-color: #fff;">
                     ${businessLogo ? `<div style="text-align: center; margin-bottom: 6px;"><img src="${businessLogo}" style="max-height: 80px; max-width: 80px; filter: grayscale(1) contrast(2);"></div>` : ""}
-                    <div style="text-align: center; border-bottom: 2pt solid #000; padding: 4px 0; margin-bottom: 6px;">
-                        <h1 style="font-size: 12pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
-                        <div style="font-size: 10pt; font-weight: 700; margin-top: 2px;">OFFICIAL RECEIPT</div>
+                    <div style="text-align: center; border-bottom: 1pt solid #000; padding: 4px 0; margin-bottom: 6px;">
+                        <h1 style="font-size: 10pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
+                        <div style="font-size: 8pt; font-weight: 700; margin-top: 2px;">OFFICIAL RECEIPT</div>
                     </div>
                     
-                    <div style="margin-bottom: 8px; font-size: 8.5pt; font-weight: 700;">
+                    <div style="margin-bottom: 8px; font-size: 6pt; font-weight: 500;">
                         <div style="display: flex; justify-content: space-between;"><span>ORDER:</span><span>#${order.order_number ?? order.id ?? "N/A"}</span></div>
                         ${order.customer_name ? `<div style="display: flex; justify-content: space-between;"><span>NAME:</span><span>${order.customer_name.toUpperCase()}</span></div>` : ""}
                         <div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
                     </div>
     
-                    <div style="border-bottom: 1.5pt dashed #000; border-top: 1.5pt dashed #000; padding: 4px 0; margin-bottom: 6px;">
+                    <div style="border-bottom: 1pt dashed #000; border-top: 1pt dashed #000; padding: 4px 0; margin-bottom: 6px;">
                         ${(order.items || [])
 													.map((item: any) => {
 														const name =
@@ -146,7 +146,7 @@ export const useReceipt = () => {
 
 														return `
                                 <div style="margin: 3px 0;">
-                                    <div style="display: flex; justify-content: space-between; font-weight: 700;">
+                                    <div style="display: flex; justify-content: space-between; font-weight: 500;">
                                         <span>${qty}x ${name}</span>
                                         <span>${receiptCurrency} ${safeFormat(itemTotal)}</span>
                                     </div>
@@ -156,14 +156,14 @@ export const useReceipt = () => {
 													.join("")}
                     </div>
     
-                    <div style="font-size: 9pt; font-weight: 700;">
+                    <div style="font-size: 6pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between; margin: 2px 0;"><span>Subtotal:</span><span>${receiptCurrency} ${safeFormat(subtotal)}</span></div>
                         <div style="display: flex; justify-content: space-between; margin: 2px 0;"><span>Tax (${taxRate}%):</span><span>${receiptCurrency} ${safeFormat(taxAmount)}</span></div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 2pt solid #000; font-size: 13pt; font-weight: 800;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1pt solid #000; font-size: 10pt; font-weight: 700;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
                     </div>
     
-                    <div style="margin-top: 10px; border-top: 1.5pt dashed #000; padding-top: 6px; font-size: 9pt; font-weight: 700;">
-                        <div style="display: flex; justify-content: space-between;"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
+                    <div style="margin-top: 10px; border-top: 1pt dashed #000; padding-top: 6px; font-size: 6pt; font-weight: 500;">
+                        <div style="display: flex; justify-content: space-between; font-weight: 500;font-size:7pt"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
                         ${
 													order.amount_tendered && order.amount_tendered > 0 ?
 														`
@@ -174,8 +174,8 @@ export const useReceipt = () => {
 												}
                     </div>
     
-                    <div style="text-align: center; margin-top: 15px; font-size: 8.5pt; border-top: 1.5pt dashed #000; padding-top: 6px;">
-                        <p style="margin: 3px 0; font-weight: 700;">Thank you for choosing ${businessName}</p>
+                    <div style="text-align: center; margin-top: 8px; font-size: 6pt; border-top: 1pt dashed #000; padding-top: 6px;">
+                        <p style="margin: 3px 0; font-weight: 500;">Thank you for choosing ${businessName}</p>
                         <p style="margin: 3px 0;">Please come again!</p>
                     </div>
                     
@@ -218,7 +218,7 @@ export const useReceipt = () => {
 
 		// Filter to only include food items for the kitchen
 		const foodItems = (order.items || []).filter(
-			(item: any) => item.item_type === "food" || item.itemType === "food"
+			(item: any) => item.item_type === "food" || item.itemType === "food",
 		);
 
 		if (foodItems.length === 0) return;
@@ -357,7 +357,11 @@ export const useReceipt = () => {
 					:	currentSettings.pos;
 				kitchenPrinterName = pos.kitchenPrinter || "";
 			}
-			await window.electron.invoke("print-receipt-silent", kitchenHTML, kitchenPrinterName);
+			await window.electron.invoke(
+				"print-receipt-silent",
+				kitchenHTML,
+				kitchenPrinterName,
+			);
 		} catch (error) {
 			console.error("Failed to print kitchen order:", error);
 		}
