@@ -1267,7 +1267,8 @@ export const Orders: React.FC = () => {
 												Edit Items
 											</Button>
 										</>
-									:	<>
+									: selectedOrder.status !== "cancelled" ?
+										<>
 											<Button
 												variant="outline"
 												onClick={() => setShareDialogOpen(true)}
@@ -1284,7 +1285,7 @@ export const Orders: React.FC = () => {
 												Print Receipt
 											</Button>
 										</>
-									}
+									:	null}
 								</div>
 							</div>
 						</div>
