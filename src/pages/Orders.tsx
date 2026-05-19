@@ -963,14 +963,14 @@ export const Orders: React.FC = () => {
 							{/* Order Info Section */}
 							<div className="space-y-4 p-6 py-0">
 								<div className="text-base font-semibold">Payment Info</div>
-								{selectedOrder.customer_name && (
+								{/* {selectedOrder.customer_name && (
 									<div className="flex items-center justify-between gap-x-2">
 										<span className="text-base text-gray-500">Order Name:</span>
 										<span className="text-base font-medium">
 											{selectedOrder.customer_name}
 										</span>
 									</div>
-								)}
+								)} */}
 								<div className="flex items-center justify-between gap-x-2">
 									<span className="text-base text-gray-500">Order Type:</span>
 
@@ -1005,12 +1005,48 @@ export const Orders: React.FC = () => {
 										:	"",
 									)}
 								>
+									<p className="text-sm font-medium text-gray-700">
+										Order Name:
+									</p>
+									{selectedOrder.status === "open" ?
+										<Input
+											id="customer-name"
+											name="customer-name"
+											value={selectedOrder.customer_name}
+											onChange={(e) => {
+												setSelectedOrder({
+													...selectedOrder,
+													customer_name: e.target.value,
+												});
+											}}
+											placeholder="Customer / Order name..."
+											className="h-11 text-base rounded-xl bg-muted border-0"
+										/>
+									:	<span className="text-base font-medium">
+											{selectedOrder.customer_name}
+										</span>
+									}
+								</div>
+								<div
+									className={cn(
+										"",
+										selectedOrder.status === "closed" && !selectedOrder.notes ?
+											"flex items-center justify-between"
+										:	"",
+									)}
+								>
 									<div className="text-base text-gray-500">Notes:</div>
 									{selectedOrder.status === "open" ?
 										<Textarea
 											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
 											defaultValue={selectedOrder.notes || ""}
 											placeholder="Order notes..."
+											onChange={(e) => {
+												setSelectedOrder({
+													...selectedOrder,
+													notes: e.target.value,
+												});
+											}}
 										/>
 									:	<div className="text-base">
 											{selectedOrder.notes || "---"}

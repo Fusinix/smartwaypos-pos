@@ -104,20 +104,20 @@ export const useReceipt = () => {
                         }
                     </style>
                 </head>
-                <body style="font-family: 'Courier New', Courier, monospace; font-size: 9pt; font-weight: 600; line-height: 1.15; width: 72mm; margin: 0; padding: 0; color: #000; background-color: #fff;">
+                <body style="font-family: 'Courier New', Courier, monospace; font-size: 7pt; font-weight: 600; line-height: 1.15; width: 72mm; margin: 0; padding: 0; color: #000; background-color: #fff;">
                     ${businessLogo ? `<div style="text-align: center; margin-bottom: 6px;"><img src="${businessLogo}" style="max-height: 80px; max-width: 80px; filter: grayscale(1) contrast(2);"></div>` : ""}
-                    <div style="text-align: center; border-bottom: 1pt solid #000; padding: 4px 0; margin-bottom: 6px;">
+                    <div style="text-align: center; border-bottom: 1pt dashed #000; padding: 4px 0; margin-bottom: 6px;">
                         <h1 style="font-size: 10pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
                         <div style="font-size: 8pt; font-weight: 700; margin-top: 2px;">OFFICIAL RECEIPT</div>
                     </div>
                     
-                    <div style="margin-bottom: 8px; font-size: 6pt; font-weight: 500;">
+                    <div style="margin-bottom: 8px; font-size: 7pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between;"><span>ORDER:</span><span>#${order.order_number ?? order.id ?? "N/A"}</span></div>
                         ${order.customer_name ? `<div style="display: flex; justify-content: space-between;"><span>NAME:</span><span>${order.customer_name.toUpperCase()}</span></div>` : ""}
                         <div style="display: flex; justify-content: space-between;"><span>DATE:</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
                     </div>
     
-                    <div style="border-bottom: 1pt dashed #000; border-top: 1pt dashed #000; padding: 4px 0; margin-bottom: 6px;">
+                    <div style="border-bottom: 1pt dashed #585858ff; border-top: 1pt dashed #585858ff; padding: 4px 0; margin-bottom: 6px;">
                         ${(order.items || [])
 													.map((item: any) => {
 														const name =
@@ -146,7 +146,7 @@ export const useReceipt = () => {
 
 														return `
                                 <div style="margin: 3px 0;">
-                                    <div style="display: flex; justify-content: space-between; font-weight: 500;">
+                                    <div style="display: flex; justify-content: space-between; font-weight: 700;">
                                         <span>${qty}x ${name}</span>
                                         <span>${receiptCurrency} ${safeFormat(itemTotal)}</span>
                                     </div>
@@ -156,31 +156,31 @@ export const useReceipt = () => {
 													.join("")}
                     </div>
     
-                    <div style="font-size: 6pt; font-weight: 700;">
+                    <div style="font-size: 7pt; font-weight: 700;">
                         <div style="display: flex; justify-content: space-between; margin: 2px 0;"><span>Subtotal:</span><span>${receiptCurrency} ${safeFormat(subtotal)}</span></div>
                         <div style="display: flex; justify-content: space-between; margin: 2px 0;"><span>Tax (${taxRate}%):</span><span>${receiptCurrency} ${safeFormat(taxAmount)}</span></div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1pt solid #000; font-size: 10pt; font-weight: 700;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
+                        <div style="display: flex; justify-content: space-between; font-size: 8pt; font-weight: 700;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
                     </div>
     
-                    <div style="margin-top: 10px; border-top: 1pt dashed #000; padding-top: 6px; font-size: 6pt; font-weight: 500;">
-                        <div style="display: flex; justify-content: space-between; font-weight: 500;font-size:7pt"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
+                    <div style="margin-top: 10px; border-top: 1pt dashed #585858ff; padding-top: 6px; font-size: 7pt; font-weight: 700;">
+                        <div style="display: flex; justify-content: space-between; font-weight: 700;font-size:7pt"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
                         ${
 													order.amount_tendered && order.amount_tendered > 0 ?
 														`
-                            <div style="display:flex; justify-content:space-between; margin-top: 2px;"><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
-                            <div style="display:flex; justify-content:space-between; margin-top: 2px; border-top: 1pt solid #000; padding-top: 2px;"><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
+                            <div style="display:flex; justify-content:space-between; "><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
+                            <div style="display:flex; justify-content:space-between; "><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
                         `
 													:	""
 												}
                     </div>
     
-                    <div style="text-align: center; margin-top: 8px; font-size: 6pt; border-top: 1pt dashed #000; padding-top: 6px;">
-                        <p style="margin: 3px 0; font-weight: 500;">Thank you for choosing ${businessName}</p>
+                    <div style="text-align: center; margin-top: 8px; font-size: 7pt; border-top: 1pt dashed #000; padding-top: 6px;">
+                        <p style="margin: 3px 0; font-weight: 700;">Thank you for choosing ${businessName}</p>
                         <p style="margin: 3px 0;">Please come again!</p>
                     </div>
                     
                     <!-- Cutter Tail: Extra space to ensure paper clears the cutter -->
-                    <div style="height: 20mm;"></div>
+                    <div style="height: 10mm;"></div>
     </body>
                 </html>
             `;
@@ -223,6 +223,35 @@ export const useReceipt = () => {
 
 		if (foodItems.length === 0) return;
 
+		let receiptCurrency = "GHS";
+		let kitchenPrinterName = "";
+
+		try {
+			const currentSettings = await window.electron.invoke("get-settings");
+			if (currentSettings?.general) {
+				const gen =
+					typeof currentSettings.general === "string" ?
+						JSON.parse(currentSettings.general)
+					:	currentSettings.general;
+				receiptCurrency = gen.defaultCurrency || receiptCurrency;
+			}
+			if (currentSettings?.pos) {
+				const pos =
+					typeof currentSettings.pos === "string" ?
+						JSON.parse(currentSettings.pos)
+					:	currentSettings.pos;
+				kitchenPrinterName = pos.kitchenPrinter || "";
+			}
+		} catch (err) {
+			console.error("Failed to load settings for kitchen receipt:", err);
+		}
+
+		// Safe formatting helper
+		const safeFormat = (val: any) => {
+			const n = parseFloat(val);
+			return isNaN(n) ? "0.00" : n.toFixed(2);
+		};
+
 		// Get order details
 		const orderNum = order.order_number ?? order.id;
 		const tableNum = order.table_number || "";
@@ -249,10 +278,10 @@ export const useReceipt = () => {
                             background-color: #fff;
                         }
                         .header {
-                            text-align: center;
-                            border-bottom: 3pt solid #000;
-                            padding: 5px 0;
-                            margin-bottom: 10px;
+                            text-align: left;
+                            border-bottom: 1pt solid #000;
+                            padding: 5px 0 24px 0;
+                            margin-bottom: 16px;
                         }
                         .header h1 {
                             font-size: 22pt; 
@@ -260,16 +289,17 @@ export const useReceipt = () => {
                             font-weight: 900;
                         }
                         .items {
-                            border-bottom: 2pt solid #000;
+                            border-bottom: 1pt solid #000;
                             padding-bottom: 8px;
                             margin-bottom: 8px;
                         }
                         .item {
-                            margin: 12px 0;
+                            margin: 24px 0;
                             font-size: 16pt;
                         }
                         .item-main {
                             display: flex;
+                            justify-content: space-between;
                             align-items: flex-start;
                             font-weight: 900;
                         }
@@ -290,8 +320,8 @@ export const useReceipt = () => {
                             font-size: 12pt;
                         }
                         .footer {
-                            text-align: center;
-                            margin-top: 15px;
+                            text-align: left;
+                            margin-top: 20px;
                             font-weight: 900;
                             font-size: 12pt;
                         }
@@ -300,9 +330,9 @@ export const useReceipt = () => {
                 <body>
                     <div class="header">
                         <h1>KITCHEN TICKET</h1>
-                        <div style="font-size: 14pt; font-weight: 900; margin-top: 4px;">ORDER #${orderNum} ${tableNum ? `- TABLE ${tableNum}` : ""}</div>
-                        ${order.customer_name ? `<div style="font-size: 14pt; font-weight: 900; margin-top: 4px;">NAME: ${order.customer_name.toUpperCase()}</div>` : ""}
-                        <div style="font-size: 11pt;">${time}</div>
+                        <div style="font-size: 12pt; font-weight: 900; margin-top: 4px;">ORDER #${orderNum} ${tableNum ? `- TABLE ${tableNum}` : ""}</div>
+                        ${order.customer_name ? `<div style="font-size: 12pt; font-weight: 900; margin-top: 4px; margin-bottom: 4px;">NAME: ${order.customer_name.toUpperCase()}</div>` : ""}
+                        <div style="font-size: 8pt;">${time}</div>
                     </div>
     
                     <div class="items">
@@ -313,23 +343,38 @@ export const useReceipt = () => {
 															item.product_name ||
 															"Item";
 														const qty = item.quantity || 1;
+														const price = parseFloat(
+															item.food_price || item.price || 0,
+														);
+														const itemTotal = price * qty;
 														const extrasArr = item.extras || [];
 														return `
                                 <div class="item">
                                     <div class="item-main">
-                                        <span class="qty">${qty}</span>
-                                        <span>${name}</span>
+                                        <div style="display: flex; align-items: flex-start; margin-right: 4px;">
+                                            <span class="qty">${qty}</span>
+                                            <span>${name}</span>
+                                        </div>
+                                        <span style="white-space: nowrap; font-size: 8pt;">${receiptCurrency} ${safeFormat(itemTotal)}</span>
                                     </div>
                                     ${
 																			extrasArr.length > 0 ?
 																				`
-                                        <div class="notes">
-                                            + ${extrasArr.map((e: any) => e.name).join(", ")}
+                                        <div class="notes" style="font-size: 8pt; margin-left: 20px; font-style: normal;">
+                                            ${extrasArr
+																							.map((e: any) => {
+																								const eqty = e.quantity || 1;
+																								const eprice =
+																									parseFloat(e.price) || 0;
+																								const etotal = eprice * eqty;
+																								return `<div style="margin: 2px 0;">+ ${eqty}x ${e.name} (${receiptCurrency} ${safeFormat(etotal)})</div>`;
+																							})
+																							.join("")}
                                         </div>
                                     `
 																			:	""
 																		}
-                                    ${item.notes ? `<div class="notes" style="background-color: #eee; border: 1.5pt solid #000; padding: 4px; margin-top: 6px;">NOTE: ${item.notes}</div>` : ""}
+                                    ${item.notes ? `<div class="notes" style="background-color: #eee; border: 1pt dashed #000; font-size: 8pt;  text-transform: capitalize; margin-left: 30px; padding: 4px; margin-top: 10px;">NOTE: ${item.notes}</div>` : ""}
                                 </div>
                             `;
 													})
@@ -348,15 +393,6 @@ export const useReceipt = () => {
 		try {
 			// Use kitchen printer if configured, otherwise fall back to default.
 			// Kitchen receipts must NEVER trigger the cash drawer.
-			const currentSettings = await window.electron.invoke("get-settings");
-			let kitchenPrinterName = "";
-			if (currentSettings?.pos) {
-				const pos =
-					typeof currentSettings.pos === "string" ?
-						JSON.parse(currentSettings.pos)
-					:	currentSettings.pos;
-				kitchenPrinterName = pos.kitchenPrinter || "";
-			}
 			await window.electron.invoke(
 				"print-receipt-silent",
 				kitchenHTML,
