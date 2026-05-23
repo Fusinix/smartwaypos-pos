@@ -31,7 +31,7 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 }) => {
 	const { format: formatCurrency } = useCurrency();
 	const [extraQuantities, setExtraQuantities] = useState<Map<number, number>>(
-		new Map()
+		new Map(),
 	);
 	const [notes, setNotes] = useState("");
 
@@ -97,7 +97,7 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="w-full !max-w-5xl">
+			<DialogContent className="w-full !max-w-3xl">
 				<DialogHeader>
 					<DialogTitle className="text-xl">
 						{foodItem.food_item_name}
@@ -176,7 +176,7 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 														onChange={(e) =>
 															handleExtraQuantityChange(
 																extra.id,
-																Number(e.target.value)
+																Number(e.target.value),
 															)
 														}
 														className="w-12 h-6 text-xs px-1"
@@ -250,7 +250,7 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 												<span>{formatCurrency(extra.price * quantity)}</span>
 											</div>
 										:	null;
-								}
+								},
 							)}
 							<div className="flex justify-between font-semibold text-base text-gray-900 pt-2 border-t">
 								<span>Total:</span>
@@ -260,12 +260,12 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 											Array.from(extraQuantities.entries()).reduce(
 												(sum, [id, quantity]) => {
 													const extra = availableExtras.find(
-														(e) => e.id === id
+														(e) => e.id === id,
 													);
 													return sum + (extra?.price || 0) * quantity;
 												},
-												0
-											)
+												0,
+											),
 									)}
 								</span>
 							</div>
@@ -285,4 +285,3 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 		</Dialog>
 	);
 };
-

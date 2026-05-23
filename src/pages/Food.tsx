@@ -6,13 +6,6 @@ import { AddEditFoodCategoryDialog } from "@/components/dialogs/add-edit-food-ca
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -43,15 +36,7 @@ import type {
 } from "@/types/food";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-	Utensils,
-	Plus,
-	Search,
-	ShoppingBasket,
-	Salad,
-	Dessert,
-	X,
-} from "lucide-react";
+import { Plus, Search, ShoppingBasket, Salad, Dessert, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useKeyboard } from "@/context/KeyboardContext";
 import { CategoryComponent } from "./CreateOrder";
@@ -79,7 +64,6 @@ export default function Food() {
 	} = useFood();
 
 	const { format: formatCurrency } = useCurrency();
-	const { isOpen: isKeyboardOpen } = useKeyboard();
 	const { showConfirm } = useAlertStore();
 	const { settings } = useSettings();
 
@@ -265,7 +249,7 @@ export default function Food() {
 			<div className="flex flex-1 h-[calc(100%-62px)]">
 				<div
 					className={cn(
-						"w-[250px] border-r overflow-y-auto bg-white h-full",
+						"w-[200px] border-r overflow-y-auto bg-white h-full",
 						activeTab !== "items" ? "hidden" : "",
 					)}
 				>
@@ -430,7 +414,7 @@ export default function Food() {
 									/>
 								:	<div
 										className={cn(
-											"h-full grid gap-4 grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
+											"grid gap-4 grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ",
 										)}
 									>
 										{/* Add some dummy items */}

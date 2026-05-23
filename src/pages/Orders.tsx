@@ -88,9 +88,6 @@ export const Orders: React.FC = () => {
 				if (now - lastEnterPress < 500) {
 					const newCount = enterCount + 1;
 					if (newCount === 3) {
-						console.log(
-							"Triple-Enter detected! Triggering manual drawer kick...",
-						);
 						window.electron.invoke("trigger-cash-drawer");
 						setEnterCount(0);
 					} else {
@@ -1071,7 +1068,8 @@ export const Orders: React.FC = () => {
 												{selectedOrder.payment_mode}
 											</span>
 										</div>
-									:	<div className="flex items-center justify-between gap-x-2">
+									: selectedOrder.status === "open" ?
+										<div className="flex items-center justify-between gap-x-2">
 											{paymentModes.map(({ value, label }) => {
 												const Icon = PaymentModeIcons[value as PaymentModes];
 												return (
@@ -1096,7 +1094,7 @@ export const Orders: React.FC = () => {
 												);
 											})}
 										</div>
-									}
+									:	null}
 								</div>
 							</div>
 							{/* Totals Section */}

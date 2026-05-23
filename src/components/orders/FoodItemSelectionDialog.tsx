@@ -23,7 +23,9 @@ interface FoodItemSelectionDialogProps {
 	onAdd: (foodItem: any, selectedExtras: number[], notes: string) => void;
 }
 
-export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = ({
+export const FoodItemSelectionDialog: React.FC<
+	FoodItemSelectionDialogProps
+> = ({
 	open,
 	foodItem,
 	foodExtras,
@@ -34,7 +36,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 }) => {
 	const { format: formatCurrency } = useCurrency();
 	const [extraQuantities, setExtraQuantities] = useState<Map<number, number>>(
-		new Map()
+		new Map(),
 	);
 	const [notes, setNotes] = useState("");
 
@@ -46,7 +48,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 			// (e.g. [] literal), which would reset the user's selections mid-edit.
 			if (initialExtras && initialExtras.length > 0) {
 				const counts = new Map<number, number>();
-				initialExtras.forEach(id => {
+				initialExtras.forEach((id) => {
 					const numericId = Number(id);
 					counts.set(numericId, (counts.get(numericId) || 0) + 1);
 				});
@@ -56,7 +58,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 			}
 			setNotes(initialNotes || "");
 		}
-	// eslint-disable-next-line react-hooks/exhaustive-deps
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open, foodItem?.id]);
 
 	const handleToggleExtra = (extraId: number) => {
@@ -91,23 +93,11 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 				selectedExtras.push(extraId);
 			}
 		});
-		console.log("Adding food item to cart:", {
-			foodItem: foodItem.name,
-			selectedExtras,
-			extraQuantities: Array.from(extraQuantities.entries()),
-			notes,
-		});
 		onAdd(foodItem, selectedExtras, notes);
 		onClose();
 	};
 
 	if (!foodItem) return null;
-
-	console.log("FoodItemSelectionDialog Debug:", {
-		foodItemName: foodItem.name,
-		foodItemExtras: foodItem.extras,
-		globalFoodExtrasCount: foodExtras?.length
-	});
 
 	const availableExtras = foodExtras.filter((e) => {
 		if (!foodItem.extras || !Array.isArray(foodItem.extras)) return false;
@@ -119,7 +109,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="w-[95%] sm:max-w-[900px] max-h-[95vh] overflow-y-auto">
+			<DialogContent className="w-full !max-w-2xl overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle className="text-xl">{foodItem.name}</DialogTitle>
 				</DialogHeader>
@@ -201,7 +191,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 														onChange={(e) =>
 															handleExtraQuantityChange(
 																extra.id,
-																Number(e.target.value)
+																Number(e.target.value),
 															)
 														}
 														className="!w-20 h-6 text-xs !px-1"
@@ -277,7 +267,7 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 												<span>{formatCurrency(extra.price * quantity)}</span>
 											</div>
 										:	null;
-								}
+								},
 							)}
 							<div className="flex justify-between font-semibold text-base text-gray-900 pt-2 border-t">
 								<span>Total:</span>
@@ -287,12 +277,12 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 											Array.from(extraQuantities.entries()).reduce(
 												(sum, [id, quantity]) => {
 													const extra = availableExtras.find(
-														(e) => e.id === id
+														(e) => e.id === id,
 													);
 													return sum + (extra?.price || 0) * quantity;
 												},
-												0
-											)
+												0,
+											),
 									)}
 								</span>
 							</div>
@@ -312,4 +302,3 @@ export const FoodItemSelectionDialog: React.FC<FoodItemSelectionDialogProps> = (
 		</Dialog>
 	);
 };
-

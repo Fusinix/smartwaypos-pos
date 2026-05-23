@@ -293,7 +293,7 @@ export default function Products() {
 			<div className="flex flex-1 h-[calc(100%-62px)]">
 				<div
 					className={cn(
-						"w-[250px] border-r overflow-y-auto bg-white h-full",
+						"w-[200px] border-r overflow-y-auto bg-white h-full",
 						activeTab !== "products" ? "hidden" : "",
 					)}
 				>
@@ -384,22 +384,23 @@ export default function Products() {
 										<SelectItem value="in-stock">In Stock</SelectItem>
 									</SelectContent>
 								</Select>
-								<div className="flex gap-2">
+								<div className="flex gap-3">
 									<Button
 										variant="outline"
+										size="sm"
 										className={cn(
-											"flex-1 rounded-md py-2 h-10",
+											"flex-1 rounded-md",
 											filters.sortBy === "stock" &&
 												"bg-primary/10 border-primary text-primary",
 										)}
 										onClick={() => handleSort("stock")}
 									>
-										<ArrowDownUp className="h-4 w-4 mr-2" />
+										<ArrowDownUp />
 										By Stock{" "}
 										{filters.sortBy === "stock" &&
 											(filters.sortOrder === "asc" ? "↑" : "↓")}
 									</Button>
-									<div className="flex items-center rounded-md overflow-hidden p-1 bg-muted">
+									<div className="flex items-center rounded-md overflow-hidden p-1 h-9 bg-muted">
 										<Button
 											variant="ghost"
 											size="icon"

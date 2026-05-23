@@ -23,7 +23,7 @@ const buttonVariants = cva(
 			},
 			size: {
 				default: "h-11 px-5 py-2.5",
-				sm: "h-10 rounded-full px-4 text-sm",
+				sm: "h-9 rounded-full px-4 text-sm",
 				lg: "h-12 rounded-full px-8 text-lg",
 				icon: "h-11 w-11",
 			},
@@ -32,11 +32,12 @@ const buttonVariants = cva(
 			variant: "default",
 			size: "default",
 		},
-	}
+	},
 );
 
 export interface ButtonProps
-	extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+	extends
+		React.ButtonHTMLAttributes<HTMLButtonElement>,
 		VariantProps<typeof buttonVariants> {
 	asChild?: boolean;
 }
@@ -51,7 +52,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 				{...props}
 			/>
 		);
-	}
+	},
 );
 Button.displayName = "Button";
 

@@ -3047,18 +3047,36 @@ ipcMain.handle("update-order", async (_, order) => {
 			let amount_bt = 0; // amount before tax
 			let amount = 0; // amount with tax
 
-			// Get current order items and calculate totals
-			const orderItems = await db.all(
-				"SELECT oi.*, p.price FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?",
+			// Get current order items and calculate totals (drinks + food)
+			const drinkItems = await db.all(
+				"SELECT oi.*, p.price FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ? AND oi.item_type = 'drink'",
+				[order.id]
+			);
+			const foodItems = await db.all(
+				"SELECT oi.*, fi.price as food_price FROM order_items oi LEFT JOIN food_items fi ON oi.food_item_id = fi.id WHERE oi.order_id = ? AND oi.item_type = 'food'",
 				[order.id]
 			);
 
-			if (orderItems.length > 0) {
-				for (const item of orderItems) {
-					const itemTotal = item.price * item.quantity;
-					amount_bt += itemTotal;
-				}
+			for (const item of drinkItems) {
+				const itemPrice = item.price || 0;
+				amount_bt += itemPrice * item.quantity;
+			}
 
+			for (const item of foodItems) {
+				const itemPrice = item.food_price || 0;
+				let itemTotal = itemPrice * item.quantity;
+				// Add extras for food items
+				const extras = await db.all(
+					"SELECT fe.price, oie.quantity FROM order_item_extras oie JOIN food_extras fe ON oie.extra_id = fe.id WHERE oie.order_item_id = ?",
+					[item.id]
+				);
+				for (const extra of extras) {
+					itemTotal += (extra.price || 0) * (extra.quantity || 1) * item.quantity;
+				}
+				amount_bt += itemTotal;
+			}
+
+			if (drinkItems.length > 0 || foodItems.length > 0) {
 				// Calculate amount with tax
 				const taxRate = order.tax || 0;
 				amount = amount_bt + (amount_bt * taxRate) / 100;

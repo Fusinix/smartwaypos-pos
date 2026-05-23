@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog as ViewDialog,
@@ -23,7 +23,6 @@ import {
 	ChevronLeft,
 	Search,
 	Salad,
-	Wine,
 	Trash2,
 	ShoppingBasket,
 	Beer,
@@ -33,7 +32,6 @@ import { FoodItemSelectionDialog } from "@/components/orders/FoodItemSelectionDi
 import { useReceipt } from "@/hooks/useReceipt";
 import type { Order } from "@/types";
 import { useNavigate } from "react-router-dom";
-import { useKeyboard } from "@/context/KeyboardContext";
 import { Textarea } from "@/components/ui/textarea";
 import { History, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -60,7 +58,7 @@ export const CategoryComponent = ({
 		<div
 			key={cat.id}
 			className={cn(
-				"p-4 h-18 border rounded-xl flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group",
+				"p-4 h-18 border rounded-xl flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group ",
 				cat.id == activeCategory ?
 					"bg-primary border-primary text-primary-foreground "
 				:	"",
@@ -74,7 +72,7 @@ export const CategoryComponent = ({
 					"group-hover:text-primary",
 				)}
 			/>
-			{cat.name}
+			<span className="line-clamp-1">{cat.name}</span>
 		</div>
 	);
 };
@@ -85,12 +83,11 @@ export const CreateOrder: React.FC = () => {
 	const { foodItems, foodCategories, fetchFoodItems, fetchFoodCategories } =
 		useFood();
 	const { extras: foodExtras, fetchExtras } = useFoodExtras();
-	const { settings, keyboardBottom } = useSettings();
+	const { settings } = useSettings();
 	const { categories, fetchCategories } = useCategory();
 	const { format: formatCurrency } = useCurrency();
-	const { createOrder, orders, fetchOrders, loading } = useOrders();
+	const { createOrder, fetchOrders, loading } = useOrders();
 	const { printReceipt } = useReceipt();
-	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [activeTab, setActiveTab] = useState<"drinks" | "food">("drinks");
 	const [search, setSearch] = useState("");
@@ -103,18 +100,17 @@ export const CreateOrder: React.FC = () => {
 		index: number;
 	} | null>(null);
 	const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
-	const [orderType, setOrderType] = useState<"customer" | "table" | "takeout">(
-		"customer",
-	);
+	const [orderType, setOrderType] = useState<
+		"customer" | "table" | "takeout" | ""
+	>("");
 	const [tableNumber, setTableNumber] = useState("");
-	const [paymentMode, setPaymentMode] = useState<"cash" | "momo" | "card">(
-		"cash",
+	const [paymentMode, setPaymentMode] = useState<"cash" | "momo" | "card" | "">(
+		"",
 	);
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
 	const [notes, setNotes] = useState("");
 	const [customerName, setCustomerName] = useState("");
 	const [amountTendered, setAmountTendered] = useState("");
-	const [orderToPrint, setOrderToPrint] = useState<any>(null);
 	const { showConfirm } = useAlertStore();
 	const [drafts, setDrafts] = useState<any[]>([]);
 	const [showDraftsDialog, setShowDraftsDialog] = useState(false);
@@ -138,9 +134,9 @@ export const CreateOrder: React.FC = () => {
 			try {
 				const data = JSON.parse(savedCart);
 				if (data.cart) setCart(data.cart);
-				if (data.orderType) setOrderType(data.orderType);
+				// if (data.orderType) setOrderType(data.orderType);
 				if (data.tableNumber) setTableNumber(data.tableNumber);
-				if (data.paymentMode) setPaymentMode(data.paymentMode);
+				// if (data.paymentMode) setPaymentMode(data.paymentMode);
 				if (data.notes) setNotes(data.notes);
 				if (data.amountTendered) setAmountTendered(data.amountTendered);
 				if (data.customerName) setCustomerName(data.customerName);
@@ -198,7 +194,7 @@ export const CreateOrder: React.FC = () => {
 		setCart(draft.cart);
 		setOrderType(draft.orderType);
 		setTableNumber(draft.tableNumber || "");
-		setPaymentMode(draft.paymentMode || "cash");
+		setPaymentMode(draft.paymentMode || "");
 		setNotes(draft.notes || "");
 		setCustomerName(draft.customerName || "");
 		setShowDraftsDialog(false);
@@ -412,9 +408,9 @@ export const CreateOrder: React.FC = () => {
 
 	const resetState = () => {
 		setCart([]);
-		setOrderType("customer");
+		setOrderType("");
 		setTableNumber("");
-		setPaymentMode("cash");
+		setPaymentMode("");
 		setAmountTendered("");
 		setNotes("");
 		setCustomerName("");
@@ -485,6 +481,11 @@ export const CreateOrder: React.FC = () => {
 
 			const result = await createOrder(orderPayload);
 
+			// if order placed, navigate to orders page and show the new order
+			if (result) {
+				navigate("/orders");
+			}
+
 			// fetchOrders is already called in createOrder hook
 			// Notify parent component about the order so it can switch tabs and potentially print
 			if (onOrderCreated) {
@@ -499,6 +500,20 @@ export const CreateOrder: React.FC = () => {
 	};
 
 	const CategoriesToUse = activeTab === "drinks" ? categories : foodCategories;
+	const orderTypesToUse = useMemo(() => {
+		const hasFood = cart?.some((item) => item.itemType === "food");
+
+		if (hasFood && orderType === "customer") {
+			setOrderType("");
+		}
+
+		let or =
+			hasFood ?
+				orderTypes?.filter(({ value }) => value !== "customer")
+			:	orderTypes;
+
+		return or;
+	}, [cart, orderTypes]);
 
 	return (
 		<>
@@ -523,7 +538,7 @@ export const CreateOrder: React.FC = () => {
 						<div className="flex-1 flex flex-row h-[calc(100%-62px)]">
 							<div
 								className={cn(
-									"w-[250px] border-r overflow-y-auto bg-white h-auto",
+									"w-[200px] border-r overflow-y-auto bg-white h-auto",
 								)}
 							>
 								<div className="h-14 border-b bg-card sticky top-0 z-10 flex items-center justify-between px-4">
@@ -789,7 +804,7 @@ export const CreateOrder: React.FC = () => {
 									title="Cart is empty"
 									description="Add products to get started"
 								/>
-							:	<ul className="divide-y divide-gray-100 px-6 py-4  max-h-[60%] overflow-y-auto">
+							:	<ul className="divide-y divide-gray-100 px-6 py-4">
 									{cart.map((item, index) => {
 										const isDrink = item.itemType === "drink";
 
@@ -837,7 +852,9 @@ export const CreateOrder: React.FC = () => {
 															)}
 														/>
 													:	<div className="w-full h-full flex items-center justify-center text-2xl">
-															{isDrink ? "🍺" : "🍽️"}
+															{isDrink ?
+																<Beer />
+															:	<Salad />}
 														</div>
 													}
 												</div>
@@ -963,12 +980,12 @@ export const CreateOrder: React.FC = () => {
 										Order Type:
 									</span>
 									<div className="flex gap-2 overflow-x-auto">
-										{orderTypes.map(({ value, label }) => {
+										{orderTypesToUse.map(({ value, label }) => {
 											const Icon = OrderTypeIcons[value as OrderTypes];
 											return (
 												<Button
 													key={value}
-													className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+													className="flex-1 text-base gap-2 flex-col h-auto items-start rounded-xl"
 													variant={orderType === value ? "default" : "outline"}
 													onClick={() => setOrderType(value as any)}
 												>
@@ -1000,35 +1017,44 @@ export const CreateOrder: React.FC = () => {
 									</div>
 								)}
 
-								<div className="space-y-2">
-									<p className="text-sm font-medium text-gray-700">
-										Order Name:
-									</p>
-									<Input
-										id="customer-name"
-										name="customer-name"
-										value={customerName}
-										onChange={(e) => setCustomerName(e.target.value)}
-										placeholder="Customer / Order name..."
-										className="h-11 text-base rounded-xl bg-muted border-0"
-									/>
-								</div>
+								{orderType && (
+									<>
+										<div className="space-y-2">
+											<p className="text-sm font-medium text-gray-700">
+												Order Name:
+											</p>
+											<Input
+												id="customer-name"
+												name="customer-name"
+												value={customerName}
+												onChange={(e) => setCustomerName(e.target.value)}
+												placeholder="Customer / Order name..."
+												className="h-11 text-base rounded-xl bg-muted border-0"
+											/>
+										</div>
 
-								<div className="space-y-2">
-									<p className="text-sm font-medium text-gray-700">
-										Order Notes:
-									</p>
-									<Textarea
-										id="order-notes"
-										name="order-notes"
-										value={notes}
-										onChange={(e) => setNotes(e.target.value)}
-										placeholder="Order notes..."
-										className="w-full h-20 text-base resize-none rounded-xl bg-muted"
-									/>
-								</div>
+										<div className="space-y-2">
+											<p className="text-sm font-medium text-gray-700">
+												Order Notes:
+											</p>
+											<Textarea
+												id="order-notes"
+												name="order-notes"
+												value={notes}
+												onChange={(e) => setNotes(e.target.value)}
+												placeholder="Order notes..."
+												className="w-full h-20 text-base resize-none rounded-xl bg-muted"
+											/>
+										</div>
+									</>
+								)}
 
-								<div className="space-y-2">
+								<div
+									className={cn(
+										"space-y-2",
+										orderType !== "customer" ? "hidden" : "",
+									)}
+								>
 									<p className="text-sm font-medium text-gray-700">Payment:</p>
 									<div className="flex gap-2 overflow-x-auto">
 										{paymentModes.map(({ value, label }) => {
@@ -1036,7 +1062,7 @@ export const CreateOrder: React.FC = () => {
 											return (
 												<Button
 													key={value}
-													className="flex-1 h-11 text-base gap-2 flex-col h-auto items-start rounded-xl"
+													className="flex-1 text-base gap-2 flex-col h-auto items-start rounded-xl"
 													variant={
 														paymentMode === value ? "default" : "outline"
 													}
@@ -1112,7 +1138,7 @@ export const CreateOrder: React.FC = () => {
 										<span>{formatCurrency(total)}</span>
 									</div>
 								</div>
-								<div className="flex gap-3 pt-2">
+								<div className={cn("flex gap-3 pt-2", !orderType && "hidden")}>
 									<Button
 										type="button"
 										variant="outline"

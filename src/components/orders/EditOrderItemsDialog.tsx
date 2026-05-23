@@ -310,11 +310,11 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
 	return (
 		<>
 			<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-				<DialogContent className="max-w-[90vw] h-[90vh] w-full p-0 overflow-hidden">
+				<DialogContent className="max-w-[90vw] h-[86vh] w-full p-0 overflow-hidden">
 					<div className="flex h-full min-h-0">
 						{/* Left: Product/Food selection */}
 						<div className="flex flex-1">
-							<div className="w-[250px] border-r overflow-y-auto bg-white h-full">
+							<div className="w-[200px] border-r overflow-y-auto bg-white h-full">
 								<div className="h-14 border-b flex items-center justify-between px-4">
 									<h2 className="font-semibold text-md">Categories</h2>
 									{(category != "all" || foodCategory != "all") && (
