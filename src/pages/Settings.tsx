@@ -1,28 +1,26 @@
 /** @format */
 
+import { ClassStyles } from "@/components/classnames";
 import { AddEditTableDialog } from "@/components/dialogs/add-edit-table-dialog";
 import AddUserDialog from "@/components/dialogs/add-user-dialog";
 import EditUserDialog from "@/components/dialogs/edit-user-dialog";
 import { Button } from "@/components/ui/button";
-import {
-	HoverCard,
-	HoverCardContent,
-	HoverCardTrigger,
-} from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useKeyboard } from "@/context/KeyboardContext";
 import { cn, parseJSONString } from "@/lib/utils";
+import type { User as UserType } from "@/types";
 import {
-	Code,
-	LayoutPanelTop,
-	MonitorDot,
-	UploadCloud,
-	User as LucidUser,
-	List,
-	UserCog2,
-	Users,
 	ArrowDown,
 	ArrowRight,
+	LayoutPanelTop,
+	List,
+	User as LucidUser,
+	MonitorDot,
+	UploadCloud,
+	UserCog2,
+	Users,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -39,10 +37,6 @@ import type {
 	Table,
 	User,
 } from "../types/settings";
-import { Switch } from "@/components/ui/switch";
-import type { User as UserType } from "@/types";
-import { ClassStyles } from "@/components/classnames";
-import { useKeyboard } from "@/context/KeyboardContext";
 
 interface SystemLog {
 	id: number;
@@ -80,7 +74,6 @@ export const Settings: React.FC = () => {
 		updateTable,
 		deleteTable,
 	} = useTables();
-	const { isOpen: isKeyboardOpen } = useKeyboard();
 
 	const [activeTab, setActiveTab] = useState("general");
 	const [editingUser, setEditingUser] = useState<
@@ -112,6 +105,8 @@ export const Settings: React.FC = () => {
 	const [localGeneralSettings, setLocalGeneralSettings] =
 		useState<GeneralSettings>({
 			businessName: "",
+			businessLogo: "",
+			businessBanner: "",
 			defaultCurrency: "GHS",
 			printReceipts: false,
 			...settings?.general,
@@ -519,7 +514,7 @@ export const Settings: React.FC = () => {
 
 				{activeTab === "general" && (
 					<SectionCard title="General Settings">
-						<div className="space-y-6 grid md:grid-cols-4 gap-8">
+						<div className="space-y-6 grid md:grid-cols-2 gap-8">
 							<div className="space-y-2 p-6">
 								<Label>Business Logo</Label>
 								<div className="flex flex-col space-y-4">
@@ -570,7 +565,61 @@ export const Settings: React.FC = () => {
 									)}
 								</div>
 							</div>
-							<div className="flex-1 space-y-6 md:border-l md:pl-8">
+							<div className="space-y-2 p-6">
+								<Label>Business Banner</Label>
+								<div className="flex flex-col space-y-4">
+									{localGeneralSettings.businessBanner ?
+										<div className="h-32 w-full border rounded bg-gray-50 flex items-center justify-center p-1 overflow-hidden">
+											<img
+												src={localGeneralSettings.businessBanner}
+												alt="Banner"
+												className="h-full w-full object-cover rounded animate-pulse-once"
+											/>
+										</div>
+									:	<div className="h-32 w-full border border-dashed rounded bg-gray-50 flex items-center justify-center text-xs text-muted-foreground">
+											No Banner Configured
+										</div>
+									}
+									<Input
+										type="file"
+										accept="image/*"
+										onChange={(e) => {
+											const file = e.target.files?.[0];
+											if (file) {
+												const reader = new FileReader();
+												reader.onloadend = () => {
+													setLocalGeneralSettings({
+														...localGeneralSettings,
+														businessBanner: reader.result as string,
+													});
+												};
+												reader.readAsDataURL(file);
+											}
+										}}
+										className="cursor-pointer flex-1"
+									/>
+									<p className="text-xs text-gray-400">
+										This banner will appear on your login page. Recommended
+										ratio: 16:9.
+									</p>
+									{localGeneralSettings.businessBanner && (
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() =>
+												setLocalGeneralSettings({
+													...localGeneralSettings,
+													businessBanner: "",
+												})
+											}
+											className="text-red-500 hover:text-red-700 w-fit bg-destructive/10"
+										>
+											Clear
+										</Button>
+									)}
+								</div>
+							</div>
+							<div className="space-y-6">
 								<div>
 									<Label className="block text-sm font-medium text-gray-700">
 										Business Name

@@ -41,6 +41,7 @@ import { useOrders } from "../../hooks/useOrders";
 import { useProducts } from "../../hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
 import { useKeyboard } from "@/context/KeyboardContext";
+import { SyncStatusBanner } from "./SyncStatusBanner";
 
 export const Layout: React.FC = () => {
 	const { isAuthenticated, user, logout } = useAuth();
@@ -144,8 +145,12 @@ export const Layout: React.FC = () => {
 			);
 
 			if (activeShift?.clock_in) {
-				const start = new Date(activeShift.clock_in).getTime();
-				const diff = now.getTime() - start;
+				let startStr = activeShift.clock_in;
+				if (startStr && !startStr.includes("Z") && !startStr.includes("+") && !startStr.includes("T")) {
+					startStr = startStr.replace(" ", "T") + "Z";
+				}
+				const start = new Date(startStr).getTime();
+				const diff = Math.max(0, now.getTime() - start);
 				const hrs = Math.floor(diff / 3600000);
 				const mins = Math.floor((diff % 3600000) / 60000);
 				const secs = Math.floor((diff % 60000) / 1000);
@@ -260,13 +265,15 @@ export const Layout: React.FC = () => {
 
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col min-w-0 ">
+				{/* Sync Status Banner */}
+				<SyncStatusBanner />
 				{/* Top Header Bar */}
-				<header className="bg-primary border-b h-14 flex items-center justify-between px-4 sticky top-0 z-10 gap-4">
+				<header className="bg-primary border-b h-14 flex items-center justify-between px-4 pl-1 sticky top-0 z-10 gap-4">
 					<div className="flex items-center gap-4 flex-1">
 						<Button
 							variant="ghost"
 							size="icon"
-							className="text-white"
+							className="!text-white hover:bg-white/10 "
 							onClick={() => setSidebarOpen(!sidebarOpen)}
 						>
 							<Menu className="size-5" />

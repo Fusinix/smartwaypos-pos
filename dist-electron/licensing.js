@@ -317,9 +317,13 @@ class LicensingManager {
         if (!savedLicense) {
             return { valid: false, message: 'No license found' };
         }
+        this.licenseInfo = savedLicense;
         return this.validateOffline(savedLicense.licenseKey);
     }
     getLicenseInfo() {
+        if (!this.licenseInfo) {
+            this.licenseInfo = this.loadLicense();
+        }
         return this.licenseInfo;
     }
     getHardwareId() {

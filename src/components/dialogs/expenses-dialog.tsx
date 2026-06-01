@@ -1,13 +1,12 @@
 /** @format */
 
-import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,8 +17,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, Receipt, AlertCircle } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
+import { AlertCircle, Trash2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 interface ExpensesDialogProps {
@@ -138,8 +138,7 @@ export const ExpensesDialog: React.FC<ExpensesDialogProps> = ({
 								disabled={isLoading}
 								className="w-full bg-red-600 hover:bg-red-700 gap-2"
 							>
-								<Plus className="h-4 w-4" />
-								Add
+								Save
 							</Button>
 						</div>
 					</form>

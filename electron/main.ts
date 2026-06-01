@@ -1,7 +1,7 @@
 /** @format */
 
 import * as bcrypt from "bcryptjs";
-import { app, BrowserWindow, ipcMain, protocol, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, dialog, net } from "electron";
 import * as path from "path";
 import { getDatabase } from "./database";
 import { licensingManager } from "./licensing";
@@ -215,6 +215,10 @@ async function logInventoryChange({
 	newStock,
 	reason,
 	adminId,
+	productName,
+	adminName,
+	adminRole,
+	note,
 }: {
 	db: any;
 	productId: number;
@@ -223,12 +227,246 @@ async function logInventoryChange({
 	newStock: number;
 	reason: "sale" | "restock" | "adjustment" | "wastage";
 	adminId: number | null;
+	productName?: string | null;
+	adminName?: string | null;
+	adminRole?: string | null;
+	note?: string | null;
 }) {
 	await db.run(
-		"INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id) VALUES (?, ?, ?, ?, ?, ?)",
-		[productId, changeAmount, previousStock, newStock, reason, adminId]
+		"INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id, product_name, admin_name, admin_role, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		[productId, changeAmount, previousStock, newStock, reason, adminId, productName || null, adminName || null, adminRole || null, note || null]
 	);
 }
+
+// =====================================================
+// Automated Cloud Sync Services
+// =====================================================
+let syncInterval: any = null;
+let syncAfterMutationTimer: ReturnType<typeof setTimeout> | null = null;
+
+function notifySyncStatusChanged() {
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.webContents.send("sync-status-changed");
+	}
+}
+
+function scheduleSyncAfterMutation() {
+	notifySyncStatusChanged();
+
+	if (syncAfterMutationTimer) {
+		clearTimeout(syncAfterMutationTimer);
+	}
+
+	// Debounce — one order can create multiple rows (order, items, logs)
+	syncAfterMutationTimer = setTimeout(() => {
+		performSync().finally(() => notifySyncStatusChanged());
+	}, 2000);
+}
+
+let cachedBaseUrl: string | null = null;
+let lastCacheTime = 0;
+
+async function getBaseUrl(): Promise<string> {
+	const now = Date.now();
+	if (cachedBaseUrl && (now - lastCacheTime < 10000)) {
+		return cachedBaseUrl;
+	}
+
+	const licenseServerUrl = process.env.LICENSE_SERVER_URL || "https://smartwaypos.vercel.app";
+	const isDev = !app.isPackaged || process.env.NODE_ENV === "development";
+	
+	if (!isDev) {
+		cachedBaseUrl = licenseServerUrl;
+		lastCacheTime = now;
+		return licenseServerUrl;
+	}
+
+	try {
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 300);
+		const response = await fetch("http://localhost:3000/api/validate", {
+			method: "OPTIONS",
+			signal: controller.signal,
+		}).catch(() => null);
+		clearTimeout(timeoutId);
+
+		if (response) {
+			cachedBaseUrl = "http://localhost:3000";
+		} else {
+			cachedBaseUrl = licenseServerUrl;
+		}
+	} catch {
+		cachedBaseUrl = licenseServerUrl;
+	}
+
+	lastCacheTime = now;
+	return cachedBaseUrl;
+}
+
+type SyncResult =
+	| { status: "skipped"; reason: string }
+	| { status: "synced"; orders: number; orderItems: number; inventoryLogs: number }
+	| { status: "error"; message: string };
+
+async function performSync(): Promise<SyncResult> {
+	try {
+		return await performSyncInternal();
+	} finally {
+		notifySyncStatusChanged();
+	}
+}
+
+async function performSyncInternal(): Promise<SyncResult> {
+	if (!net.isOnline()) {
+		console.log("[Sync] Offline. Skipping cloud sync cycle.");
+		return { status: "skipped", reason: "Device is offline." };
+	}
+
+	const licenseInfo = licensingManager.getLicenseInfo();
+	if (!licenseInfo || !licenseInfo.licenseKey) {
+		console.log("[Sync] No active license key found. Skipping sync.");
+		return { status: "skipped", reason: "No active license key found." };
+	}
+
+	const databaseInstance = getDatabase();
+	if (!databaseInstance) {
+		return { status: "skipped", reason: "Database not initialised yet." };
+	}
+
+	// Fetch unsynced records from SQLite
+	const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders WHERE synced_at IS NULL");
+	const unsyncedOrderItems = await databaseInstance.all(`
+		SELECT 
+			oi.*,
+			COALESCE(
+				CASE 
+					WHEN oi.item_type = 'food' THEN fi.name 
+					ELSE p.name 
+				END, 
+				'Unknown Product'
+			) as product_name,
+			COALESCE(
+				CASE 
+					WHEN oi.item_type = 'food' THEN fi.price 
+					ELSE p.price 
+				END, 
+				0.0
+			) as price
+		FROM order_items oi
+		LEFT JOIN products p ON oi.product_id = p.id
+		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
+		WHERE oi.synced_at IS NULL
+	`);
+	const unsyncedInventoryLogs = await databaseInstance.all(`
+		SELECT 
+			il.*,
+			COALESCE(p.name, 'Unknown Product') as product_name
+		FROM inventory_logs il
+		LEFT JOIN products p ON il.product_id = p.id
+		WHERE il.synced_at IS NULL
+	`);
+
+	if (unsyncedOrders.length === 0 && unsyncedOrderItems.length === 0 && unsyncedInventoryLogs.length === 0) {
+		console.log("[Sync] Database is fully backed up and in sync.");
+		return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0 };
+	}
+
+	console.log(`[Sync] Found unsynced records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs.`);
+
+	// Post payload to Next.js portals api gateway
+	const baseUrl = await getBaseUrl();
+
+	let response: Response;
+	try {
+		response = await fetch(`${baseUrl}/api/pos/sync`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				licenseKey: licenseInfo.licenseKey,
+				orders: unsyncedOrders,
+				orderItems: unsyncedOrderItems,
+				inventoryLogs: unsyncedInventoryLogs,
+			}),
+		});
+	} catch (fetchError: any) {
+		const msg = `Network error reaching sync server: ${fetchError.message}`;
+		console.error("[Sync]", msg);
+		return { status: "error", message: msg };
+	}
+
+	if (!response.ok) {
+		let errorText = response.statusText;
+		try { errorText = await response.text(); } catch {}
+		const msg = `Sync server returned ${response.status}: ${errorText}`;
+		console.error("[Sync]", msg);
+		return { status: "error", message: msg };
+	}
+
+	let result: any;
+	try {
+		result = await response.json();
+	} catch (jsonError: any) {
+		const msg = `Invalid JSON from sync server: ${jsonError.message}`;
+		console.error("[Sync]", msg);
+		return { status: "error", message: msg };
+	}
+
+	if (!result.success) {
+		const msg = result.message || "Sync rejected by server.";
+		console.error("[Sync] Sync rejected by server:", msg);
+		return { status: "error", message: msg };
+	}
+
+	const timestamp = new Date().toISOString();
+
+	// Update orders synced_at
+	if (result.syncedOrders && result.syncedOrders.length > 0) {
+		const placeholders = result.syncedOrders.map(() => "?").join(",");
+		await databaseInstance.run(
+			`UPDATE orders SET synced_at = ? WHERE id IN (${placeholders})`,
+			[timestamp, ...result.syncedOrders]
+		);
+	}
+
+	// Update order_items synced_at
+	if (result.syncedOrderItems && result.syncedOrderItems.length > 0) {
+		const placeholders = result.syncedOrderItems.map(() => "?").join(",");
+		await databaseInstance.run(
+			`UPDATE order_items SET synced_at = ? WHERE id IN (${placeholders})`,
+			[timestamp, ...result.syncedOrderItems]
+		);
+	}
+
+	// Update inventory_logs synced_at
+	if (result.syncedInventoryLogs && result.syncedInventoryLogs.length > 0) {
+		const placeholders = result.syncedInventoryLogs.map(() => "?").join(",");
+		await databaseInstance.run(
+			`UPDATE inventory_logs SET synced_at = ? WHERE id IN (${placeholders})`,
+			[timestamp, ...result.syncedInventoryLogs]
+		);
+	}
+
+	const syncedOrderCount = result.syncedOrders?.length ?? 0;
+	const syncedItemCount = result.syncedOrderItems?.length ?? 0;
+	const syncedLogCount = result.syncedInventoryLogs?.length ?? 0;
+	console.log(`[Sync] Successful sync cycle. Orders: ${syncedOrderCount}, Items: ${syncedItemCount}, Logs: ${syncedLogCount}.`);
+	return { status: "synced", orders: syncedOrderCount, orderItems: syncedItemCount, inventoryLogs: syncedLogCount };
+}
+
+function startSyncLoop() {
+	if (syncInterval) clearInterval(syncInterval);
+
+	// Perform initial sync after 5 seconds to allow full startup
+	setTimeout(() => {
+		performSync();
+	}, 5000);
+
+	// Scheduled interval sync every 5 minutes
+	syncInterval = setInterval(() => {
+		performSync();
+	}, 300000);
+}
+
 
 // Register protocol before app is ready
 protocol.registerSchemesAsPrivileged([
@@ -587,6 +825,20 @@ async function createWindow() {
 			// Column might already exist, ignore error
 		}
 
+		// Migration: add product_name, admin_name, admin_role, note columns to inventory_logs
+		for (const colDef of [
+			"product_name TEXT",
+			"admin_name TEXT",
+			"admin_role TEXT",
+			"note TEXT",
+		]) {
+			try {
+				await db.run(`ALTER TABLE inventory_logs ADD COLUMN ${colDef}`);
+			} catch {
+				// Column already exists — safe to ignore
+			}
+		}
+
 		// Add item_type and notes columns to order_items table if they don't exist (migration)
 		try {
 			await db.run(
@@ -638,6 +890,23 @@ async function createWindow() {
 			// Column might already exist, safe to ignore
 		}
 
+		// Sync Migrations: Add synced_at columns to orders, order_items, and inventory_logs if not exist
+		try {
+			await db.run("ALTER TABLE orders ADD COLUMN synced_at DATETIME DEFAULT NULL");
+		} catch (error: any) {
+			// Column might already exist, ignore error
+		}
+		try {
+			await db.run("ALTER TABLE order_items ADD COLUMN synced_at DATETIME DEFAULT NULL");
+		} catch (error: any) {
+			// Column might already exist, ignore error
+		}
+		try {
+			await db.run("ALTER TABLE inventory_logs ADD COLUMN synced_at DATETIME DEFAULT NULL");
+		} catch (error: any) {
+			// Column might already exist, ignore error
+		}
+
 		// Create default admin user if not exists
 		const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", [
 			"admin",
@@ -654,6 +923,9 @@ async function createWindow() {
 			);
 			console.log('Default admin user created successfully.');
 		}
+
+		// Start automated cloud sync loop
+		startSyncLoop();
 
 		// Load the index.html file
 		if (!app.isPackaged) {
@@ -950,10 +1222,11 @@ ipcMain.handle("update-user", async (_, id, data) => {
 
 ipcMain.handle("clock-in", async (_, userId) => {
 	try {
+		const nowStr = new Date().toISOString();
 		// Ensure no other active shift exists for this user
-		await db.run("UPDATE shifts SET status = 'completed', clock_out = CURRENT_TIMESTAMP WHERE user_id = ? AND status = 'active'", [userId]);
+		await db.run("UPDATE shifts SET status = 'completed', clock_out = ? WHERE user_id = ? AND status = 'active'", [nowStr, userId]);
 		
-		await db.run("INSERT INTO shifts (user_id, status) VALUES (?, 'active')", [userId]);
+		await db.run("INSERT INTO shifts (user_id, clock_in, status) VALUES (?, ?, 'active')", [userId, nowStr]);
 		const shift = await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
 		return shift;
 	} catch (error) {
@@ -968,7 +1241,11 @@ ipcMain.handle("clock-out", async (_, userId) => {
 		if (!activeShift) return null;
 
 		const clockOut = new Date().toISOString();
-		const clockIn = new Date(activeShift.clock_in);
+		let clockInStr = activeShift.clock_in;
+		if (clockInStr && !clockInStr.includes("Z") && !clockInStr.includes("+") && !clockInStr.includes("T")) {
+			clockInStr = clockInStr.replace(" ", "T") + "Z";
+		}
+		const clockIn = new Date(clockInStr);
 		const diffMs = new Date(clockOut).getTime() - clockIn.getTime();
 		const totalHours = diffMs / (1000 * 60 * 60);
 
@@ -1042,9 +1319,7 @@ ipcMain.handle("request-password-reset", async (_, licenseKey) => {
 		}
 
 		// 2. Request reset from Portal
-		const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app';
-		const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-		const baseUrl = isDev ? 'http://localhost:3000' : licenseServerUrl;
+		const baseUrl = await getBaseUrl();
 
 		const response = await fetch(`${baseUrl}/api/pos/reset-request`, {
 			method: 'POST',
@@ -1073,9 +1348,7 @@ ipcMain.handle("request-password-reset", async (_, licenseKey) => {
 
 ipcMain.handle("check-reset-status", async (_, licenseKey) => {
 	try {
-		const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app';
-		const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-		const baseUrl = isDev ? 'http://localhost:3000' : licenseServerUrl;
+		const baseUrl = await getBaseUrl();
 
 		const response = await fetch(`${baseUrl}/api/pos/reset-status?license_key=${licenseKey}`, {
 			method: 'GET',
@@ -1094,9 +1367,7 @@ ipcMain.handle("check-reset-status", async (_, licenseKey) => {
 ipcMain.handle("complete-password-reset", async (_, licenseKey, newPassword) => {
 	try {
 		// 1. Final verification with Portal that this is actually approved
-		const licenseServerUrl = process.env.LICENSE_SERVER_URL || 'https://smartwaypos.vercel.app';
-		const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
-		const baseUrl = isDev ? 'http://localhost:3000' : licenseServerUrl;
+		const baseUrl = await getBaseUrl();
 
 		const response = await fetch(`${baseUrl}/api/pos/reset-complete`, {
 			method: 'POST',
@@ -1648,6 +1919,10 @@ ipcMain.handle(
 					newStock: newProduct.stock,
 					reason: "restock",
 					adminId: author.id || null,
+					productName: newProduct.name || null,
+					adminName: author.name || null,
+					adminRole: author.role || null,
+					note: null,
 				});
 			}
 
@@ -1709,6 +1984,10 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 				newStock: updatedProduct.stock,
 				reason: payload.reason || (updatedProduct.stock > oldStock ? "restock" : "adjustment"),
 				adminId: author.id || null,
+				productName: updatedProduct.name || null,
+				adminName: author.name || null,
+				adminRole: author.role || null,
+				note: payload.note || null,
 			});
 		}
 
@@ -1821,6 +2100,10 @@ ipcMain.handle(
 				newStock: newStock,
 				reason: changeReason,
 				adminId: author.id || null,
+				productName: oldStock.name || null,
+				adminName: author.name || null,
+				adminRole: author.role || null,
+				note: payload.note || null,
 			});
 
 			await logAction({
@@ -1866,9 +2149,22 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: a
 				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
 			);
 			
-			// 2b. Get today's sales from orders for this product
+			// 2b. Get today's sold qty (open + closed, not cancelled) for inventory reconciliation
 			const salesData = await db.get(
 				`SELECT SUM(oi.quantity) as sold_qty
+				 FROM order_items oi
+				 JOIN orders o ON oi.order_id = o.id
+				 WHERE oi.product_id = ? 
+				 AND oi.item_type = 'drink'
+				 AND o.status IN ('open', 'closed')
+				 AND date(o.created_at) = date(?)` +
+				(author?.id ? ` AND o.admin_id = ?` : ``),
+				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
+			);
+
+			// 2c. Get today's closed sales for revenue calculation
+			const closedSalesData = await db.get(
+				`SELECT SUM(oi.quantity) as sold_closed_qty
 				 FROM order_items oi
 				 JOIN orders o ON oi.order_id = o.id
 				 WHERE oi.product_id = ? 
@@ -1880,6 +2176,7 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: a
 			);
 			
 			const sold = salesData?.sold_qty || 0;
+			const soldClosed = closedSalesData?.sold_closed_qty || 0;
 			let added = 0;
 			let adjusted = 0;
 			let damaged = 0;
@@ -1887,7 +2184,8 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: a
 			logs.forEach((log: any) => {
 				if (log.reason === 'restock') {
 					added += log.change_amount;
-				} else if (log.reason === 'damage') {
+				} else if (log.reason === 'wastage') {
+					// 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
 					damaged += Math.abs(log.change_amount);
 				} else if (log.reason === 'adjustment') {
 					if (log.change_amount > 0) {
@@ -1905,7 +2203,12 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: a
 				openingStock = firstLog.previous_stock;
 			}
 			
-			// 4. Only include in report if there was activity
+			// 4. Compute stockLeft as reconciled math (openingStock + added - sold - damaged - adjusted)
+			//    This ensures the row always balances for this user's session, regardless of other
+			//    system-wide changes to the product stock by other users.
+			const stockLeft = openingStock + added - sold - damaged - adjusted;
+			
+			// 5. Only include in report if there was activity
 			if (sold > 0 || logs.length > 0) {
 				report.push({
 					id: product.id,
@@ -1917,8 +2220,8 @@ ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: a
 					adjusted,
 					totalStock: openingStock + added,
 					price: product.price,
-					totalSales: sold * product.price,
-					stockLeft: product.stock,
+					totalSales: soldClosed * product.price,
+					stockLeft,
 					lowStockThreshold: product.low_stock_threshold
 				});
 			}
@@ -2756,6 +3059,9 @@ ipcMain.handle("create-order", async (_event, order) => {
 						newStock: newStock,
 						reason: "sale",
 						adminId: author.id || null,
+						productName: oldProduct?.name || null,
+						adminName: author.name || null,
+						adminRole: author.role || null,
 					});
 
 					if (oldProduct) {
@@ -2877,6 +3183,8 @@ ipcMain.handle("create-order", async (_event, order) => {
 				item.category_name = item.food_category_name || item.category_name;
 			}
 		}
+
+		scheduleSyncAfterMutation();
 
 		return {
 			...createdOrder,
@@ -3043,9 +3351,47 @@ ipcMain.handle("update-order", async (_, order) => {
 		const result = await withRetry(async () => {
 			const db = await getDatabase();
 
+			// Fetch the existing order to detect status transitions (e.g., cancellation)
+			const existingOrder = await db.get("SELECT status FROM orders WHERE id = ?", [order.id]);
+
+			// If order is being cancelled, restore drink stock and log the change
+			const author = order.author || {};
+			if (existingOrder && existingOrder.status !== "cancelled" && order.status === "cancelled") {
+				const drinkItemsToRestore = await db.all(
+					"SELECT oi.product_id, oi.quantity FROM order_items oi WHERE oi.order_id = ? AND oi.item_type = 'drink'",
+					[order.id]
+				);
+				for (const item of drinkItemsToRestore) {
+					if (!item.product_id) continue;
+					const currentProduct = await db.get(
+						"SELECT stock, name FROM products WHERE id = ?",
+						[item.product_id]
+					);
+					const oldStock = currentProduct?.stock || 0;
+					const newStock = oldStock + item.quantity;
+					await db.run(
+						"UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+						[item.quantity, item.product_id]
+					);
+					await logInventoryChange({
+						db,
+						productId: item.product_id,
+						changeAmount: item.quantity,
+						previousStock: oldStock,
+						newStock,
+						reason: "sale",
+						adminId: author.id || null,
+						productName: currentProduct?.name || null,
+						adminName: author.name || null,
+						adminRole: author.role || null,
+					});
+				}
+			}
+
 			// Calculate amounts based on current order items
 			let amount_bt = 0; // amount before tax
 			let amount = 0; // amount with tax
+
 
 			// Get current order items and calculate totals (drinks + food)
 			const drinkItems = await db.all(
@@ -3082,7 +3428,6 @@ ipcMain.handle("update-order", async (_, order) => {
 				amount = amount_bt + (amount_bt * taxRate) / 100;
 			}
 
-			const author = order.author || {};
 			const editorId = author.id || null;
 
 			await db.run(
@@ -3101,6 +3446,7 @@ ipcMain.handle("update-order", async (_, order) => {
             edited_by = ?,
             amount_tendered = ?,
             notes = ?,
+            synced_at = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `,
@@ -3122,6 +3468,11 @@ ipcMain.handle("update-order", async (_, order) => {
 				]
 			);
 
+			await db.run(
+				"UPDATE order_items SET synced_at = NULL WHERE order_id = ?",
+				[order.id]
+			);
+
 			// Log action within the retry wrapper
 			await logAction({
 				db,
@@ -3136,6 +3487,7 @@ ipcMain.handle("update-order", async (_, order) => {
 			return { ...order, amount, amount_bt };
 		});
 
+		scheduleSyncAfterMutation();
 		return result;
 	} catch (error) {
 		console.error("Error updating order:", error);
@@ -3196,6 +3548,7 @@ ipcMain.handle(
 				}
 
 				// Apply stock adjustments (drinks only)
+				const author = payload.author || {};
 				for (const [productId, adjustment] of stockAdjustments) {
 					if (adjustment !== 0) {
 						// Get current stock before update
@@ -3203,17 +3556,28 @@ ipcMain.handle(
 							"SELECT stock, name FROM products WHERE id = ?",
 							[productId]
 						);
+						const oldStock = currentProduct?.stock || 0;
 
 						await db.run(
 							"UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
 							[adjustment, productId]
 						);
 
-						// Verify the update
-						const updatedProduct = await db.get(
-							"SELECT stock FROM products WHERE id = ?",
-							[productId]
-						);
+						const newStock = oldStock + adjustment;
+
+						// Log the inventory change so the daily report tracks this correctly
+						await logInventoryChange({
+							db,
+							productId,
+							changeAmount: adjustment,
+							previousStock: oldStock,
+							newStock,
+							reason: "sale",
+							adminId: author.id || null,
+							productName: currentProduct?.name || null,
+							adminName: author.name || null,
+							adminRole: author.role || null,
+						});
 					}
 				}
 
@@ -3304,13 +3668,16 @@ ipcMain.handle(
 				const taxRate = order?.tax || 0;
 				const amount = amount_bt + (amount_bt * taxRate) / 100;
 
-				const author = payload.author || {};
 				const editorId = author.id || null;
 
-				// Update order amounts and edited_by
+				// Update order amounts and edited_by — mark unsynced for cloud backup
 				await db.run(
-					"UPDATE orders SET amount = ?, amount_bt = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+					"UPDATE orders SET amount = ?, amount_bt = ?, edited_by = ?, synced_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
 					[amount, amount_bt, editorId, orderId]
+				);
+				await db.run(
+					"UPDATE order_items SET synced_at = NULL WHERE order_id = ?",
+					[orderId]
 				);
 
 				// Log action within the retry wrapper
@@ -3404,6 +3771,7 @@ ipcMain.handle(
 				};
 			});
 
+			scheduleSyncAfterMutation();
 			return result;
 		} catch (error) {
 			console.error("Error updating order items:", error);
@@ -4874,6 +5242,106 @@ ipcMain.handle("get-last-online-check", async () => {
 	} catch (error) {
 		console.error("Error getting last online check:", error);
 		return null;
+	}
+});
+
+ipcMain.handle("get-sync-status", async () => {
+	try {
+		const databaseInstance = getDatabase();
+		if (!databaseInstance) return { success: false, message: "Database not initialized" };
+
+		const ordersCount = await databaseInstance.get("SELECT COUNT(*) as count FROM orders WHERE synced_at IS NULL");
+		const itemsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM order_items WHERE synced_at IS NULL");
+		const logsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL");
+
+		const latestOrderSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM orders WHERE synced_at IS NOT NULL");
+		const latestItemSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM order_items WHERE synced_at IS NOT NULL");
+		const latestLogSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM inventory_logs WHERE synced_at IS NOT NULL");
+
+		const lastSyncDates = [
+			latestOrderSync?.last_sync,
+			latestItemSync?.last_sync,
+			latestLogSync?.last_sync
+		].filter(Boolean).map(dateStr => new Date(dateStr).getTime());
+
+		const lastSyncedAt = lastSyncDates.length > 0 ? new Date(Math.max(...lastSyncDates)).toISOString() : null;
+
+		return {
+			success: true,
+			unsyncedOrders: Number(ordersCount?.count ?? 0),
+			unsyncedOrderItems: Number(itemsCount?.count ?? 0),
+			unsyncedInventoryLogs: Number(logsCount?.count ?? 0),
+			lastSyncedAt
+		};
+	} catch (error: any) {
+		console.error("Error in get-sync-status handler:", error);
+		return { success: false, message: error.message };
+	}
+});
+
+ipcMain.handle("trigger-manual-sync", async () => {
+	const result = await performSync();
+	if (result.status === "error") {
+		return { success: false, message: result.message };
+	}
+	if (result.status === "skipped") {
+		// Treat "already up to date" as success, but tell the UI
+		return { success: true, skipped: true, reason: result.reason };
+	}
+	// status === "synced"
+	return {
+		success: true,
+		skipped: false,
+		orders: result.orders,
+		orderItems: result.orderItems,
+		inventoryLogs: result.inventoryLogs,
+	};
+});
+
+ipcMain.handle("check-app-version", async () => {
+	try {
+		const currentVersion = app.getVersion();
+		const platform = process.platform === "darwin" ? "macos" : "windows";
+
+		const baseUrl = await getBaseUrl();
+
+		const response = await fetch(`${baseUrl}/api/pos/version?platform=${platform}`);
+		if (!response.ok) {
+			throw new Error(`Version API returned ${response.status}`);
+		}
+
+		const result = await response.json();
+		
+		const compareVersions = (v1: string, v2: string): number => {
+			const parts1 = v1.split(".").map(Number);
+			const parts2 = v2.split(".").map(Number);
+			for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+				const p1 = parts1[i] || 0;
+				const p2 = parts2[i] || 0;
+				if (p1 < p2) return -1;
+				if (p1 > p2) return 1;
+			}
+			return 0;
+		};
+
+		if (result.success) {
+			return {
+				success: true,
+				currentVersion,
+				latestVersion: result.version,
+				downloadUrl: result.url,
+				releaseNotes: result.releaseNotes,
+				updateAvailable: compareVersions(currentVersion, result.version) < 0
+			};
+		}
+		return { success: false, message: result.message };
+	} catch (error: any) {
+		if (error.message?.includes("fetch failed") || error.code === "ECONNREFUSED" || error.cause?.code === "ECONNREFUSED") {
+			console.log("[Version Check] Update server unreachable. Running in offline/local mode.");
+		} else {
+			console.error("Error in check-app-version handler:", error);
+		}
+		return { success: false, message: error.message };
 	}
 });
 

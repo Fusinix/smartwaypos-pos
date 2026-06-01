@@ -58,9 +58,9 @@ export const CategoryComponent = ({
 		<div
 			key={cat.id}
 			className={cn(
-				"p-4 h-18 border rounded-xl flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group ",
+				"p-4 h-18 border-b flex items-center gap-4 hover:bg-primary/10 hover:text-primary cursor-pointer group ",
 				cat.id == activeCategory ?
-					"bg-primary border-primary text-primary-foreground "
+					"bg-primary border-primary border-b-0 text-primary-foreground rounded-xl"
 				:	"",
 			)}
 			onClick={() => setActiveCategory(cat?.id as any)}

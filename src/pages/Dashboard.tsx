@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FilterBar } from "../components/dashboard/FilterBar";
-import { RoleBasedDashboard } from "../components/dashboard/RoleBasedDashboard";
-import { RoleWelcomeMessage } from "../components/dashboard/RoleWelcomeMessage";
-import { SetupChecklist } from "../components/dashboard/SetupChecklist";
-import { useDashboard } from "../hooks/useDashboard";
-import { useAnalytics } from "../hooks/useAnalytics";
-import { useAuth } from "../context/AuthContext";
+/** @format */
+
 import { saveAs } from "file-saver";
-import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
+import { FilterBar } from "../components/dashboard/FilterBar";
+import { RoleBasedDashboard } from "../components/dashboard/RoleBasedDashboard";
+import { SetupChecklist } from "../components/dashboard/SetupChecklist";
+import { useAuth } from "../context/AuthContext";
+import { useAnalytics } from "../hooks/useAnalytics";
+import { useDashboard } from "../hooks/useDashboard";
 import { useRolePermissions } from "../hooks/useRolePermissions";
 
 export const Dashboard: React.FC = () => {
@@ -124,7 +125,7 @@ export const Dashboard: React.FC = () => {
 				(doc as any).autoTable({
 					head: [data.columns],
 					body: data.rows.map((row: any) =>
-						data.columns.map((col: string) => row[col])
+						data.columns.map((col: string) => row[col]),
 					),
 					startY: 24,
 				});
@@ -139,7 +140,9 @@ export const Dashboard: React.FC = () => {
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
 			<div className="bg-white border-b px-8 py-4 space-y-4">
-				<h1 className="text-2xl font-bold text-gray-900">Welcome {user?.username || "Cashier"}!</h1>
+				<h1 className="text-2xl font-bold text-gray-900">
+					Welcome {user?.username || "Cashier"}!
+				</h1>
 				{/* <RoleWelcomeMessage
 					userRole={user?.role || "cashier"}
 					username={user?.username || "User"}

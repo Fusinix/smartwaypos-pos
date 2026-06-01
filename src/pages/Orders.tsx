@@ -388,7 +388,9 @@ export const Orders: React.FC = () => {
 
 			autoTable(doc, {
 				startY: 55,
-				head: [["Item", "Open", "Add", "Sold", "Dmg", "Adj", "Sales", "Left"]],
+				head: [
+					["Item", "Open", "Add", "Sold", "Wasted", "Adj", "Sales", "Left"],
+				],
 				body: inventoryBody,
 				theme: "striped",
 				headStyles: { fillColor: [41, 128, 185], textColor: 255 },
@@ -567,7 +569,7 @@ export const Orders: React.FC = () => {
 							onClick={() => setActiveTab("active")}
 						>
 							<FileText className="!size-4" />
-							Open
+							Opened
 						</Button>
 						<Button
 							variant={activeTab === "closed" ? "default" : "outline"}

@@ -86,6 +86,9 @@ const validChannels = [
   'clock-out',
   'get-active-shift',
   'get-all-shifts',
+  'get-sync-status',
+  'trigger-manual-sync',
+  'check-app-version',
 ];
 
 // Expose protected methods that allow the renderer process to use
@@ -98,5 +101,12 @@ contextBridge.exposeInMainWorld('electron', {
     }
     console.error(`Unauthorized IPC channel: ${channel}`);
     throw new Error(`Unauthorized IPC channel: ${channel}`);
+  },
+  onSyncStatusChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('sync-status-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('sync-status-changed', listener);
+    };
   },
 });

@@ -95,7 +95,7 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 										<TableHead className="text-right">Opening</TableHead>
 										<TableHead className="text-right">Added</TableHead>
 										<TableHead className="text-right">Sold</TableHead>
-										<TableHead className="text-right">Damaged</TableHead>
+										<TableHead className="text-right">Wasted</TableHead>
 										<TableHead className="text-right">Adj</TableHead>
 										<TableHead className="text-right">Left</TableHead>
 										<TableHead className="text-right">Sales</TableHead>
@@ -106,10 +106,16 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 										<TableRow key={item.id}>
 											<TableCell className="font-medium">{item.name}</TableCell>
 											<TableCell className="text-right">{item.openingStock}</TableCell>
-											<TableCell className="text-right text-green-600">+{item.added}</TableCell>
+											<TableCell className="text-right text-green-600">
+												{item.added > 0 ? `+${item.added}` : item.added}
+											</TableCell>
 											<TableCell className="text-right text-blue-600">{item.sold}</TableCell>
-											<TableCell className="text-right text-orange-600">-{item.damaged}</TableCell>
-											<TableCell className="text-right text-red-500">-{item.adjusted}</TableCell>
+											<TableCell className="text-right text-orange-600">
+												{item.damaged > 0 ? `-${item.damaged}` : item.damaged}
+											</TableCell>
+											<TableCell className="text-right text-red-500">
+												{item.adjusted > 0 ? `-${item.adjusted}` : item.adjusted}
+											</TableCell>
 											<TableCell className="text-right font-bold">{item.stockLeft}</TableCell>
 											<TableCell className="text-right font-semibold">{formatCurrency(item.totalSales)}</TableCell>
 										</TableRow>

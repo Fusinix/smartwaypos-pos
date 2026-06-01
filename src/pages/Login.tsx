@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Logo } from "@/components/ui/logo";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,27 @@ export const Login: React.FC = () => {
 	const [error, setError] = useState("");
 	const { login, isLoading, user, isAuthenticated } = useAuth();
 	const navigate = useNavigate();
+
+	const { settings, setSettings } = useSettingsStore();
+
+	// Load settings on mount to hydrate custom branding
+	useEffect(() => {
+		const loadSettings = async () => {
+			try {
+				const settingsData = await window.electron.invoke("get-settings");
+				setSettings(settingsData);
+			} catch (err) {
+				console.error("Error loading settings in login page:", err);
+			}
+		};
+		if (!settings) {
+			loadSettings();
+		}
+	}, [settings, setSettings]);
+
+	const businessName = settings?.general?.businessName || "Smartway POS";
+	const businessLogo = settings?.general?.businessLogo;
+	const businessBanner = settings?.general?.businessBanner;
 
 	// Recovery state
 	const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
@@ -94,7 +115,7 @@ export const Login: React.FC = () => {
 
 		try {
 			await login(username, password);
-		} catch (err) {
+		} catch (err: any) {
 			setError("Invalid username or password");
 		}
 	};
@@ -156,83 +177,214 @@ export const Login: React.FC = () => {
 	};
 
 	return (
-		<div className="h-[calc(100%-1px)] flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8 w-full">
-			<form
-				className="w-full max-w-md mx-auto bg-white"
-				onSubmit={handleSubmit}
-			>
-				<div className="p-8">
-					<Logo size="md" />
-					<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-4 leading-relaxed hidden">
-						The best offline System for{" "}
-						<span className="text-primary">Desktop & Tablet</span> devices
+		<div className="h-screen w-full flex bg-slate-50 overflow-hidden font-sans select-none relative">
+			{/* Left Branding Pane (visible only on lg screens and larger) */}
+			<div className="hidden lg:flex lg:w-1/2 relative bg-emerald-950 text-white overflow-hidden items-center justify-center p-12 h-full">
+				{/* Background layer */}
+				{businessBanner ?
+					<>
+						<img
+							src={businessBanner}
+							alt="Business Banner"
+							className="absolute inset-0 w-full h-full object-cover opacity-60"
+						/>
+						<div className="absolute inset-0 bg-gradient-to-tr from-emerald-950 via-emerald-900/90 to-emerald-950/80 backdrop-blur-[2px]" />
+					</>
+				:	<>
+						{/* Sleek abstract modern grid background */}
+						<div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950" />
+						<div
+							className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(16,185,129,0.15),transparent_60%)] animate-pulse"
+							style={{ animationDuration: "6s" }}
+						/>
+						<div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none" />
+						<div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-teal-500/10 blur-[120px] pointer-events-none" />
+					</>
+				}
+
+				{/* Floating elegant glassmorphic brand container */}
+				<div className="relative z-10 max-w-lg w-full bg-black/35 backdrop-blur-xl rounded-2xl p-10 shadow-2xl flex flex-col items-center text-center space-y-6">
+					{businessLogo ?
+						<div className="h-28 w-28 rounded-2xl bg-white border border-white/20 p-2 shadow-2xl flex items-center justify-center overflow-hidden">
+							<img
+								src={businessLogo}
+								alt="Business Logo"
+								className="max-h-full max-w-full object-contain rounded"
+							/>
+						</div>
+					:	<div className="h-28 w-28 rounded-2xl bg-white border border-white/20 p-2 shadow-2xl flex items-center justify-center overflow-hidden">
+							<img
+								src="images/logo.png"
+								alt="Default Logo"
+								className="max-h-full max-w-full object-contain"
+							/>
+						</div>
+					}
+
+					<div className="space-y-3">
+						<h1 className="text-4xl font-extrabold capitalize text-white drop-shadow-md leading-tight">
+							{businessName}
+						</h1>
+					</div>
+
+					<p className="text-xs text-white/70 max-w-xs leading-relaxed">
+						Welcome to your point of sale terminal. <br />
+						Please authenticate to start or resume your shift.
 					</p>
 				</div>
-				<div className="rounded-md shadow-none space-y-4 p-6">
-					<div className="space-y-1">
-						<p className="text-sm font-medium text-foreground">
-							Sign in to your account
-						</p>
-						<p className="text-xs text-muted-foreground">
-							Enter your credentials to access the POS
-						</p>
-					</div>
+			</div>
 
-					<div className="space-y-4">
-						<div>
-							<Label htmlFor="username">Username</Label>
-							<Input
-								id="username"
-								name="username"
-								type="text"
-								required
-								className="mt-1"
-								placeholder="Username"
-								value={username}
-								onChange={(e) => setUsername(e.target.value)}
-							/>
-						</div>
-						<div>
-							<div className="flex items-center justify-between">
-								<Label htmlFor="password">Password</Label>
-								<button
-									type="button"
-									onClick={() => setIsRecoveryOpen(true)}
-									className="text-xs text-primary hover:underline font-medium"
-								>
-									Forgot password?
-								</button>
+			{/* Right Login Pane */}
+			<div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 bg-white overflow-y-auto relative h-full">
+				<div className="w-full max-w-md mx-auto space-y-8 flex flex-col justify-center h-full">
+					{/* Logo & custom banner header for mobile/tablet screens */}
+					<div className="block lg:hidden w-full relative rounded-2xl overflow-hidden mb-6 bg-emerald-950 text-white shadow-xl shadow-emerald-950/10 shrink-0">
+						{businessBanner ?
+							<>
+								<img
+									src={businessBanner}
+									alt="Mobile Banner"
+									className="absolute inset-0 w-full h-full object-cover opacity-40"
+								/>
+								<div className="absolute inset-0 bg-gradient-to-tr from-emerald-950 via-emerald-900/80 to-emerald-950/60" />
+							</>
+						:	<div className="absolute inset-0 bg-gradient-to-tr from-emerald-950 via-emerald-900 to-teal-900" />
+						}
+						<div className="relative z-10 p-6 flex items-center space-x-4">
+							{businessLogo ?
+								<div className="h-16 w-16 bg-white rounded-xl flex items-center justify-center p-1 shadow-md shrink-0">
+									<img
+										src={businessLogo}
+										alt="Business Logo"
+										className="max-h-full max-w-full object-contain"
+									/>
+								</div>
+							:	<div className="h-16 w-16 bg-white rounded-xl flex items-center justify-center p-1 shadow-md shrink-0">
+									<img
+										src="images/logo.png"
+										alt="Default Logo"
+										className="max-h-full max-w-full object-contain"
+									/>
+								</div>
+							}
+							<div className="min-w-0">
+								<h1 className="text-xl font-bold uppercase truncate text-white">
+									{businessName}
+								</h1>
+								<p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">
+									Point of Sale Terminal
+								</p>
 							</div>
-							<Input
-								id="password"
-								name="password"
-								type="password"
-								required
-								className="mt-1"
-								placeholder="Password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-							/>
 						</div>
 					</div>
 
-					{error && (
-						<div className="text-red-500 text-sm flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
-							<X className="size-4" />
-							{error}
+					{/* Desktop small branding header */}
+					<div className="hidden items-center space-x-4 mb-4">
+						{businessLogo ?
+							<div className="h-14 w-14 bg-white rounded-xl border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0">
+								<img
+									src={businessLogo}
+									alt="Business Logo"
+									className="max-h-full max-w-full object-contain"
+								/>
+							</div>
+						:	<div className="h-14 w-14 bg-white rounded-xl border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0">
+								<img
+									src="images/logo.png"
+									alt="Default Logo"
+									className="max-h-full max-w-full object-contain"
+								/>
+							</div>
+						}
+						<div className="min-w-0">
+							<h1 className="text-xl font-extrabold uppercase italic tracking-tighter truncate text-slate-850">
+								{businessName}
+							</h1>
+							<p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">
+								Secure Local Shift Login
+							</p>
 						</div>
-					)}
+					</div>
 
-					<Button
-						type="submit"
-						className="w-fit mt-12 ml-auto"
-						disabled={isLoading}
-					>
-						{isLoading ? "Signing in..." : "Sign in"}
-						{!isLoading && <ArrowRight className="ml-2 size-4" />}
-					</Button>
+					<form className="space-y-6 w-full shrink-0" onSubmit={handleSubmit}>
+						<div className="space-y-1">
+							<p className="text-lg font-bold text-slate-900">Log in</p>
+							<p className="text-xs text-slate-500">
+								Enter your credentials to access your session.
+							</p>
+						</div>
+
+						<div className="space-y-4">
+							<div className="space-y-1.5">
+								<Label
+									htmlFor="username"
+									className="text-xs font-semibold text-slate-600"
+								>
+									Username
+								</Label>
+								<Input
+									id="username"
+									name="username"
+									type="text"
+									required
+									className="h-11 border-slate-200 focus:ring-emerald-500 focus:border-emerald-500 rounded-xl"
+									placeholder="Enter your username"
+									value={username}
+									onChange={(e) => setUsername(e.target.value)}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<div className="flex items-center justify-between">
+									<Label
+										htmlFor="password"
+										className="text-xs font-semibold text-slate-600"
+									>
+										Password
+									</Label>
+									<button
+										type="button"
+										onClick={() => setIsRecoveryOpen(true)}
+										className="text-xs text-emerald-600 hover:text-emerald-700 font-bold"
+									>
+										Forgot password?
+									</button>
+								</div>
+								<Input
+									id="password"
+									name="password"
+									type="password"
+									required
+									className="h-11 border-slate-200 focus:ring-emerald-500 focus:border-emerald-500 rounded-xl"
+									placeholder="Enter your password"
+									value={password}
+									onChange={(e) => setPassword(e.target.value)}
+								/>
+							</div>
+						</div>
+
+						{error && (
+							<div className="text-red-600 text-xs flex items-center gap-2 p-3.5 rounded-xl bg-red-50 border border-red-100 font-medium">
+								<X className="size-4 shrink-0 text-red-500" />
+								{error}
+							</div>
+						)}
+
+						<Button
+							type="submit"
+							className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+							disabled={isLoading}
+						>
+							{isLoading ? "Signing in..." : "Sign in"}
+							{!isLoading && <ArrowRight className="ml-2 size-4" />}
+						</Button>
+					</form>
+
+					<div className="pt-8 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 shrink-0">
+						<span>Powered by Smartway POS</span>
+						<span>Version 1.0.0</span>
+					</div>
 				</div>
-			</form>
+			</div>
 
 			{/* Recovery Dialog */}
 			<Dialog open={isRecoveryOpen} onOpenChange={setIsRecoveryOpen}>

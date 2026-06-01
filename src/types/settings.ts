@@ -17,6 +17,7 @@ export interface NewUser {
 export interface GeneralSettings {
 	businessName: string;
 	businessLogo?: string;
+	businessBanner?: string;
 	defaultCurrency: string;
 	printReceipts: boolean;
 }
