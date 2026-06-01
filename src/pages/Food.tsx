@@ -753,14 +753,16 @@ export default function Food() {
 															>
 																Edit
 															</Button>
-															<Button
-																variant="destructive"
-																size="sm"
-																className="flex-1"
-																onClick={() => handleDeleteExtra(extra)}
-															>
-																Delete
-															</Button>
+															{canDeleteFood && (
+																<Button
+																	variant="destructive"
+																	size="sm"
+																	className="flex-1"
+																	onClick={() => handleDeleteExtra(extra)}
+																>
+																	Delete
+																</Button>
+															)}
 														</div>
 													)}
 												</div>

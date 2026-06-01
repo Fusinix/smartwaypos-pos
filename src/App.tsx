@@ -18,6 +18,7 @@ const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const Products = React.lazy(() => import("./pages/Products"));
 const Food = React.lazy(() => import("./pages/Food"));
 const Orders = React.lazy(() => import("./pages/Orders"));
+const EditOrder = React.lazy(() => import("./pages/EditOrder"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const Profile = React.lazy(() => import("./pages/Profile"));
 const SuperAdmin = React.lazy(() => import("./pages/SuperAdmin"));
@@ -26,7 +27,6 @@ const Accounting = React.lazy(() => import("./pages/Accounting"));
 
 import { SideKeyboard } from "./components/keyboard/SideKeyboard";
 import { useKeyboard } from "./context/KeyboardContext";
-
 
 /** Thin wrapper so useOnScreenKeyboard runs inside AuthProvider */
 const KeyboardListener: React.FC = () => {
@@ -86,6 +86,7 @@ const App: React.FC = () => {
 										<Route path="/products" element={<Products />} />
 										<Route path="/food" element={<Food />} />
 										<Route path="/orders" element={<Orders />} />
+										<Route path="/orders/edit" element={<EditOrder />} />
 										<Route path="/create-order" element={<CreateOrder />} />
 										<Route path="/settings" element={<Settings />} />
 										<Route path="/profile" element={<Profile />} />

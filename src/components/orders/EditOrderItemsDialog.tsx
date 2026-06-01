@@ -36,17 +36,21 @@ import { ClassStyles } from "../classnames";
 import EmptyState from "../alerts/empty-state";
 
 interface EditOrderItemsDialogProps {
-	open: boolean;
+	open?: boolean;
 	onClose: () => void;
 	order: Order | null;
 	onOrderUpdated: (order: Order) => void;
+	pageMode?: boolean;
+	onBack?: () => void;
 }
 
 export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
-	open,
+	open = false,
 	onClose,
 	order,
 	onOrderUpdated,
+	pageMode = false,
+	onBack,
 }) => {
 	const { products, fetchProducts } = useProducts();
 	const { categories, fetchCategories } = useCategory();

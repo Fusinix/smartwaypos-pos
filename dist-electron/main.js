@@ -134,13 +134,13 @@ electron_1.ipcMain.handle("update-customer-display", async (_, portPath, amount)
             // 1. ESC/POS Commands:
             // [0x1B, 0x40] = Initialize
             // [0x0C]       = Clear screen
-            const initAndClear = Buffer.from([0x1B, 0x40, 0x0C]);
-            // 2. Set Status Light (Optional): 
+            const initAndClear = Buffer.from([0x1b, 0x40, 0x0c]);
+            // 2. Set Status Light (Optional):
             // [0x1B, 0x73, 0x32] turns on the "Total" light on this specific model
-            const setTotalLight = Buffer.from([0x1B, 0x73, 0x32]);
-            // 3. Format Amount: 
+            const setTotalLight = Buffer.from([0x1b, 0x73, 0x32]);
+            // 3. Format Amount:
             // Ensure the amount is exactly 8 characters by padding with spaces for right-alignment
-            const text = Buffer.from(amount.padStart(8), 'ascii');
+            const text = Buffer.from(amount.padStart(8), "ascii");
             // 4. Write sequence: Initialize -> Set Light -> Write Text
             port.write(Buffer.concat([initAndClear, setTotalLight, text]), (writeErr) => {
                 if (writeErr) {
@@ -156,14 +156,14 @@ electron_1.ipcMain.handle("update-customer-display", async (_, portPath, amount)
     });
 });
 // Toggle menu bar visibility
-electron_1.ipcMain.handle('set-menu-bar-visible', (_, visible) => {
+electron_1.ipcMain.handle("set-menu-bar-visible", (_, visible) => {
     if (mainWindow) {
         mainWindow.setMenuBarVisibility(visible);
         mainWindow.setAutoHideMenuBar(!visible);
     }
 });
 // Toggle fullscreen mode
-electron_1.ipcMain.handle('set-fullscreen', (_, enabled) => {
+electron_1.ipcMain.handle("set-fullscreen", (_, enabled) => {
     if (mainWindow) {
         mainWindow.setFullScreen(enabled);
     }
@@ -180,7 +180,18 @@ async function logAction({ db, admin_id, admin_name, admin_role, action, page, c
     ]);
 }
 async function logInventoryChange({ db, productId, changeAmount, previousStock, newStock, reason, adminId, productName, adminName, adminRole, note, }) {
-    await db.run("INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id, product_name, admin_name, admin_role, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [productId, changeAmount, previousStock, newStock, reason, adminId, productName || null, adminName || null, adminRole || null, note || null]);
+    await db.run("INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id, product_name, admin_name, admin_role, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        productId,
+        changeAmount,
+        previousStock,
+        newStock,
+        reason,
+        adminId,
+        productName || null,
+        adminName || null,
+        adminRole || null,
+        note || null,
+    ]);
 }
 // =====================================================
 // Automated Cloud Sync Services
@@ -206,7 +217,7 @@ let cachedBaseUrl = null;
 let lastCacheTime = 0;
 async function getBaseUrl() {
     const now = Date.now();
-    if (cachedBaseUrl && (now - lastCacheTime < 10000)) {
+    if (cachedBaseUrl && now - lastCacheTime < 10000) {
         return cachedBaseUrl;
     }
     const licenseServerUrl = process.env.LICENSE_SERVER_URL || "https://smartwaypos.vercel.app";
@@ -291,7 +302,9 @@ async function performSyncInternal() {
 		LEFT JOIN products p ON il.product_id = p.id
 		WHERE il.synced_at IS NULL
 	`);
-    if (unsyncedOrders.length === 0 && unsyncedOrderItems.length === 0 && unsyncedInventoryLogs.length === 0) {
+    if (unsyncedOrders.length === 0 &&
+        unsyncedOrderItems.length === 0 &&
+        unsyncedInventoryLogs.length === 0) {
         console.log("[Sync] Database is fully backed up and in sync.");
         return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0 };
     }
@@ -360,7 +373,12 @@ async function performSyncInternal() {
     const syncedItemCount = result.syncedOrderItems?.length ?? 0;
     const syncedLogCount = result.syncedInventoryLogs?.length ?? 0;
     console.log(`[Sync] Successful sync cycle. Orders: ${syncedOrderCount}, Items: ${syncedItemCount}, Logs: ${syncedLogCount}.`);
-    return { status: "synced", orders: syncedOrderCount, orderItems: syncedItemCount, inventoryLogs: syncedLogCount };
+    return {
+        status: "synced",
+        orders: syncedOrderCount,
+        orderItems: syncedItemCount,
+        inventoryLogs: syncedLogCount,
+    };
 }
 function startSyncLoop() {
     if (syncInterval)
@@ -376,7 +394,17 @@ function startSyncLoop() {
 }
 // Register protocol before app is ready
 electron_1.protocol.registerSchemesAsPrivileged([
-    { scheme: 'app', privileges: { secure: true, standard: true, allowServiceWorkers: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+    {
+        scheme: "app",
+        privileges: {
+            secure: true,
+            standard: true,
+            allowServiceWorkers: true,
+            supportFetchAPI: true,
+            corsEnabled: true,
+            stream: true,
+        },
+    },
 ]);
 async function createWindow() {
     // console.log("Starting table creation...")
@@ -786,16 +814,14 @@ async function createWindow() {
             // Column might already exist, ignore error
         }
         // Create default admin user if not exists
-        const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", [
-            "admin",
-        ]);
-        console.log('--- Startup Check ---');
-        console.log('Admin user found in DB:', !!adminUser);
+        const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", ["admin"]);
+        console.log("--- Startup Check ---");
+        console.log("Admin user found in DB:", !!adminUser);
         if (!adminUser) {
-            console.log('Creating default admin user...');
+            console.log("Creating default admin user...");
             const hashedPassword = await bcrypt.hash("Lagmin123", 10);
             await db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", ["admin", hashedPassword, "admin"]);
-            console.log('Default admin user created successfully.');
+            console.log("Default admin user created successfully.");
         }
         // Start automated cloud sync loop
         startSyncLoop();
@@ -812,36 +838,36 @@ async function createWindow() {
         }
         else {
             // Google-Recommended Robust Protocol Handler
-            if (!electron_1.protocol.isProtocolRegistered('app')) {
-                electron_1.protocol.handle('app', async (request) => {
+            if (!electron_1.protocol.isProtocolRegistered("app")) {
+                electron_1.protocol.handle("app", async (request) => {
                     try {
                         // Google's trick: Decode and Normalize the path
                         const url = new URL(request.url);
                         let pathName = decodeURIComponent(url.pathname);
                         // On Windows, the pathname might start with a / that we don't need
-                        if (pathName.startsWith('/'))
+                        if (pathName.startsWith("/"))
                             pathName = pathName.slice(1);
-                        if (!pathName || pathName === 'index.html')
-                            pathName = 'index.html';
-                        const filePath = path.normalize(path.join(electron_1.app.getAppPath(), 'dist', pathName));
+                        if (!pathName || pathName === "index.html")
+                            pathName = "index.html";
+                        const filePath = path.normalize(path.join(electron_1.app.getAppPath(), "dist", pathName));
                         // Verify file exists
                         if (!fs.existsSync(filePath)) {
                             // Fallback to index.html for SPA routing
-                            const indexPath = path.normalize(path.join(electron_1.app.getAppPath(), 'dist', 'index.html'));
+                            const indexPath = path.normalize(path.join(electron_1.app.getAppPath(), "dist", "index.html"));
                             return new Response(fs.readFileSync(indexPath));
                         }
                         return new Response(fs.readFileSync(filePath));
                     }
                     catch (e) {
-                        console.error('Protocol error:', e);
-                        return new Response('Error loading resource', { status: 500 });
+                        console.error("Protocol error:", e);
+                        return new Response("Error loading resource", { status: 500 });
                     }
                 });
             }
-            mainWindow.loadURL('app://index.html');
+            mainWindow.loadURL("app://index.html");
         }
         // 3. Transition from Splash to Main
-        mainWindow.once('ready-to-show', async () => {
+        mainWindow.once("ready-to-show", async () => {
             if (splashWindow) {
                 splashWindow.close();
                 splashWindow = null;
@@ -851,7 +877,7 @@ async function createWindow() {
                 mainWindow.maximize();
                 // Apply saved menu bar preference (default: hidden for POS kiosk)
                 try {
-                    const savedSettings = await db.get('SELECT pos FROM settings ORDER BY id DESC LIMIT 1');
+                    const savedSettings = await db.get("SELECT pos FROM settings ORDER BY id DESC LIMIT 1");
                     const posSettings = savedSettings?.pos ? JSON.parse(savedSettings.pos) : {};
                     const hideMenuBar = posSettings.hideMenuBar !== false; // default true (hidden)
                     mainWindow.setMenuBarVisibility(!hideMenuBar);
@@ -1089,14 +1115,22 @@ electron_1.ipcMain.handle("clock-out", async (_, userId) => {
             return null;
         const clockOut = new Date().toISOString();
         let clockInStr = activeShift.clock_in;
-        if (clockInStr && !clockInStr.includes("Z") && !clockInStr.includes("+") && !clockInStr.includes("T")) {
+        if (clockInStr &&
+            !clockInStr.includes("Z") &&
+            !clockInStr.includes("+") &&
+            !clockInStr.includes("T")) {
             clockInStr = clockInStr.replace(" ", "T") + "Z";
         }
         const clockIn = new Date(clockInStr);
         const diffMs = new Date(clockOut).getTime() - clockIn.getTime();
         const totalHours = diffMs / (1000 * 60 * 60);
         await db.run("UPDATE shifts SET clock_out = ?, total_hours = ?, status = 'completed' WHERE id = ?", [clockOut, totalHours, activeShift.id]);
-        return { ...activeShift, clock_out: clockOut, total_hours: totalHours, status: 'completed' };
+        return {
+            ...activeShift,
+            clock_out: clockOut,
+            total_hours: totalHours,
+            status: "completed",
+        };
     }
     catch (error) {
         console.error("Error clocking out:", error);
@@ -1156,17 +1190,20 @@ electron_1.ipcMain.handle("request-password-reset", async (_, licenseKey) => {
         // 1. Verify License Key locally first to save a network call if it's junk
         const validation = await licensing_1.licensingManager.validateLicense(licenseKey);
         if (!validation.valid) {
-            return { success: false, message: validation.message || "Invalid license key." };
+            return {
+                success: false,
+                message: validation.message || "Invalid license key.",
+            };
         }
         // 2. Request reset from Portal
         const baseUrl = await getBaseUrl();
         const response = await fetch(`${baseUrl}/api/pos/reset-request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 license_key: licenseKey,
-                device_id: licensing_1.licensingManager.getHardwareId()
-            })
+                device_id: licensing_1.licensingManager.getHardwareId(),
+            }),
         });
         if (!response.ok) {
             const errorText = await response.text();
@@ -1175,20 +1212,23 @@ electron_1.ipcMain.handle("request-password-reset", async (_, licenseKey) => {
         const result = await response.json();
         return {
             success: true,
-            verificationNumber: result.verificationNumber // This is the "08" number
+            verificationNumber: result.verificationNumber, // This is the "08" number
         };
     }
     catch (error) {
         console.error("Password reset request error:", error);
-        return { success: false, message: "Could not connect to Portal. Please check your internet." };
+        return {
+            success: false,
+            message: "Could not connect to Portal. Please check your internet.",
+        };
     }
 });
 electron_1.ipcMain.handle("check-reset-status", async (_, licenseKey) => {
     try {
         const baseUrl = await getBaseUrl();
         const response = await fetch(`${baseUrl}/api/pos/reset-status?license_key=${licenseKey}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
         });
         if (!response.ok)
             return { status: "pending" };
@@ -1204,12 +1244,12 @@ electron_1.ipcMain.handle("complete-password-reset", async (_, licenseKey, newPa
         // 1. Final verification with Portal that this is actually approved
         const baseUrl = await getBaseUrl();
         const response = await fetch(`${baseUrl}/api/pos/reset-complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 license_key: licenseKey,
-                device_id: licensing_1.licensingManager.getHardwareId()
-            })
+                device_id: licensing_1.licensingManager.getHardwareId(),
+            }),
         });
         const result = await response.json();
         if (!result.authorized) {
@@ -1320,7 +1360,8 @@ electron_1.ipcMain.handle("import-database", async (_, data, importType = "all",
                 parsedData.settings.theme,
             ]);
         }
-        if ((importType === "all" || importType === "users") && parsedData.users) {
+        if ((importType === "all" || importType === "users") &&
+            parsedData.users) {
             for (const user of parsedData.users) {
                 await db.run("INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)", [user.username, user.password, user.role, user.created_at]);
             }
@@ -1466,7 +1507,11 @@ electron_1.ipcMain.handle("add-category", async (_, category) => {
         if (!category.name) {
             throw new Error("Category name is required");
         }
-        const result = await db.run("INSERT INTO categories (name, description, status) VALUES (?, ?, ?)", [category.name, category.description || null, category.status || "active"]);
+        const result = await db.run("INSERT INTO categories (name, description, status) VALUES (?, ?, ?)", [
+            category.name,
+            category.description || null,
+            category.status || "active",
+        ]);
         // console.log('Category inserted with ID:', result.lastID);
         const newCategory = await db.get("SELECT * FROM categories WHERE id = ?", [
             result.lastID,
@@ -1685,7 +1730,9 @@ electron_1.ipcMain.handle("add-product", async (_, product, payload = {}) => {
 electron_1.ipcMain.handle("update-product", async (_, product, payload = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const oldProduct = await db.get("SELECT stock FROM products WHERE id = ?", [product.id]);
+        const oldProduct = await db.get("SELECT stock FROM products WHERE id = ?", [
+            product.id,
+        ]);
         const oldStock = oldProduct?.stock || 0;
         await db.run(`
       UPDATE products 
@@ -1725,7 +1772,8 @@ electron_1.ipcMain.handle("update-product", async (_, product, payload = {}) => 
                 changeAmount: updatedProduct.stock - oldStock,
                 previousStock: oldStock,
                 newStock: updatedProduct.stock,
-                reason: payload.reason || (updatedProduct.stock > oldStock ? "restock" : "adjustment"),
+                reason: payload.reason ||
+                    (updatedProduct.stock > oldStock ? "restock" : "adjustment"),
                 adminId: author.id || null,
                 productName: updatedProduct.name || null,
                 adminName: author.name || null,
@@ -1820,7 +1868,8 @@ electron_1.ipcMain.handle("update-product-stock", async (_, productId, newStock,
         }
         await db.run("UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [newStock, productId]);
         const author = payload.author || {};
-        const changeReason = payload.reason || (newStock > oldStock.stock ? "restock" : "adjustment");
+        const changeReason = payload.reason ||
+            (newStock > oldStock.stock ? "restock" : "adjustment");
         // Log inventory change
         await logInventoryChange({
             db,
@@ -1867,8 +1916,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
             // 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
             const logs = await db.all(`SELECT * FROM inventory_logs 
 				 WHERE product_id = ? 
-				 AND date(created_at) = date(?)` +
-                (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]);
+				 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ?
+                [product.id, reportDate, author.id]
+                : [product.id, reportDate]);
             // 2b. Get today's sold qty (open + closed, not cancelled) for inventory reconciliation
             const salesData = await db.get(`SELECT SUM(oi.quantity) as sold_qty
 				 FROM order_items oi
@@ -1876,8 +1926,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status IN ('open', 'closed')
-				 AND date(o.created_at) = date(?)` +
-                (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]);
+				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
+                [product.id, reportDate, author.id]
+                : [product.id, reportDate]);
             // 2c. Get today's closed sales for revenue calculation
             const closedSalesData = await db.get(`SELECT SUM(oi.quantity) as sold_closed_qty
 				 FROM order_items oi
@@ -1885,22 +1936,23 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.created_at) = date(?)` +
-                (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]);
+				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
+                [product.id, reportDate, author.id]
+                : [product.id, reportDate]);
             const sold = salesData?.sold_qty || 0;
             const soldClosed = closedSalesData?.sold_closed_qty || 0;
             let added = 0;
             let adjusted = 0;
             let damaged = 0;
             logs.forEach((log) => {
-                if (log.reason === 'restock') {
+                if (log.reason === "restock") {
                     added += log.change_amount;
                 }
-                else if (log.reason === 'wastage') {
+                else if (log.reason === "wastage") {
                     // 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
                     damaged += Math.abs(log.change_amount);
                 }
-                else if (log.reason === 'adjustment') {
+                else if (log.reason === "adjustment") {
                     if (log.change_amount > 0) {
                         added += log.change_amount;
                     }
@@ -1933,7 +1985,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
                     price: product.price,
                     totalSales: soldClosed * product.price,
                     stockLeft,
-                    lowStockThreshold: product.low_stock_threshold
+                    lowStockThreshold: product.low_stock_threshold,
                 });
             }
         }
@@ -1951,8 +2003,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
         const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
 			 FROM orders 
 			 WHERE status = 'open' 
-			 AND date(created_at) = date(?)` +
-            (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
+			 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
         // 7. Get today's expenses
         const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
             (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
@@ -1963,18 +2014,18 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
                 name: f.name,
                 quantity: f.quantity,
                 price: f.price,
-                totalSales: f.quantity * f.price
+                totalSales: f.quantity * f.price,
             })),
             pendingOrders: {
                 count: pendingOrders?.count || 0,
-                total: pendingOrders?.total || 0
+                total: pendingOrders?.total || 0,
             },
             expenses: expenses.map((e) => ({
                 description: e.description,
                 amount: e.amount,
-                staff: e.admin_name
+                staff: e.admin_name,
             })),
-            totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0)
+            totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
         };
     }
     catch (error) {
@@ -2017,7 +2068,7 @@ electron_1.ipcMain.handle("get-expenses", async (_, filters = {}) => {
                 break;
             default:
                 // Backward compatibility for when just a date string is passed
-                if (typeof filters === 'string') {
+                if (typeof filters === "string") {
                     const dateStr = filters;
                     const expenses = await db.all("SELECT * FROM expenses WHERE date(created_at) = date(?) ORDER BY created_at DESC", [dateStr]);
                     return expenses;
@@ -2044,7 +2095,12 @@ electron_1.ipcMain.handle("get-expenses", async (_, filters = {}) => {
 electron_1.ipcMain.handle("add-expense", async (_, expense) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const result = await db.run("INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)", [expense.description, expense.amount, expense.admin_name, expense.admin_id || null]);
+        const result = await db.run("INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)", [
+            expense.description,
+            expense.amount,
+            expense.admin_name,
+            expense.admin_id || null,
+        ]);
         await logAction({
             db,
             admin_id: expense.admin_id || null,
@@ -2605,7 +2661,9 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
                     ]);
                     const orderItemId = orderItemResult.lastID;
                     // Insert order item extras if any
-                    if (item.extraIds && Array.isArray(item.extraIds) && item.extraIds.length > 0) {
+                    if (item.extraIds &&
+                        Array.isArray(item.extraIds) &&
+                        item.extraIds.length > 0) {
                         // Deduplicate: count occurrences of each extra_id to get quantity
                         const extraCounts = new Map();
                         for (const extraId of item.extraIds) {
@@ -2746,9 +2804,7 @@ electron_1.ipcMain.handle("get-order-by-id", async (_event, orderId, payload = {
 					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
 					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
 					WHERE o.id = ?
-				`, [
-                orderId,
-            ]);
+				`, [orderId]);
             if (!order) {
                 throw new Error("Order not found");
             }
@@ -2834,7 +2890,9 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
             const existingOrder = await db.get("SELECT status FROM orders WHERE id = ?", [order.id]);
             // If order is being cancelled, restore drink stock and log the change
             const author = order.author || {};
-            if (existingOrder && existingOrder.status !== "cancelled" && order.status === "cancelled") {
+            if (existingOrder &&
+                existingOrder.status !== "cancelled" &&
+                order.status === "cancelled") {
                 const drinkItemsToRestore = await db.all("SELECT oi.product_id, oi.quantity FROM order_items oi WHERE oi.order_id = ? AND oi.item_type = 'drink'", [order.id]);
                 for (const item of drinkItemsToRestore) {
                     if (!item.product_id)
@@ -2873,7 +2931,8 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 // Add extras for food items
                 const extras = await db.all("SELECT fe.price, oie.quantity FROM order_item_extras oie JOIN food_extras fe ON oie.extra_id = fe.id WHERE oie.order_item_id = ?", [item.id]);
                 for (const extra of extras) {
-                    itemTotal += (extra.price || 0) * (extra.quantity || 1) * item.quantity;
+                    itemTotal +=
+                        (extra.price || 0) * (extra.quantity || 1) * item.quantity;
                 }
                 amount_bt += itemTotal;
             }
@@ -3049,7 +3108,9 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
                     if (foodItem) {
                         let itemTotal = foodItem.price * item.quantity;
                         // Add extras prices
-                        if (item.extraIds && Array.isArray(item.extraIds) && item.extraIds.length > 0) {
+                        if (item.extraIds &&
+                            Array.isArray(item.extraIds) &&
+                            item.extraIds.length > 0) {
                             for (const extraId of item.extraIds) {
                                 const extra = await db.get("SELECT price FROM food_extras WHERE id = ?", [extraId]);
                                 if (extra) {
@@ -3097,9 +3158,7 @@ electron_1.ipcMain.handle("update-order-items", async (_, orderId, newItems, pay
 					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
 					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
 					WHERE o.id = ?
-				`, [
-                orderId,
-            ]);
+				`, [orderId]);
             const updatedItems = await db.all(`
         SELECT 
           oi.id,
@@ -3422,17 +3481,26 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
         const breakdown = {
             drinks: { revenue: 0, count: 0 },
             food: { revenue: 0, count: 0 },
-            others: { revenue: 0, count: 0 }
+            others: { revenue: 0, count: 0 },
         };
         breakdownResult.forEach((row) => {
-            if (row.item_type === 'drink') {
-                breakdown.drinks = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+            if (row.item_type === "drink") {
+                breakdown.drinks = {
+                    revenue: Number(row.revenue) || 0,
+                    count: Number(row.count) || 0,
+                };
             }
-            else if (row.item_type === 'food') {
-                breakdown.food = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+            else if (row.item_type === "food") {
+                breakdown.food = {
+                    revenue: Number(row.revenue) || 0,
+                    count: Number(row.count) || 0,
+                };
             }
             else {
-                breakdown.others = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+                breakdown.others = {
+                    revenue: Number(row.revenue) || 0,
+                    count: Number(row.count) || 0,
+                };
             }
         });
         // Get active orders (all open orders, not filtered by date)
@@ -3685,22 +3753,27 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
                     throw new Error("Invalid export type");
             }
         }
-        let finalPath = '';
-        if (format === 'csv') {
-            let csvString = '';
-            if (type === 'dashboard') {
+        let finalPath = "";
+        if (format === "csv") {
+            let csvString = "";
+            if (type === "dashboard") {
                 // data is { columns: string[], rows: any[] }
-                csvString += data.columns.join(',') + '\n';
+                csvString += data.columns.join(",") + "\n";
                 data.rows.forEach((row) => {
                     if (row.__section) {
                         csvString += `\n"${row.__section}"\n`;
                     }
                     else {
-                        csvString += data.columns.map((col) => {
-                            const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : '';
-                            // Escape quotes and wrap in quotes to handle commas within values
-                            return `"${val.replace(/"/g, '""')}"`;
-                        }).join(',') + '\n';
+                        csvString +=
+                            data.columns
+                                .map((col) => {
+                                const val = row[col] !== undefined && row[col] !== null ?
+                                    String(row[col])
+                                    : "";
+                                // Escape quotes and wrap in quotes to handle commas within values
+                                return `"${val.replace(/"/g, '""')}"`;
+                            })
+                                .join(",") + "\n";
                     }
                 });
             }
@@ -3708,33 +3781,41 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
                 // data is an array of objects
                 if (data.length > 0) {
                     const columns = Object.keys(data[0]);
-                    csvString += columns.join(',') + '\n';
+                    csvString += columns.join(",") + "\n";
                     data.forEach((row) => {
-                        csvString += columns.map(col => {
-                            const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : '';
-                            return `"${val.replace(/"/g, '""')}"`;
-                        }).join(',') + '\n';
+                        csvString +=
+                            columns
+                                .map((col) => {
+                                const val = row[col] !== undefined && row[col] !== null ?
+                                    String(row[col])
+                                    : "";
+                                return `"${val.replace(/"/g, '""')}"`;
+                            })
+                                .join(",") + "\n";
                     });
                 }
                 else {
-                    csvString = 'No data available';
+                    csvString = "No data available";
                 }
             }
             // Prompt save dialog
             const { canceled, filePath } = await electron_1.dialog.showSaveDialog({
-                title: 'Save CSV Export',
-                defaultPath: `Smartway_Export_${type}_${new Date().toISOString().split('T')[0]}.csv`,
-                filters: [{ name: 'CSV Files', extensions: ['csv'] }]
+                title: "Save CSV Export",
+                defaultPath: `Smartway_Export_${type}_${new Date().toISOString().split("T")[0]}.csv`,
+                filters: [{ name: "CSV Files", extensions: ["csv"] }],
             });
             if (canceled || !filePath) {
-                return { success: false, message: 'Export cancelled' };
+                return { success: false, message: "Export cancelled" };
             }
-            fs.writeFileSync(filePath, csvString, 'utf8');
+            fs.writeFileSync(filePath, csvString, "utf8");
             finalPath = filePath;
         }
         else {
             // Stub for PDF or other formats
-            return { success: false, message: `Export format ${format} not fully implemented yet. Please use CSV.` };
+            return {
+                success: false,
+                message: `Export format ${format} not fully implemented yet. Please use CSV.`,
+            };
         }
         return {
             success: true,
@@ -4414,15 +4495,19 @@ electron_1.ipcMain.handle("get-sync-status", async () => {
         const lastSyncDates = [
             latestOrderSync?.last_sync,
             latestItemSync?.last_sync,
-            latestLogSync?.last_sync
-        ].filter(Boolean).map(dateStr => new Date(dateStr).getTime());
-        const lastSyncedAt = lastSyncDates.length > 0 ? new Date(Math.max(...lastSyncDates)).toISOString() : null;
+            latestLogSync?.last_sync,
+        ]
+            .filter(Boolean)
+            .map((dateStr) => new Date(dateStr).getTime());
+        const lastSyncedAt = lastSyncDates.length > 0 ?
+            new Date(Math.max(...lastSyncDates)).toISOString()
+            : null;
         return {
             success: true,
             unsyncedOrders: Number(ordersCount?.count ?? 0),
             unsyncedOrderItems: Number(itemsCount?.count ?? 0),
             unsyncedInventoryLogs: Number(logsCount?.count ?? 0),
-            lastSyncedAt
+            lastSyncedAt,
         };
     }
     catch (error) {
@@ -4476,15 +4561,18 @@ electron_1.ipcMain.handle("check-app-version", async () => {
                 success: true,
                 currentVersion,
                 latestVersion: result.version,
-                downloadUrl: result.url,
+                // check platform specific url we have windows and mac
+                downloadUrl: result.download_url,
                 releaseNotes: result.releaseNotes,
-                updateAvailable: compareVersions(currentVersion, result.version) < 0
+                updateAvailable: compareVersions(currentVersion, result.version) < 0,
             };
         }
         return { success: false, message: result.message };
     }
     catch (error) {
-        if (error.message?.includes("fetch failed") || error.code === "ECONNREFUSED" || error.cause?.code === "ECONNREFUSED") {
+        if (error.message?.includes("fetch failed") ||
+            error.code === "ECONNREFUSED" ||
+            error.cause?.code === "ECONNREFUSED") {
             console.log("[Version Check] Update server unreachable. Running in offline/local mode.");
         }
         else {
@@ -4740,19 +4828,24 @@ electron_1.ipcMain.handle("print-receipt-silent", async (event, html, printerNam
         try {
             const printers = await event.sender.getPrintersAsync();
             console.log("-----------------------------------------");
-            console.log("PRINTERS FOUND:", printers.map(p => p.name).join(", "));
+            console.log("PRINTERS FOUND:", printers.map((p) => p.name).join(", "));
             let targetPrinter = null;
             if (printerName) {
-                targetPrinter = printers.find(p => p.name === printerName) ||
-                    printers.find(p => p.name.toLowerCase().includes(printerName.toLowerCase()));
+                targetPrinter =
+                    printers.find((p) => p.name === printerName) ||
+                        printers.find((p) => p.name.toLowerCase().includes(printerName.toLowerCase()));
             }
             if (!targetPrinter) {
                 console.log("Auto-detecting POS printer...");
-                targetPrinter = printers.find(p => p.name.toUpperCase().includes("POS") ||
+                targetPrinter = printers.find((p) => p.name.toUpperCase().includes("POS") ||
                     p.name.includes("80") ||
                     p.name.toUpperCase().includes("THERMAL"));
             }
-            const deviceName = targetPrinter ? targetPrinter.name : (printers.find(p => p.isDefault)?.name || printers[0]?.name || "");
+            const deviceName = targetPrinter ?
+                targetPrinter.name
+                : printers.find((p) => p.isDefault)?.name ||
+                    printers[0]?.name ||
+                    "";
             console.log(`>>> TARGET: "${deviceName}"`);
             const tempPath = path.join(electron_1.app.getPath("temp"), `receipt_${Date.now()}.html`);
             const fs = require("fs");
@@ -4767,9 +4860,9 @@ electron_1.ipcMain.handle("print-receipt-silent", async (event, html, printerNam
                 },
             });
             await win.loadFile(tempPath);
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise((r) => setTimeout(r, 800));
             // MEASURE the exact content height for zero-waste
-            const contentHeight = await win.webContents.executeJavaScript('document.body.scrollHeight');
+            const contentHeight = await win.webContents.executeJavaScript("document.body.scrollHeight");
             console.log(`Measured Content Height: ${contentHeight}px`);
             win.webContents.print({
                 silent: true,
@@ -4779,8 +4872,8 @@ electron_1.ipcMain.handle("print-receipt-silent", async (event, html, printerNam
                 margins: { marginType: "none" },
                 pageSize: {
                     width: 72000, // 72mm
-                    height: (contentHeight * 265) + 12000 // Increased safety margin (12mm)
-                }
+                    height: contentHeight * 265 + 12000, // Increased safety margin (12mm)
+                },
             }, (success, errorType) => {
                 win.destroy();
                 try {

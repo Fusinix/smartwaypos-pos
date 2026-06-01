@@ -41,7 +41,7 @@ let db: any = null;
 async function withRetry<T>(
 	operation: () => Promise<T>,
 	maxRetries = 3,
-	delay = 100
+	delay = 100,
 ): Promise<T> {
 	let lastError: any;
 
@@ -117,49 +117,54 @@ ipcMain.handle("list-ports", async () => {
 	}
 });
 
-ipcMain.handle("update-customer-display", async (_, portPath: string, amount: string) => {
-  return new Promise((resolve, reject) => {
-    const port = new SerialPort({
-      path: portPath, 
-      baudRate: 2400, // Update this to match your successful CMD 'MODE' test
-      autoOpen: false,
-    });
+ipcMain.handle(
+	"update-customer-display",
+	async (_, portPath: string, amount: string) => {
+		return new Promise((resolve, reject) => {
+			const port = new SerialPort({
+				path: portPath,
+				baudRate: 2400, // Update this to match your successful CMD 'MODE' test
+				autoOpen: false,
+			});
 
-    port.open((err) => {
-      if (err) return reject(err);
+			port.open((err) => {
+				if (err) return reject(err);
 
-      // 1. ESC/POS Commands:
-      // [0x1B, 0x40] = Initialize
-      // [0x0C]       = Clear screen
-      const initAndClear = Buffer.from([0x1B, 0x40, 0x0C]);
+				// 1. ESC/POS Commands:
+				// [0x1B, 0x40] = Initialize
+				// [0x0C]       = Clear screen
+				const initAndClear = Buffer.from([0x1b, 0x40, 0x0c]);
 
-      // 2. Set Status Light (Optional): 
-      // [0x1B, 0x73, 0x32] turns on the "Total" light on this specific model
-      const setTotalLight = Buffer.from([0x1B, 0x73, 0x32]);
+				// 2. Set Status Light (Optional):
+				// [0x1B, 0x73, 0x32] turns on the "Total" light on this specific model
+				const setTotalLight = Buffer.from([0x1b, 0x73, 0x32]);
 
-      // 3. Format Amount: 
-      // Ensure the amount is exactly 8 characters by padding with spaces for right-alignment
-      const text = Buffer.from(amount.padStart(8), 'ascii');
+				// 3. Format Amount:
+				// Ensure the amount is exactly 8 characters by padding with spaces for right-alignment
+				const text = Buffer.from(amount.padStart(8), "ascii");
 
-      // 4. Write sequence: Initialize -> Set Light -> Write Text
-      port.write(Buffer.concat([initAndClear, setTotalLight, text]), (writeErr) => {
-        if (writeErr) {
-          port.close();
-          return reject(writeErr);
-        }
+				// 4. Write sequence: Initialize -> Set Light -> Write Text
+				port.write(
+					Buffer.concat([initAndClear, setTotalLight, text]),
+					(writeErr) => {
+						if (writeErr) {
+							port.close();
+							return reject(writeErr);
+						}
 
-        // Give the hardware 300ms to process the display buffer before closing
-        setTimeout(() => {
-          port.close(() => resolve(true));
-        }, 300);
-      });
-    });
-  });
-});
-
+						// Give the hardware 300ms to process the display buffer before closing
+						setTimeout(() => {
+							port.close(() => resolve(true));
+						}, 300);
+					},
+				);
+			});
+		});
+	},
+);
 
 // Toggle menu bar visibility
-ipcMain.handle('set-menu-bar-visible', (_, visible: boolean) => {
+ipcMain.handle("set-menu-bar-visible", (_, visible: boolean) => {
 	if (mainWindow) {
 		mainWindow.setMenuBarVisibility(visible);
 		mainWindow.setAutoHideMenuBar(!visible);
@@ -167,7 +172,7 @@ ipcMain.handle('set-menu-bar-visible', (_, visible: boolean) => {
 });
 
 // Toggle fullscreen mode
-ipcMain.handle('set-fullscreen', (_, enabled: boolean) => {
+ipcMain.handle("set-fullscreen", (_, enabled: boolean) => {
 	if (mainWindow) {
 		mainWindow.setFullScreen(enabled);
 	}
@@ -203,7 +208,7 @@ async function logAction({
 			action,
 			page,
 			context ? JSON.stringify(context) : null,
-		]
+		],
 	);
 }
 
@@ -234,7 +239,18 @@ async function logInventoryChange({
 }) {
 	await db.run(
 		"INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id, product_name, admin_name, admin_role, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		[productId, changeAmount, previousStock, newStock, reason, adminId, productName || null, adminName || null, adminRole || null, note || null]
+		[
+			productId,
+			changeAmount,
+			previousStock,
+			newStock,
+			reason,
+			adminId,
+			productName || null,
+			adminName || null,
+			adminRole || null,
+			note || null,
+		],
 	);
 }
 
@@ -268,13 +284,14 @@ let lastCacheTime = 0;
 
 async function getBaseUrl(): Promise<string> {
 	const now = Date.now();
-	if (cachedBaseUrl && (now - lastCacheTime < 10000)) {
+	if (cachedBaseUrl && now - lastCacheTime < 10000) {
 		return cachedBaseUrl;
 	}
 
-	const licenseServerUrl = process.env.LICENSE_SERVER_URL || "https://smartwaypos.vercel.app";
+	const licenseServerUrl =
+		process.env.LICENSE_SERVER_URL || "https://smartwaypos.vercel.app";
 	const isDev = !app.isPackaged || process.env.NODE_ENV === "development";
-	
+
 	if (!isDev) {
 		cachedBaseUrl = licenseServerUrl;
 		lastCacheTime = now;
@@ -305,7 +322,12 @@ async function getBaseUrl(): Promise<string> {
 
 type SyncResult =
 	| { status: "skipped"; reason: string }
-	| { status: "synced"; orders: number; orderItems: number; inventoryLogs: number }
+	| {
+			status: "synced";
+			orders: number;
+			orderItems: number;
+			inventoryLogs: number;
+	  }
 	| { status: "error"; message: string };
 
 async function performSync(): Promise<SyncResult> {
@@ -334,7 +356,9 @@ async function performSyncInternal(): Promise<SyncResult> {
 	}
 
 	// Fetch unsynced records from SQLite
-	const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders WHERE synced_at IS NULL");
+	const unsyncedOrders = await databaseInstance.all(
+		"SELECT * FROM orders WHERE synced_at IS NULL",
+	);
 	const unsyncedOrderItems = await databaseInstance.all(`
 		SELECT 
 			oi.*,
@@ -366,12 +390,18 @@ async function performSyncInternal(): Promise<SyncResult> {
 		WHERE il.synced_at IS NULL
 	`);
 
-	if (unsyncedOrders.length === 0 && unsyncedOrderItems.length === 0 && unsyncedInventoryLogs.length === 0) {
+	if (
+		unsyncedOrders.length === 0 &&
+		unsyncedOrderItems.length === 0 &&
+		unsyncedInventoryLogs.length === 0
+	) {
 		console.log("[Sync] Database is fully backed up and in sync.");
 		return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0 };
 	}
 
-	console.log(`[Sync] Found unsynced records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs.`);
+	console.log(
+		`[Sync] Found unsynced records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs.`,
+	);
 
 	// Post payload to Next.js portals api gateway
 	const baseUrl = await getBaseUrl();
@@ -396,7 +426,9 @@ async function performSyncInternal(): Promise<SyncResult> {
 
 	if (!response.ok) {
 		let errorText = response.statusText;
-		try { errorText = await response.text(); } catch {}
+		try {
+			errorText = await response.text();
+		} catch {}
 		const msg = `Sync server returned ${response.status}: ${errorText}`;
 		console.error("[Sync]", msg);
 		return { status: "error", message: msg };
@@ -424,7 +456,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 		const placeholders = result.syncedOrders.map(() => "?").join(",");
 		await databaseInstance.run(
 			`UPDATE orders SET synced_at = ? WHERE id IN (${placeholders})`,
-			[timestamp, ...result.syncedOrders]
+			[timestamp, ...result.syncedOrders],
 		);
 	}
 
@@ -433,7 +465,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 		const placeholders = result.syncedOrderItems.map(() => "?").join(",");
 		await databaseInstance.run(
 			`UPDATE order_items SET synced_at = ? WHERE id IN (${placeholders})`,
-			[timestamp, ...result.syncedOrderItems]
+			[timestamp, ...result.syncedOrderItems],
 		);
 	}
 
@@ -442,15 +474,22 @@ async function performSyncInternal(): Promise<SyncResult> {
 		const placeholders = result.syncedInventoryLogs.map(() => "?").join(",");
 		await databaseInstance.run(
 			`UPDATE inventory_logs SET synced_at = ? WHERE id IN (${placeholders})`,
-			[timestamp, ...result.syncedInventoryLogs]
+			[timestamp, ...result.syncedInventoryLogs],
 		);
 	}
 
 	const syncedOrderCount = result.syncedOrders?.length ?? 0;
 	const syncedItemCount = result.syncedOrderItems?.length ?? 0;
 	const syncedLogCount = result.syncedInventoryLogs?.length ?? 0;
-	console.log(`[Sync] Successful sync cycle. Orders: ${syncedOrderCount}, Items: ${syncedItemCount}, Logs: ${syncedLogCount}.`);
-	return { status: "synced", orders: syncedOrderCount, orderItems: syncedItemCount, inventoryLogs: syncedLogCount };
+	console.log(
+		`[Sync] Successful sync cycle. Orders: ${syncedOrderCount}, Items: ${syncedItemCount}, Logs: ${syncedLogCount}.`,
+	);
+	return {
+		status: "synced",
+		orders: syncedOrderCount,
+		orderItems: syncedItemCount,
+		inventoryLogs: syncedLogCount,
+	};
 }
 
 function startSyncLoop() {
@@ -467,10 +506,19 @@ function startSyncLoop() {
 	}, 300000);
 }
 
-
 // Register protocol before app is ready
 protocol.registerSchemesAsPrivileged([
-	{ scheme: 'app', privileges: { secure: true, standard: true, allowServiceWorkers: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+	{
+		scheme: "app",
+		privileges: {
+			secure: true,
+			standard: true,
+			allowServiceWorkers: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+			stream: true,
+		},
+	},
 ]);
 
 async function createWindow() {
@@ -514,7 +562,7 @@ async function createWindow() {
 		// console.log('Database opened successfully');
 
 		const tables = await db.all(
-			"SELECT name FROM sqlite_master WHERE type='table'"
+			"SELECT name FROM sqlite_master WHERE type='table'",
 		);
 		// console.log('Tables in DB:', tables);
 
@@ -705,13 +753,13 @@ async function createWindow() {
 			// Check if food_item_id column exists
 			const orderItemsColumns = await db.all("PRAGMA table_info(order_items)");
 			const hasFoodItemId = orderItemsColumns.some(
-				(col: any) => col.name === "food_item_id"
+				(col: any) => col.name === "food_item_id",
 			);
 			const hasItemType = orderItemsColumns.some(
-				(col: any) => col.name === "item_type"
+				(col: any) => col.name === "item_type",
 			);
 			const hasNotes = orderItemsColumns.some(
-				(col: any) => col.name === "notes"
+				(col: any) => col.name === "notes",
 			);
 
 			if (!hasFoodItemId) {
@@ -719,7 +767,7 @@ async function createWindow() {
 			}
 			if (!hasItemType) {
 				await db.run(
-					"ALTER TABLE order_items ADD COLUMN item_type TEXT DEFAULT 'drink'"
+					"ALTER TABLE order_items ADD COLUMN item_type TEXT DEFAULT 'drink'",
 				);
 			}
 			if (!hasNotes) {
@@ -729,7 +777,7 @@ async function createWindow() {
 			// Make product_id nullable for food items
 			// SQLite doesn't support ALTER COLUMN, so we need to recreate the table
 			const hasNullableProductId = orderItemsColumns.some(
-				(col: any) => col.name === "product_id" && col.notnull === 0
+				(col: any) => col.name === "product_id" && col.notnull === 0,
 			);
 			if (!hasNullableProductId) {
 				// Create new table with nullable product_id
@@ -790,13 +838,15 @@ async function createWindow() {
 			if (!error.message?.includes("duplicate column name: order_number")) {
 				console.error("Error adding order_number column:", error);
 			}
-		
-		// Add amount_tendered column to orders table if it doesn't exist (migration)
-		try {
-			await db.run("ALTER TABLE orders ADD COLUMN amount_tendered REAL DEFAULT 0");
-		} catch (error: any) {
-			// Column might already exist, ignore error
-		}
+
+			// Add amount_tendered column to orders table if it doesn't exist (migration)
+			try {
+				await db.run(
+					"ALTER TABLE orders ADD COLUMN amount_tendered REAL DEFAULT 0",
+				);
+			} catch (error: any) {
+				// Column might already exist, ignore error
+			}
 		}
 
 		// // Add low_stock_threshold column to products table if it doesn't exist (migration)
@@ -820,7 +870,9 @@ async function createWindow() {
 
 		// Add low_stock_threshold column to products table if it doesn't exist
 		try {
-			await db.run("ALTER TABLE products ADD COLUMN low_stock_threshold INTEGER DEFAULT 10");
+			await db.run(
+				"ALTER TABLE products ADD COLUMN low_stock_threshold INTEGER DEFAULT 10",
+			);
 		} catch (error: any) {
 			// Column might already exist, ignore error
 		}
@@ -842,7 +894,7 @@ async function createWindow() {
 		// Add item_type and notes columns to order_items table if they don't exist (migration)
 		try {
 			await db.run(
-				"ALTER TABLE order_items ADD COLUMN item_type TEXT DEFAULT 'drink' CHECK(item_type IN ('drink', 'food'))"
+				"ALTER TABLE order_items ADD COLUMN item_type TEXT DEFAULT 'drink' CHECK(item_type IN ('drink', 'food'))",
 			);
 		} catch (error: any) {
 			// Column might already exist, ignore error
@@ -878,7 +930,9 @@ async function createWindow() {
 
 		// Migration: add quantity column to order_item_extras if it doesn't exist
 		try {
-			await db.run("ALTER TABLE order_item_extras ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+			await db.run(
+				"ALTER TABLE order_item_extras ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1",
+			);
 		} catch {
 			// Column already exists — safe to ignore
 		}
@@ -892,36 +946,43 @@ async function createWindow() {
 
 		// Sync Migrations: Add synced_at columns to orders, order_items, and inventory_logs if not exist
 		try {
-			await db.run("ALTER TABLE orders ADD COLUMN synced_at DATETIME DEFAULT NULL");
+			await db.run(
+				"ALTER TABLE orders ADD COLUMN synced_at DATETIME DEFAULT NULL",
+			);
 		} catch (error: any) {
 			// Column might already exist, ignore error
 		}
 		try {
-			await db.run("ALTER TABLE order_items ADD COLUMN synced_at DATETIME DEFAULT NULL");
+			await db.run(
+				"ALTER TABLE order_items ADD COLUMN synced_at DATETIME DEFAULT NULL",
+			);
 		} catch (error: any) {
 			// Column might already exist, ignore error
 		}
 		try {
-			await db.run("ALTER TABLE inventory_logs ADD COLUMN synced_at DATETIME DEFAULT NULL");
+			await db.run(
+				"ALTER TABLE inventory_logs ADD COLUMN synced_at DATETIME DEFAULT NULL",
+			);
 		} catch (error: any) {
 			// Column might already exist, ignore error
 		}
 
 		// Create default admin user if not exists
-		const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", [
-			"admin",
-		]);
-		console.log('--- Startup Check ---');
-		console.log('Admin user found in DB:', !!adminUser);
+		const adminUser = await db.get(
+			"SELECT * FROM users WHERE role = ? LIMIT 1",
+			["admin"],
+		);
+		console.log("--- Startup Check ---");
+		console.log("Admin user found in DB:", !!adminUser);
 
 		if (!adminUser) {
-			console.log('Creating default admin user...');
+			console.log("Creating default admin user...");
 			const hashedPassword = await bcrypt.hash("Lagmin123", 10);
 			await db.run(
 				"INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-				["admin", hashedPassword, "admin"]
+				["admin", hashedPassword, "admin"],
 			);
-			console.log('Default admin user created successfully.');
+			console.log("Default admin user created successfully.");
 		}
 
 		// Start automated cloud sync loop
@@ -939,38 +1000,42 @@ async function createWindow() {
 			mainWindow.webContents.openDevTools();
 		} else {
 			// Google-Recommended Robust Protocol Handler
-			if (!protocol.isProtocolRegistered('app')) {
-				protocol.handle('app', async (request) => {
+			if (!protocol.isProtocolRegistered("app")) {
+				protocol.handle("app", async (request) => {
 					try {
 						// Google's trick: Decode and Normalize the path
 						const url = new URL(request.url);
 						let pathName = decodeURIComponent(url.pathname);
-						
-						// On Windows, the pathname might start with a / that we don't need
-						if (pathName.startsWith('/')) pathName = pathName.slice(1);
-						if (!pathName || pathName === 'index.html') pathName = 'index.html';
 
-						const filePath = path.normalize(path.join(app.getAppPath(), 'dist', pathName));
-						
+						// On Windows, the pathname might start with a / that we don't need
+						if (pathName.startsWith("/")) pathName = pathName.slice(1);
+						if (!pathName || pathName === "index.html") pathName = "index.html";
+
+						const filePath = path.normalize(
+							path.join(app.getAppPath(), "dist", pathName),
+						);
+
 						// Verify file exists
 						if (!fs.existsSync(filePath)) {
 							// Fallback to index.html for SPA routing
-							const indexPath = path.normalize(path.join(app.getAppPath(), 'dist', 'index.html'));
+							const indexPath = path.normalize(
+								path.join(app.getAppPath(), "dist", "index.html"),
+							);
 							return new Response(fs.readFileSync(indexPath));
 						}
 
 						return new Response(fs.readFileSync(filePath));
 					} catch (e) {
-						console.error('Protocol error:', e);
-						return new Response('Error loading resource', { status: 500 });
+						console.error("Protocol error:", e);
+						return new Response("Error loading resource", { status: 500 });
 					}
 				});
 			}
-			mainWindow.loadURL('app://index.html');
+			mainWindow.loadURL("app://index.html");
 		}
 
 		// 3. Transition from Splash to Main
-		mainWindow.once('ready-to-show', async () => {
+		mainWindow.once("ready-to-show", async () => {
 			if (splashWindow) {
 				splashWindow.close();
 				splashWindow = null;
@@ -981,8 +1046,11 @@ async function createWindow() {
 
 				// Apply saved menu bar preference (default: hidden for POS kiosk)
 				try {
-					const savedSettings = await db.get('SELECT pos FROM settings ORDER BY id DESC LIMIT 1');
-					const posSettings = savedSettings?.pos ? JSON.parse(savedSettings.pos) : {};
+					const savedSettings = await db.get(
+						"SELECT pos FROM settings ORDER BY id DESC LIMIT 1",
+					);
+					const posSettings =
+						savedSettings?.pos ? JSON.parse(savedSettings.pos) : {};
 
 					const hideMenuBar = posSettings.hideMenuBar !== false; // default true (hidden)
 					mainWindow.setMenuBarVisibility(!hideMenuBar);
@@ -1050,7 +1118,9 @@ ipcMain.handle("login", async (_, username: string, password: string) => {
 ipcMain.handle("get-settings", async () => {
 	try {
 		// console.log('Getting settings...');
-		const settings = await db.get("SELECT * FROM settings ORDER BY id DESC LIMIT 1");
+		const settings = await db.get(
+			"SELECT * FROM settings ORDER BY id DESC LIMIT 1",
+		);
 		if (settings) {
 			return {
 				id: settings.id,
@@ -1095,7 +1165,7 @@ ipcMain.handle("update-settings", async (_, settings) => {
 					JSON.stringify(mergedSettings.general),
 					JSON.stringify(mergedSettings.pos),
 					JSON.stringify(mergedSettings.theme),
-				]
+				],
 			);
 		} else {
 			// Update existing settings
@@ -1152,7 +1222,7 @@ ipcMain.handle("add-user", async (_, data) => {
 		// Check if username already exists
 		const existingUser = await db.get(
 			"SELECT * FROM users WHERE username = ?",
-			[user.username]
+			[user.username],
 		);
 		if (existingUser) {
 			throw new Error("Username already exists");
@@ -1163,7 +1233,7 @@ ipcMain.handle("add-user", async (_, data) => {
 
 		const result = await db.run(
 			"INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-			[user.username, hashedPassword, user.role]
+			[user.username, hashedPassword, user.role],
 		);
 		// console.log('User inserted with ID:', result.lastID);
 
@@ -1193,7 +1263,7 @@ ipcMain.handle("update-user", async (_, id, data) => {
 			const hashedPassword = await bcrypt.hash(user.password, 10);
 			await db.run(
 				"UPDATE users SET username = ?, password = ?, role = ? WHERE id = ?",
-				[user.username, hashedPassword, user.role, id]
+				[user.username, hashedPassword, user.role, id],
 			);
 		} else {
 			await db.run("UPDATE users SET username = ?, role = ? WHERE id = ?", [
@@ -1224,10 +1294,19 @@ ipcMain.handle("clock-in", async (_, userId) => {
 	try {
 		const nowStr = new Date().toISOString();
 		// Ensure no other active shift exists for this user
-		await db.run("UPDATE shifts SET status = 'completed', clock_out = ? WHERE user_id = ? AND status = 'active'", [nowStr, userId]);
-		
-		await db.run("INSERT INTO shifts (user_id, clock_in, status) VALUES (?, ?, 'active')", [userId, nowStr]);
-		const shift = await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
+		await db.run(
+			"UPDATE shifts SET status = 'completed', clock_out = ? WHERE user_id = ? AND status = 'active'",
+			[nowStr, userId],
+		);
+
+		await db.run(
+			"INSERT INTO shifts (user_id, clock_in, status) VALUES (?, ?, 'active')",
+			[userId, nowStr],
+		);
+		const shift = await db.get(
+			"SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+			[userId],
+		);
 		return shift;
 	} catch (error) {
 		console.error("Error clocking in:", error);
@@ -1237,12 +1316,20 @@ ipcMain.handle("clock-in", async (_, userId) => {
 
 ipcMain.handle("clock-out", async (_, userId) => {
 	try {
-		const activeShift = await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
+		const activeShift = await db.get(
+			"SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+			[userId],
+		);
 		if (!activeShift) return null;
 
 		const clockOut = new Date().toISOString();
 		let clockInStr = activeShift.clock_in;
-		if (clockInStr && !clockInStr.includes("Z") && !clockInStr.includes("+") && !clockInStr.includes("T")) {
+		if (
+			clockInStr &&
+			!clockInStr.includes("Z") &&
+			!clockInStr.includes("+") &&
+			!clockInStr.includes("T")
+		) {
 			clockInStr = clockInStr.replace(" ", "T") + "Z";
 		}
 		const clockIn = new Date(clockInStr);
@@ -1251,9 +1338,14 @@ ipcMain.handle("clock-out", async (_, userId) => {
 
 		await db.run(
 			"UPDATE shifts SET clock_out = ?, total_hours = ?, status = 'completed' WHERE id = ?",
-			[clockOut, totalHours, activeShift.id]
+			[clockOut, totalHours, activeShift.id],
 		);
-		return { ...activeShift, clock_out: clockOut, total_hours: totalHours, status: 'completed' };
+		return {
+			...activeShift,
+			clock_out: clockOut,
+			total_hours: totalHours,
+			status: "completed",
+		};
 	} catch (error) {
 		console.error("Error clocking out:", error);
 		throw error;
@@ -1262,7 +1354,10 @@ ipcMain.handle("clock-out", async (_, userId) => {
 
 ipcMain.handle("get-active-shift", async (_, userId) => {
 	try {
-		return await db.get("SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [userId]);
+		return await db.get(
+			"SELECT * FROM shifts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+			[userId],
+		);
 	} catch (error) {
 		console.error("Error getting active shift:", error);
 		throw error;
@@ -1271,14 +1366,15 @@ ipcMain.handle("get-active-shift", async (_, userId) => {
 
 ipcMain.handle("get-all-shifts", async (_, filters) => {
 	try {
-		let query = "SELECT shifts.*, users.username FROM shifts JOIN users ON shifts.user_id = users.id";
+		let query =
+			"SELECT shifts.*, users.username FROM shifts JOIN users ON shifts.user_id = users.id";
 		const params: any[] = [];
-		
+
 		if (filters?.userId) {
 			query += " WHERE user_id = ?";
 			params.push(filters.userId);
 		}
-		
+
 		query += " ORDER BY clock_in DESC";
 		return await db.all(query, params);
 	} catch (error) {
@@ -1315,19 +1411,22 @@ ipcMain.handle("request-password-reset", async (_, licenseKey) => {
 		// 1. Verify License Key locally first to save a network call if it's junk
 		const validation = await licensingManager.validateLicense(licenseKey);
 		if (!validation.valid) {
-			return { success: false, message: validation.message || "Invalid license key." };
+			return {
+				success: false,
+				message: validation.message || "Invalid license key.",
+			};
 		}
 
 		// 2. Request reset from Portal
 		const baseUrl = await getBaseUrl();
 
 		const response = await fetch(`${baseUrl}/api/pos/reset-request`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				license_key: licenseKey,
-				device_id: licensingManager.getHardwareId()
-			})
+				device_id: licensingManager.getHardwareId(),
+			}),
 		});
 
 		if (!response.ok) {
@@ -1336,13 +1435,16 @@ ipcMain.handle("request-password-reset", async (_, licenseKey) => {
 		}
 
 		const result = await response.json();
-		return { 
-			success: true, 
-			verificationNumber: result.verificationNumber // This is the "08" number
+		return {
+			success: true,
+			verificationNumber: result.verificationNumber, // This is the "08" number
 		};
 	} catch (error: any) {
 		console.error("Password reset request error:", error);
-		return { success: false, message: "Could not connect to Portal. Please check your internet." };
+		return {
+			success: false,
+			message: "Could not connect to Portal. Please check your internet.",
+		};
 	}
 });
 
@@ -1350,10 +1452,13 @@ ipcMain.handle("check-reset-status", async (_, licenseKey) => {
 	try {
 		const baseUrl = await getBaseUrl();
 
-		const response = await fetch(`${baseUrl}/api/pos/reset-status?license_key=${licenseKey}`, {
-			method: 'GET',
-			headers: { 'Content-Type': 'application/json' }
-		});
+		const response = await fetch(
+			`${baseUrl}/api/pos/reset-status?license_key=${licenseKey}`,
+			{
+				method: "GET",
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 
 		if (!response.ok) return { status: "pending" };
 
@@ -1364,58 +1469,61 @@ ipcMain.handle("check-reset-status", async (_, licenseKey) => {
 	}
 });
 
-ipcMain.handle("complete-password-reset", async (_, licenseKey, newPassword) => {
-	try {
-		// 1. Final verification with Portal that this is actually approved
-		const baseUrl = await getBaseUrl();
+ipcMain.handle(
+	"complete-password-reset",
+	async (_, licenseKey, newPassword) => {
+		try {
+			// 1. Final verification with Portal that this is actually approved
+			const baseUrl = await getBaseUrl();
 
-		const response = await fetch(`${baseUrl}/api/pos/reset-complete`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				license_key: licenseKey,
-				device_id: licensingManager.getHardwareId()
-			})
-		});
+			const response = await fetch(`${baseUrl}/api/pos/reset-complete`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					license_key: licenseKey,
+					device_id: licensingManager.getHardwareId(),
+				}),
+			});
 
-		const result = await response.json();
-		if (!result.authorized) {
-			throw new Error("Unauthorized reset attempt.");
+			const result = await response.json();
+			if (!result.authorized) {
+				throw new Error("Unauthorized reset attempt.");
+			}
+
+			// 2. Find the primary admin account locally
+			const adminUser = await db.get(
+				"SELECT * FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1",
+			);
+
+			if (!adminUser) {
+				throw new Error("No admin account found to reset.");
+			}
+
+			// 3. Update the password locally
+			const hashedPassword = await bcrypt.hash(newPassword, 10);
+			await db.run("UPDATE users SET password = ? WHERE id = ?", [
+				hashedPassword,
+				adminUser.id,
+			]);
+
+			// 4. Log the action
+			await logAction({
+				db,
+				admin_id: null,
+				admin_name: "PORTAL_AUTHORIZED_RECOVERY",
+				admin_role: "system",
+				action: LOG_ACTIONS.UPDATE_USER,
+				page: "login_recovery",
+				context: { user_id: adminUser.id, method: "portal_authorization" },
+			});
+
+			return { success: true, username: adminUser.username };
+		} catch (error: any) {
+			console.error("Password reset completion error:", error);
+			throw error;
 		}
-
-		// 2. Find the primary admin account locally
-		const adminUser = await db.get(
-			"SELECT * FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1"
-		);
-
-		if (!adminUser) {
-			throw new Error("No admin account found to reset.");
-		}
-
-		// 3. Update the password locally
-		const hashedPassword = await bcrypt.hash(newPassword, 10);
-		await db.run("UPDATE users SET password = ? WHERE id = ?", [
-			hashedPassword,
-			adminUser.id,
-		]);
-
-		// 4. Log the action
-		await logAction({
-			db,
-			admin_id: null,
-			admin_name: "PORTAL_AUTHORIZED_RECOVERY",
-			admin_role: "system",
-			action: LOG_ACTIONS.UPDATE_USER,
-			page: "login_recovery",
-			context: { user_id: adminUser.id, method: "portal_authorization" },
-		});
-
-		return { success: true, username: adminUser.username };
-	} catch (error: any) {
-		console.error("Password reset completion error:", error);
-		throw error;
-	}
-});
+	},
+);
 
 // Database backup/restore handlers
 ipcMain.handle("export-database", async (_, exportType = "all", options) => {
@@ -1462,166 +1570,172 @@ ipcMain.handle("export-database", async (_, exportType = "all", options) => {
 	}
 });
 
-ipcMain.handle("import-database", async (_, data, importType = "all", options) => {
-	const { author } = options || {};
-	try {
-		// console.log('Importing database with type:', importType);
-		const parsedData = typeof data === "string" ? JSON.parse(data) : data;
+ipcMain.handle(
+	"import-database",
+	async (_, data, importType = "all", options) => {
+		const { author } = options || {};
+		try {
+			// console.log('Importing database with type:', importType);
+			const parsedData = typeof data === "string" ? JSON.parse(data) : data;
 
-		// Clear existing data based on import type
-		if (importType === "all" || importType === "settings") {
-			await db.run("DELETE FROM settings");
-		}
-		if (importType === "all" || importType === "users") {
-			await db.run("DELETE FROM users");
-		}
-		if (importType === "all" || importType === "products") {
-			await db.run("DELETE FROM products");
-		}
-		if (importType === "all" || importType === "categories") {
-			await db.run("DELETE FROM categories");
-		}
-		if (importType === "all" || importType === "orders") {
-			await db.run("DELETE FROM order_items");
-			await db.run("DELETE FROM orders");
-		}
-		if (importType === "all" || importType === "logs") {
-			await db.run("DELETE FROM logs");
-		}
-
-		// Import data based on type
-		if (
-			(importType === "all" || importType === "settings") &&
-			parsedData.settings
-		) {
-			await db.run(
-				"INSERT INTO settings (general, pos, theme) VALUES (?, ?, ?)",
-				[
-					parsedData.settings.general,
-					parsedData.settings.pos,
-					parsedData.settings.theme,
-				]
-			);
-		}
-
-		if ((importType === "all" || importType === "users") && parsedData.users) {
-			for (const user of parsedData.users) {
-				await db.run(
-					"INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)",
-					[user.username, user.password, user.role, user.created_at]
-				);
+			// Clear existing data based on import type
+			if (importType === "all" || importType === "settings") {
+				await db.run("DELETE FROM settings");
 			}
-		}
+			if (importType === "all" || importType === "users") {
+				await db.run("DELETE FROM users");
+			}
+			if (importType === "all" || importType === "products") {
+				await db.run("DELETE FROM products");
+			}
+			if (importType === "all" || importType === "categories") {
+				await db.run("DELETE FROM categories");
+			}
+			if (importType === "all" || importType === "orders") {
+				await db.run("DELETE FROM order_items");
+				await db.run("DELETE FROM orders");
+			}
+			if (importType === "all" || importType === "logs") {
+				await db.run("DELETE FROM logs");
+			}
 
-		if (
-			(importType === "all" || importType === "categories") &&
-			parsedData.categories
-		) {
-			for (const category of parsedData.categories) {
+			// Import data based on type
+			if (
+				(importType === "all" || importType === "settings") &&
+				parsedData.settings
+			) {
 				await db.run(
-					"INSERT INTO categories (name, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO settings (general, pos, theme) VALUES (?, ?, ?)",
 					[
-						category.name,
-						category.description,
-						category.status,
-						category.created_at,
-						category.updated_at,
-					]
-				);
-			}
-		}
-
-		if (
-			(importType === "all" || importType === "products") &&
-			parsedData.products
-		) {
-			for (const product of parsedData.products) {
-				await db.run(
-					"INSERT INTO products (name, description, category, price, cost_price, stock, status, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					[
-						product.name,
-						product.description,
-						product.category,
-						product.price,
-						product.cost_price || 0,
-						product.stock,
-						product.status,
-						product.image,
-						product.created_at,
-						product.updated_at,
-					]
-				);
-			}
-		}
-
-		if (
-			(importType === "all" || importType === "orders") &&
-			parsedData.orders
-		) {
-			for (const order of parsedData.orders) {
-				await db.run(
-					"INSERT INTO orders (sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, created_at, updated_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					[
-						order.sale_id,
-						order.order_type,
-						order.table_number,
-						order.customer_name,
-						order.payment_mode,
-						order.tax,
-						order.amount || 0,
-						order.amount_bt || 0,
-						order.status,
-						order.admin_id,
-						order.created_at,
-						order.updated_at,
-						order.notes,
-					]
+						parsedData.settings.general,
+						parsedData.settings.pos,
+						parsedData.settings.theme,
+					],
 				);
 			}
 
-			if (parsedData.order_items) {
-				for (const item of parsedData.order_items) {
+			if (
+				(importType === "all" || importType === "users") &&
+				parsedData.users
+			) {
+				for (const user of parsedData.users) {
 					await db.run(
-						"INSERT INTO order_items (order_id, product_id, quantity, created_at) VALUES (?, ?, ?, ?)",
-						[item.order_id, item.product_id, item.quantity, item.created_at]
+						"INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)",
+						[user.username, user.password, user.role, user.created_at],
 					);
 				}
 			}
-		}
 
-		if ((importType === "all" || importType === "logs") && parsedData.logs) {
-			for (const log of parsedData.logs) {
-				await db.run(
-					"INSERT INTO logs (created_at, admin_id, admin_name, admin_role, action, page, context) VALUES (?, ?, ?, ?, ?, ?, ?)",
-					[
-						log.created_at,
-						log.admin_id,
-						log.admin_name,
-						log.admin_role,
-						log.action,
-						log.page,
-						log.context,
-					]
-				);
+			if (
+				(importType === "all" || importType === "categories") &&
+				parsedData.categories
+			) {
+				for (const category of parsedData.categories) {
+					await db.run(
+						"INSERT INTO categories (name, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+						[
+							category.name,
+							category.description,
+							category.status,
+							category.created_at,
+							category.updated_at,
+						],
+					);
+				}
 			}
-		}
 
-		// console.log('Database imported successfully');
-		await logAction({
-			db,
-			admin_id: author?.id || null,
-			admin_name: author?.username || author?.name || null,
-			admin_role: author?.role || null,
-			action: LOG_ACTIONS.IMPORT_DATABASE,
-			page: "database",
-			context: { operation: "import", importType, data: parsedData },
-		});
-		return true;
-	} catch (error) {
-		console.error("Error importing database:", error);
-		throw error;
-	}
-});
+			if (
+				(importType === "all" || importType === "products") &&
+				parsedData.products
+			) {
+				for (const product of parsedData.products) {
+					await db.run(
+						"INSERT INTO products (name, description, category, price, cost_price, stock, status, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+						[
+							product.name,
+							product.description,
+							product.category,
+							product.price,
+							product.cost_price || 0,
+							product.stock,
+							product.status,
+							product.image,
+							product.created_at,
+							product.updated_at,
+						],
+					);
+				}
+			}
+
+			if (
+				(importType === "all" || importType === "orders") &&
+				parsedData.orders
+			) {
+				for (const order of parsedData.orders) {
+					await db.run(
+						"INSERT INTO orders (sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, created_at, updated_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+						[
+							order.sale_id,
+							order.order_type,
+							order.table_number,
+							order.customer_name,
+							order.payment_mode,
+							order.tax,
+							order.amount || 0,
+							order.amount_bt || 0,
+							order.status,
+							order.admin_id,
+							order.created_at,
+							order.updated_at,
+							order.notes,
+						],
+					);
+				}
+
+				if (parsedData.order_items) {
+					for (const item of parsedData.order_items) {
+						await db.run(
+							"INSERT INTO order_items (order_id, product_id, quantity, created_at) VALUES (?, ?, ?, ?)",
+							[item.order_id, item.product_id, item.quantity, item.created_at],
+						);
+					}
+				}
+			}
+
+			if ((importType === "all" || importType === "logs") && parsedData.logs) {
+				for (const log of parsedData.logs) {
+					await db.run(
+						"INSERT INTO logs (created_at, admin_id, admin_name, admin_role, action, page, context) VALUES (?, ?, ?, ?, ?, ?, ?)",
+						[
+							log.created_at,
+							log.admin_id,
+							log.admin_name,
+							log.admin_role,
+							log.action,
+							log.page,
+							log.context,
+						],
+					);
+				}
+			}
+
+			// console.log('Database imported successfully');
+			await logAction({
+				db,
+				admin_id: author?.id || null,
+				admin_name: author?.username || author?.name || null,
+				admin_role: author?.role || null,
+				action: LOG_ACTIONS.IMPORT_DATABASE,
+				page: "database",
+				context: { operation: "import", importType, data: parsedData },
+			});
+			return true;
+		} catch (error) {
+			console.error("Error importing database:", error);
+			throw error;
+		}
+	},
+);
 
 // Clear all data handler
 ipcMain.handle("clear-all-data", async (_, user) => {
@@ -1642,7 +1756,7 @@ ipcMain.handle("clear-all-data", async (_, user) => {
 		const hashedPassword = await bcrypt.hash("Lagmin123", 10);
 		await db.run(
 			"INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-			["admin", hashedPassword, "admin"]
+			["admin", hashedPassword, "admin"],
 		);
 
 		// Log the action
@@ -1692,7 +1806,11 @@ ipcMain.handle("add-category", async (_, category) => {
 
 		const result = await db.run(
 			"INSERT INTO categories (name, description, status) VALUES (?, ?, ?)",
-			[category.name, category.description || null, category.status || "active"]
+			[
+				category.name,
+				category.description || null,
+				category.status || "active",
+			],
 		);
 		// console.log('Category inserted with ID:', result.lastID);
 
@@ -1727,12 +1845,12 @@ ipcMain.handle("update-category", async (_, { id, ...category }) => {
 
 		await db.run(
 			"UPDATE categories SET name = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-			[category.name, category.description || null, category.status, id]
+			[category.name, category.description || null, category.status, id],
 		);
 
 		const updatedCategory = await db.get(
 			"SELECT * FROM categories WHERE id = ?",
-			[id]
+			[id],
 		);
 		// console.log('Updated category:', updatedCategory);
 		const author = category.author || {};
@@ -1785,27 +1903,27 @@ ipcMain.handle("open-keyboard", () => {
 		// 		});
 		// 	}
 		// });
-	} 
-// 	else if (process.platform === "darwin") {
-// 		// Get macOS major version to determine correct approach
-// 		exec("sw_vers -productVersion", (err, stdout) => {
-// 			const major = parseInt((stdout || "12").split(".")[0]);
+	}
+	// 	else if (process.platform === "darwin") {
+	// 		// Get macOS major version to determine correct approach
+	// 		exec("sw_vers -productVersion", (err, stdout) => {
+	// 			const major = parseInt((stdout || "12").split(".")[0]);
 
-// 			if (major >= 13) {
-//     exec("open 'x-apple.systempreferences:com.apple.preference.universalaccess?Keyboard'");
-// } else {
-// 				// macOS 12 and below — KeyboardViewer process approach
-// 				const script = 'tell application "System Events" to set visible of process "KeyboardViewer" to true';
-// 				exec(`osascript -e '${script}'`, (err2) => {
-// 					if (err2) {
-// 						exec("open -b com.apple.KeyboardViewer", (err3) => {
-// 							if (err3) console.error("[Main] macOS Keyboard error:", err3.message);
-// 						});
-// 					}
-// 				});
-// 			}
-// 		});
-// 	}
+	// 			if (major >= 13) {
+	//     exec("open 'x-apple.systempreferences:com.apple.preference.universalaccess?Keyboard'");
+	// } else {
+	// 				// macOS 12 and below — KeyboardViewer process approach
+	// 				const script = 'tell application "System Events" to set visible of process "KeyboardViewer" to true';
+	// 				exec(`osascript -e '${script}'`, (err2) => {
+	// 					if (err2) {
+	// 						exec("open -b com.apple.KeyboardViewer", (err3) => {
+	// 							if (err3) console.error("[Main] macOS Keyboard error:", err3.message);
+	// 						});
+	// 					}
+	// 				});
+	// 			}
+	// 		});
+	// 	}
 	return true;
 });
 
@@ -1893,7 +2011,7 @@ ipcMain.handle(
 					product.low_stock_threshold || 10,
 					product.status,
 					product.image || null,
-				]
+				],
 			);
 			const newProduct = await db.get("SELECT * FROM products WHERE id = ?", [
 				result.lastID,
@@ -1931,13 +2049,15 @@ ipcMain.handle(
 			console.error("Error adding product:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 	try {
 		const db = await getDatabase();
-		const oldProduct = await db.get("SELECT stock FROM products WHERE id = ?", [product.id]);
+		const oldProduct = await db.get("SELECT stock FROM products WHERE id = ?", [
+			product.id,
+		]);
 		const oldStock = oldProduct?.stock || 0;
 
 		await db.run(
@@ -1966,7 +2086,7 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 				product.status,
 				product.image || null,
 				product.id,
-			]
+			],
 		);
 		const updatedProduct = await db.get("SELECT * FROM products WHERE id = ?", [
 			product.id,
@@ -1982,7 +2102,9 @@ ipcMain.handle("update-product", async (_, product: Product, payload = {}) => {
 				changeAmount: updatedProduct.stock - oldStock,
 				previousStock: oldStock,
 				newStock: updatedProduct.stock,
-				reason: payload.reason || (updatedProduct.stock > oldStock ? "restock" : "adjustment"),
+				reason:
+					payload.reason ||
+					(updatedProduct.stock > oldStock ? "restock" : "adjustment"),
 				adminId: author.id || null,
 				productName: updatedProduct.name || null,
 				adminName: author.name || null,
@@ -2076,7 +2198,7 @@ ipcMain.handle(
 			const db = await getDatabase();
 			const oldStock = await db.get(
 				"SELECT stock, name FROM products WHERE id = ?",
-				[productId]
+				[productId],
 			);
 
 			if (!oldStock) {
@@ -2085,11 +2207,13 @@ ipcMain.handle(
 
 			await db.run(
 				"UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-				[newStock, productId]
+				[newStock, productId],
 			);
 
 			const author = payload.author || {};
-			const changeReason = payload.reason || (newStock > oldStock.stock ? "restock" : "adjustment");
+			const changeReason =
+				payload.reason ||
+				(newStock > oldStock.stock ? "restock" : "adjustment");
 
 			// Log inventory change
 			await logInventoryChange({
@@ -2126,169 +2250,181 @@ ipcMain.handle(
 			console.error("Error updating product stock:", error);
 			throw error;
 		}
-	}
+	},
 );
 
-ipcMain.handle("get-daily-inventory-report", async (_, date?: string, author?: any) => {
-	try {
-		const db = await getDatabase();
-		const reportDate = date || new Date().toISOString().split("T")[0];
-		
-		// 1. Get all products
-		const products = await db.all("SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC");
-		
-		const report = [];
-		
-		for (const product of products) {
-			// 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
-			const logs = await db.all(
-				`SELECT * FROM inventory_logs 
-				 WHERE product_id = ? 
-				 AND date(created_at) = date(?)` +
-				(author?.id ? ` AND admin_id = ?` : ``),
-				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
+ipcMain.handle(
+	"get-daily-inventory-report",
+	async (_, date?: string, author?: any) => {
+		try {
+			const db = await getDatabase();
+			const reportDate = date || new Date().toISOString().split("T")[0];
+
+			// 1. Get all products
+			const products = await db.all(
+				"SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC",
 			);
-			
-			// 2b. Get today's sold qty (open + closed, not cancelled) for inventory reconciliation
-			const salesData = await db.get(
-				`SELECT SUM(oi.quantity) as sold_qty
+
+			const report = [];
+
+			for (const product of products) {
+				// 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
+				const logs = await db.all(
+					`SELECT * FROM inventory_logs 
+				 WHERE product_id = ? 
+				 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``),
+					author?.id ?
+						[product.id, reportDate, author.id]
+					:	[product.id, reportDate],
+				);
+
+				// 2b. Get today's sold qty (open + closed, not cancelled) for inventory reconciliation
+				const salesData = await db.get(
+					`SELECT SUM(oi.quantity) as sold_qty
 				 FROM order_items oi
 				 JOIN orders o ON oi.order_id = o.id
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status IN ('open', 'closed')
-				 AND date(o.created_at) = date(?)` +
-				(author?.id ? ` AND o.admin_id = ?` : ``),
-				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
-			);
+				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
+					author?.id ?
+						[product.id, reportDate, author.id]
+					:	[product.id, reportDate],
+				);
 
-			// 2c. Get today's closed sales for revenue calculation
-			const closedSalesData = await db.get(
-				`SELECT SUM(oi.quantity) as sold_closed_qty
+				// 2c. Get today's closed sales for revenue calculation
+				const closedSalesData = await db.get(
+					`SELECT SUM(oi.quantity) as sold_closed_qty
 				 FROM order_items oi
 				 JOIN orders o ON oi.order_id = o.id
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.created_at) = date(?)` +
-				(author?.id ? ` AND o.admin_id = ?` : ``),
-				author?.id ? [product.id, reportDate, author.id] : [product.id, reportDate]
-			);
-			
-			const sold = salesData?.sold_qty || 0;
-			const soldClosed = closedSalesData?.sold_closed_qty || 0;
-			let added = 0;
-			let adjusted = 0;
-			let damaged = 0;
-			
-			logs.forEach((log: any) => {
-				if (log.reason === 'restock') {
-					added += log.change_amount;
-				} else if (log.reason === 'wastage') {
-					// 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
-					damaged += Math.abs(log.change_amount);
-				} else if (log.reason === 'adjustment') {
-					if (log.change_amount > 0) {
+				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
+					author?.id ?
+						[product.id, reportDate, author.id]
+					:	[product.id, reportDate],
+				);
+
+				const sold = salesData?.sold_qty || 0;
+				const soldClosed = closedSalesData?.sold_closed_qty || 0;
+				let added = 0;
+				let adjusted = 0;
+				let damaged = 0;
+
+				logs.forEach((log: any) => {
+					if (log.reason === "restock") {
 						added += log.change_amount;
-					} else {
-						adjusted += Math.abs(log.change_amount);
+					} else if (log.reason === "wastage") {
+						// 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
+						damaged += Math.abs(log.change_amount);
+					} else if (log.reason === "adjustment") {
+						if (log.change_amount > 0) {
+							added += log.change_amount;
+						} else {
+							adjusted += Math.abs(log.change_amount);
+						}
 					}
-				}
-			});
-			
-			// 3. Find opening stock
-			let openingStock = product.stock;
-			if (logs.length > 0) {
-				const firstLog = logs.reduce((prev: any, curr: any) => prev.id < curr.id ? prev : curr);
-				openingStock = firstLog.previous_stock;
-			}
-			
-			// 4. Compute stockLeft as reconciled math (openingStock + added - sold - damaged - adjusted)
-			//    This ensures the row always balances for this user's session, regardless of other
-			//    system-wide changes to the product stock by other users.
-			const stockLeft = openingStock + added - sold - damaged - adjusted;
-			
-			// 5. Only include in report if there was activity
-			if (sold > 0 || logs.length > 0) {
-				report.push({
-					id: product.id,
-					name: product.name,
-					openingStock,
-					added,
-					sold,
-					damaged,
-					adjusted,
-					totalStock: openingStock + added,
-					price: product.price,
-					totalSales: soldClosed * product.price,
-					stockLeft,
-					lowStockThreshold: product.low_stock_threshold
 				});
+
+				// 3. Find opening stock
+				let openingStock = product.stock;
+				if (logs.length > 0) {
+					const firstLog = logs.reduce((prev: any, curr: any) =>
+						prev.id < curr.id ? prev : curr,
+					);
+					openingStock = firstLog.previous_stock;
+				}
+
+				// 4. Compute stockLeft as reconciled math (openingStock + added - sold - damaged - adjusted)
+				//    This ensures the row always balances for this user's session, regardless of other
+				//    system-wide changes to the product stock by other users.
+				const stockLeft = openingStock + added - sold - damaged - adjusted;
+
+				// 5. Only include in report if there was activity
+				if (sold > 0 || logs.length > 0) {
+					report.push({
+						id: product.id,
+						name: product.name,
+						openingStock,
+						added,
+						sold,
+						damaged,
+						adjusted,
+						totalStock: openingStock + added,
+						price: product.price,
+						totalSales: soldClosed * product.price,
+						stockLeft,
+						lowStockThreshold: product.low_stock_threshold,
+					});
+				}
 			}
-		}
-		
-		// 5. Get food sales summary (closed orders only)
-		const foodSales = await db.all(
-			`SELECT fi.name, SUM(oi.quantity) as quantity, fi.price
+
+			// 5. Get food sales summary (closed orders only)
+			const foodSales = await db.all(
+				`SELECT fi.name, SUM(oi.quantity) as quantity, fi.price
 			 FROM order_items oi
 			 JOIN food_items fi ON oi.food_item_id = fi.id
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
 			 AND o.status = 'closed'
 			 AND date(o.created_at) = date(?)` +
-			(author?.id ? ` AND o.admin_id = ?` : ``) +
-			` GROUP BY fi.id, fi.name, fi.price`,
-			author?.id ? [reportDate, author.id] : [reportDate]
-		);
+					(author?.id ? ` AND o.admin_id = ?` : ``) +
+					` GROUP BY fi.id, fi.name, fi.price`,
+				author?.id ? [reportDate, author.id] : [reportDate],
+			);
 
-		// 6. Get pending orders summary
-		const pendingOrders = await db.get(
-			`SELECT COUNT(id) as count, SUM(amount) as total
+			// 6. Get pending orders summary
+			const pendingOrders = await db.get(
+				`SELECT COUNT(id) as count, SUM(amount) as total
 			 FROM orders 
 			 WHERE status = 'open' 
-			 AND date(created_at) = date(?)` +
-			(author?.id ? ` AND admin_id = ?` : ``),
-			author?.id ? [reportDate, author.id] : [reportDate]
-		);
+			 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``),
+				author?.id ? [reportDate, author.id] : [reportDate],
+			);
 
-		// 7. Get today's expenses
-		const expenses = await db.all(
-			`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
-			(author?.id ? ` AND admin_id = ?` : ``),
-			author?.id ? [reportDate, author.id] : [reportDate]
-		);
+			// 7. Get today's expenses
+			const expenses = await db.all(
+				`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
+					(author?.id ? ` AND admin_id = ?` : ``),
+				author?.id ? [reportDate, author.id] : [reportDate],
+			);
 
-		return {
-			date: reportDate,
-			inventory: report,
-			foodSales: foodSales.map((f: any) => ({
-				name: f.name,
-				quantity: f.quantity,
-				price: f.price,
-				totalSales: f.quantity * f.price
-			})),
-			pendingOrders: {
-				count: pendingOrders?.count || 0,
-				total: pendingOrders?.total || 0
-			},
-			expenses: expenses.map((e: any) => ({
-				description: e.description,
-				amount: e.amount,
-				staff: e.admin_name
-			})),
-			totalExpenses: expenses.reduce((sum: number, e: any) => sum + e.amount, 0)
-		};
-	} catch (error) {
-		console.error("Error generating daily report:", error);
-		throw error;
-	}
-});
+			return {
+				date: reportDate,
+				inventory: report,
+				foodSales: foodSales.map((f: any) => ({
+					name: f.name,
+					quantity: f.quantity,
+					price: f.price,
+					totalSales: f.quantity * f.price,
+				})),
+				pendingOrders: {
+					count: pendingOrders?.count || 0,
+					total: pendingOrders?.total || 0,
+				},
+				expenses: expenses.map((e: any) => ({
+					description: e.description,
+					amount: e.amount,
+					staff: e.admin_name,
+				})),
+				totalExpenses: expenses.reduce(
+					(sum: number, e: any) => sum + e.amount,
+					0,
+				),
+			};
+		} catch (error) {
+			console.error("Error generating daily report:", error);
+			throw error;
+		}
+	},
+);
 
 // Expense handlers
 ipcMain.handle("get-expenses", async (_, filters: any = {}) => {
 	try {
 		const db = await getDatabase();
-		
+
 		let start, end;
 		const now = new Date();
 		const timePeriod = filters.timePeriod || "day";
@@ -2307,7 +2443,11 @@ ipcMain.handle("get-expenses", async (_, filters: any = {}) => {
 			case "week":
 				const dayOfWeek = now.getDay();
 				const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-				start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
+				start = new Date(
+					now.getFullYear(),
+					now.getMonth(),
+					now.getDate() - daysToSubtract,
+				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
 			case "month":
@@ -2321,11 +2461,11 @@ ipcMain.handle("get-expenses", async (_, filters: any = {}) => {
 				break;
 			default:
 				// Backward compatibility for when just a date string is passed
-				if (typeof filters === 'string') {
+				if (typeof filters === "string") {
 					const dateStr = filters;
 					const expenses = await db.all(
 						"SELECT * FROM expenses WHERE date(created_at) = date(?) ORDER BY created_at DESC",
-						[dateStr]
+						[dateStr],
 					);
 					return expenses;
 				}
@@ -2345,7 +2485,7 @@ ipcMain.handle("get-expenses", async (_, filters: any = {}) => {
 
 		const expenses = await db.all(
 			"SELECT * FROM expenses WHERE date(created_at) >= date(?) AND date(created_at) < date(?) ORDER BY created_at DESC",
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 		return expenses;
 	} catch (error) {
@@ -2354,30 +2494,46 @@ ipcMain.handle("get-expenses", async (_, filters: any = {}) => {
 	}
 });
 
-ipcMain.handle("add-expense", async (_, expense: { description: string; amount: number; admin_name: string; admin_id?: number }) => {
-	try {
-		const db = await getDatabase();
-		const result = await db.run(
-			"INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)",
-			[expense.description, expense.amount, expense.admin_name, expense.admin_id || null]
-		);
+ipcMain.handle(
+	"add-expense",
+	async (
+		_,
+		expense: {
+			description: string;
+			amount: number;
+			admin_name: string;
+			admin_id?: number;
+		},
+	) => {
+		try {
+			const db = await getDatabase();
+			const result = await db.run(
+				"INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)",
+				[
+					expense.description,
+					expense.amount,
+					expense.admin_name,
+					expense.admin_id || null,
+				],
+			);
 
-		await logAction({
-			db,
-			admin_id: expense.admin_id || null,
-			admin_name: expense.admin_name || "System",
-			admin_role: "admin", // Assuming admin for now
-			action: LOG_ACTIONS.ADD_EXPENSE,
-			page: "accounting",
-			context: expense,
-		});
+			await logAction({
+				db,
+				admin_id: expense.admin_id || null,
+				admin_name: expense.admin_name || "System",
+				admin_role: "admin", // Assuming admin for now
+				action: LOG_ACTIONS.ADD_EXPENSE,
+				page: "accounting",
+				context: expense,
+			});
 
-		return { success: true, id: result.lastID };
-	} catch (error) {
-		console.error("Error adding expense:", error);
-		throw error;
-	}
-});
+			return { success: true, id: result.lastID };
+		} catch (error) {
+			console.error("Error adding expense:", error);
+			throw error;
+		}
+	},
+);
 
 ipcMain.handle("delete-expense", async (_, id: number) => {
 	try {
@@ -2423,7 +2579,7 @@ ipcMain.handle(
 	async (
 		_,
 		category: { name: string; description?: string; status: string },
-		payload = {}
+		payload = {},
 	) => {
 		try {
 			const db = await getDatabase();
@@ -2435,11 +2591,11 @@ ipcMain.handle(
 					category.name,
 					category.description || null,
 					category.status || "active",
-				]
+				],
 			);
 			const newCategory = await db.get(
 				"SELECT * FROM food_categories WHERE id = ?",
-				[result.lastID]
+				[result.lastID],
 			);
 			const author = payload.author || {};
 			await logAction({
@@ -2456,7 +2612,7 @@ ipcMain.handle(
 			console.error("Error adding food category:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle(
@@ -2469,7 +2625,7 @@ ipcMain.handle(
 			description?: string;
 			status: string;
 		},
-		payload = {}
+		payload = {},
 	) => {
 		try {
 			const db = await getDatabase();
@@ -2484,11 +2640,11 @@ ipcMain.handle(
 					category.description || null,
 					category.status,
 					category.id,
-				]
+				],
 			);
 			const updatedCategory = await db.get(
 				"SELECT * FROM food_categories WHERE id = ?",
-				[category.id]
+				[category.id],
 			);
 			const author = payload.author || {};
 			await logAction({
@@ -2505,7 +2661,7 @@ ipcMain.handle(
 			console.error("Error updating food category:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle("delete-food-category", async (_, id: number, payload = {}) => {
@@ -2551,7 +2707,7 @@ ipcMain.handle("get-food-items", async () => {
           WHERE fie.food_item_id = ? AND fe.status = 'active'
           ORDER BY fe.name ASC
         `,
-					[item.id]
+					[item.id],
 				);
 				item.extras = extras;
 			}
@@ -2578,7 +2734,7 @@ ipcMain.handle(
 			image?: string;
 			extra_ids?: number[];
 		},
-		payload = {}
+		payload = {},
 	) => {
 		try {
 			const db = await getDatabase();
@@ -2594,7 +2750,7 @@ ipcMain.handle(
 					item.price,
 					item.status || "active",
 					item.image || null,
-				]
+				],
 			);
 			const newItem = await db.get("SELECT * FROM food_items WHERE id = ?", [
 				result.lastID,
@@ -2613,15 +2769,15 @@ ipcMain.handle(
 				item.extra_ids.length > 0
 			) {
 				console.log(
-					`Inserting ${item.extra_ids.length} extras for food item ${result.lastID}`
+					`Inserting ${item.extra_ids.length} extras for food item ${result.lastID}`,
 				);
 				for (const extraId of item.extra_ids) {
 					console.log(
-						`Inserting extra ${extraId} for food item ${result.lastID}`
+						`Inserting extra ${extraId} for food item ${result.lastID}`,
 					);
 					await db.run(
 						"INSERT INTO food_item_extras (food_item_id, extra_id) VALUES (?, ?)",
-						[result.lastID, extraId]
+						[result.lastID, extraId],
 					);
 				}
 				console.log(`Successfully inserted ${item.extra_ids.length} extras`);
@@ -2644,7 +2800,7 @@ ipcMain.handle(
 			console.error("Error adding food item:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle(
@@ -2661,7 +2817,7 @@ ipcMain.handle(
 			image?: string;
 			extra_ids?: number[];
 		},
-		payload = {}
+		payload = {},
 	) => {
 		try {
 			const db = await getDatabase();
@@ -2679,7 +2835,7 @@ ipcMain.handle(
 					item.status,
 					item.image || null,
 					item.id,
-				]
+				],
 			);
 
 			// Update extras
@@ -2698,13 +2854,13 @@ ipcMain.handle(
 				item.extra_ids.length > 0
 			) {
 				console.log(
-					`Inserting ${item.extra_ids.length} extras for food item ${item.id}`
+					`Inserting ${item.extra_ids.length} extras for food item ${item.id}`,
 				);
 				for (const extraId of item.extra_ids) {
 					console.log(`Inserting extra ${extraId} for food item ${item.id}`);
 					await db.run(
 						"INSERT INTO food_item_extras (food_item_id, extra_id) VALUES (?, ?)",
-						[item.id, extraId]
+						[item.id, extraId],
 					);
 				}
 				console.log(`Successfully inserted ${item.extra_ids.length} extras`);
@@ -2714,7 +2870,7 @@ ipcMain.handle(
 
 			const updatedItem = await db.get(
 				"SELECT * FROM food_items WHERE id = ?",
-				[item.id]
+				[item.id],
 			);
 			const author = payload.author || {};
 			await logAction({
@@ -2731,7 +2887,7 @@ ipcMain.handle(
 			console.error("Error updating food item:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle("delete-food-item", async (_, id: number, payload = {}) => {
@@ -2777,7 +2933,7 @@ ipcMain.handle(
 	async (
 		_,
 		extra: { name: string; price: number; status: string },
-		payload = {}
+		payload = {},
 	) => {
 		try {
 			const db = await getDatabase();
@@ -2785,7 +2941,7 @@ ipcMain.handle(
 				`
       INSERT INTO food_extras (name, price, status) VALUES (?, ?, ?)
     `,
-				[extra.name, extra.price, extra.status || "active"]
+				[extra.name, extra.price, extra.status || "active"],
 			);
 			const newExtra = await db.get("SELECT * FROM food_extras WHERE id = ?", [
 				result.lastID,
@@ -2805,7 +2961,7 @@ ipcMain.handle(
 			console.error("Error adding food extra:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle(
@@ -2813,7 +2969,7 @@ ipcMain.handle(
 	async (
 		_,
 		extra: { id: number; name: string; price: number; status: string },
-		payload = {}
+		payload = {},
 	) => {
 		try {
 			const db = await getDatabase();
@@ -2823,11 +2979,11 @@ ipcMain.handle(
       SET name = ?, price = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `,
-				[extra.name, extra.price, extra.status, extra.id]
+				[extra.name, extra.price, extra.status, extra.id],
 			);
 			const updatedExtra = await db.get(
 				"SELECT * FROM food_extras WHERE id = ?",
-				[extra.id]
+				[extra.id],
 			);
 			const author = payload.author || {};
 			await logAction({
@@ -2844,7 +3000,7 @@ ipcMain.handle(
 			console.error("Error updating food extra:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle("delete-food-extra", async (_, id: number, payload = {}) => {
@@ -2881,7 +3037,7 @@ async function generateTakeOutTableNumber(db: any): Promise<string> {
      AND strftime('%Y-%m', created_at) = ?
      AND table_number LIKE 'TO-%'
      ORDER BY CAST(SUBSTR(table_number, 4) AS INTEGER) DESC LIMIT 1`,
-		[`${year}-${month}`]
+		[`${year}-${month}`],
 	);
 
 	let nextNumber = 1;
@@ -2910,7 +3066,7 @@ async function generateDineInTableNumber(db: any): Promise<string> {
      AND strftime('%Y-%m', created_at) = ?
      AND table_number LIKE 'DINE-%'
      ORDER BY CAST(SUBSTR(table_number, 4) AS INTEGER) DESC LIMIT 1`,
-		[`${year}-${month}`]
+		[`${year}-${month}`],
 	);
 
 	let nextNumber = 1;
@@ -2942,7 +3098,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 				if (item.itemType === "drink" && item.productId) {
 					const product = await db.get(
 						"SELECT price FROM products WHERE id = ?",
-						[item.productId]
+						[item.productId],
 					);
 					if (product) {
 						const itemTotal = product.price * item.quantity;
@@ -2951,7 +3107,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 				} else if (item.itemType === "food" && item.foodItemId) {
 					const foodItem = await db.get(
 						"SELECT price FROM food_items WHERE id = ?",
-						[item.foodItemId]
+						[item.foodItemId],
 					);
 					if (foodItem) {
 						let itemTotal = foodItem.price * item.quantity;
@@ -2960,7 +3116,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 							for (const extraId of item.extraIds) {
 								const extra = await db.get(
 									"SELECT price FROM food_extras WHERE id = ?",
-									[extraId]
+									[extraId],
 								);
 								if (extra) {
 									itemTotal += extra.price * item.quantity;
@@ -2987,7 +3143,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 			`SELECT order_number FROM orders 
        WHERE strftime('%Y-%m', created_at) = ?
        ORDER BY order_number DESC LIMIT 1`,
-			[`${year}-${month}`]
+			[`${year}-${month}`],
 		);
 
 		const orderNumber =
@@ -3017,7 +3173,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 				orderData.status || "open",
 				orderData.admin_id || null,
 				orderData.notes || null,
-			]
+			],
 		);
 		const orderId = result.lastID;
 
@@ -3031,21 +3187,21 @@ ipcMain.handle("create-order", async (_event, order) => {
 					// Insert order item for drink
 					const orderItemResult = await db.run(
 						"INSERT INTO order_items (order_id, product_id, food_item_id, item_type, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)",
-						[orderId, item.productId, null, "drink", item.quantity, null]
+						[orderId, item.productId, null, "drink", item.quantity, null],
 					);
 
 					// Update product stock (reduce by ordered quantity)
 					// Get stock before update for logging
 					const oldProduct = await db.get(
 						"SELECT name, stock FROM products WHERE id = ?",
-						[item.productId]
+						[item.productId],
 					);
 					const oldStock = oldProduct?.stock || 0;
 
 					// Update product stock (reduce by ordered quantity)
 					await db.run(
 						"UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-						[item.quantity, item.productId]
+						[item.quantity, item.productId],
 					);
 
 					const newStock = oldStock - item.quantity;
@@ -3092,12 +3248,16 @@ ipcMain.handle("create-order", async (_event, order) => {
 							"food",
 							item.quantity,
 							item.notes || null,
-						]
+						],
 					);
 					const orderItemId = orderItemResult.lastID;
 
 					// Insert order item extras if any
-					if (item.extraIds && Array.isArray(item.extraIds) && item.extraIds.length > 0) {
+					if (
+						item.extraIds &&
+						Array.isArray(item.extraIds) &&
+						item.extraIds.length > 0
+					) {
 						// Deduplicate: count occurrences of each extra_id to get quantity
 						const extraCounts = new Map<number, number>();
 						for (const extraId of item.extraIds) {
@@ -3107,7 +3267,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 						for (const [extraId, qty] of extraCounts.entries()) {
 							await db.run(
 								"INSERT OR IGNORE INTO order_item_extras (order_item_id, extra_id, quantity) VALUES (?, ?, ?)",
-								[orderItemId, extraId, qty]
+								[orderItemId, extraId, qty],
 							);
 						}
 					}
@@ -3127,7 +3287,8 @@ ipcMain.handle("create-order", async (_event, order) => {
 		});
 
 		// Fetch the full order with items and extras (same logic as get-order-by-id)
-		const createdOrder = await db.get(`
+		const createdOrder = await db.get(
+			`
 			SELECT 
 				o.*,
 				u_creator.username AS creator_name,
@@ -3136,8 +3297,11 @@ ipcMain.handle("create-order", async (_event, order) => {
 			LEFT JOIN users u_creator ON o.admin_id = u_creator.id
 			LEFT JOIN users u_editor ON o.edited_by = u_editor.id
 			WHERE o.id = ?
-		`, [orderId]);
-		const orderItems = await db.all(`
+		`,
+			[orderId],
+		);
+		const orderItems = await db.all(
+			`
 			SELECT 
 				oi.id,
 				oi.order_id,
@@ -3161,16 +3325,21 @@ ipcMain.handle("create-order", async (_event, order) => {
 			LEFT JOIN food_categories fc ON fi.category_id = fc.id
 			WHERE oi.order_id = ?
 			ORDER BY oi.id
-		`, [orderId]);
+		`,
+			[orderId],
+		);
 
 		for (const item of orderItems) {
 			if (item.item_type === "food") {
-				const extrasRaw = await db.all(`
+				const extrasRaw = await db.all(
+					`
 					SELECT fe.id, fe.name, fe.price, oie.quantity
 					FROM order_item_extras oie
 					JOIN food_extras fe ON oie.extra_id = fe.id
 					WHERE oie.order_item_id = ?
-				`, [item.id]);
+				`,
+					[item.id],
+				);
 				item.extras = extrasRaw.map((e: any) => ({
 					id: e.id,
 					name: e.name,
@@ -3243,7 +3412,8 @@ ipcMain.handle(
 				const db = await getDatabase();
 
 				// Get the order
-				const order = await db.get(`
+				const order = await db.get(
+					`
 					SELECT 
 						o.*,
 						u_creator.username AS creator_name,
@@ -3252,9 +3422,9 @@ ipcMain.handle(
 					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
 					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
 					WHERE o.id = ?
-				`, [
-					orderId,
-				]);
+				`,
+					[orderId],
+				);
 
 				if (!order) {
 					throw new Error("Order not found");
@@ -3287,7 +3457,7 @@ ipcMain.handle(
         WHERE oi.order_id = ?
         ORDER BY oi.id
       `,
-					[orderId]
+					[orderId],
 				);
 
 				// Get extras for each food order item (with quantities)
@@ -3300,7 +3470,7 @@ ipcMain.handle(
               JOIN food_extras fe ON oie.extra_id = fe.id
               WHERE oie.order_item_id = ?
             `,
-							[item.id]
+							[item.id],
 						);
 						item.extras = extrasRaw.map((e: any) => ({
 							id: e.id,
@@ -3342,7 +3512,7 @@ ipcMain.handle(
 			console.error("Error getting order by ID:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 // Order update handler
@@ -3352,26 +3522,33 @@ ipcMain.handle("update-order", async (_, order) => {
 			const db = await getDatabase();
 
 			// Fetch the existing order to detect status transitions (e.g., cancellation)
-			const existingOrder = await db.get("SELECT status FROM orders WHERE id = ?", [order.id]);
+			const existingOrder = await db.get(
+				"SELECT status FROM orders WHERE id = ?",
+				[order.id],
+			);
 
 			// If order is being cancelled, restore drink stock and log the change
 			const author = order.author || {};
-			if (existingOrder && existingOrder.status !== "cancelled" && order.status === "cancelled") {
+			if (
+				existingOrder &&
+				existingOrder.status !== "cancelled" &&
+				order.status === "cancelled"
+			) {
 				const drinkItemsToRestore = await db.all(
 					"SELECT oi.product_id, oi.quantity FROM order_items oi WHERE oi.order_id = ? AND oi.item_type = 'drink'",
-					[order.id]
+					[order.id],
 				);
 				for (const item of drinkItemsToRestore) {
 					if (!item.product_id) continue;
 					const currentProduct = await db.get(
 						"SELECT stock, name FROM products WHERE id = ?",
-						[item.product_id]
+						[item.product_id],
 					);
 					const oldStock = currentProduct?.stock || 0;
 					const newStock = oldStock + item.quantity;
 					await db.run(
 						"UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-						[item.quantity, item.product_id]
+						[item.quantity, item.product_id],
 					);
 					await logInventoryChange({
 						db,
@@ -3392,15 +3569,14 @@ ipcMain.handle("update-order", async (_, order) => {
 			let amount_bt = 0; // amount before tax
 			let amount = 0; // amount with tax
 
-
 			// Get current order items and calculate totals (drinks + food)
 			const drinkItems = await db.all(
 				"SELECT oi.*, p.price FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ? AND oi.item_type = 'drink'",
-				[order.id]
+				[order.id],
 			);
 			const foodItems = await db.all(
 				"SELECT oi.*, fi.price as food_price FROM order_items oi LEFT JOIN food_items fi ON oi.food_item_id = fi.id WHERE oi.order_id = ? AND oi.item_type = 'food'",
-				[order.id]
+				[order.id],
 			);
 
 			for (const item of drinkItems) {
@@ -3414,10 +3590,11 @@ ipcMain.handle("update-order", async (_, order) => {
 				// Add extras for food items
 				const extras = await db.all(
 					"SELECT fe.price, oie.quantity FROM order_item_extras oie JOIN food_extras fe ON oie.extra_id = fe.id WHERE oie.order_item_id = ?",
-					[item.id]
+					[item.id],
 				);
 				for (const extra of extras) {
-					itemTotal += (extra.price || 0) * (extra.quantity || 1) * item.quantity;
+					itemTotal +=
+						(extra.price || 0) * (extra.quantity || 1) * item.quantity;
 				}
 				amount_bt += itemTotal;
 			}
@@ -3465,12 +3642,12 @@ ipcMain.handle("update-order", async (_, order) => {
 					order.amount_tendered || 0,
 					order.notes || null,
 					order.id,
-				]
+				],
 			);
 
 			await db.run(
 				"UPDATE order_items SET synced_at = NULL WHERE order_id = ?",
-				[order.id]
+				[order.id],
 			);
 
 			// Log action within the retry wrapper
@@ -3506,7 +3683,7 @@ ipcMain.handle(
 				// Get current order items for stock adjustment
 				const currentItems = await db.all(
 					"SELECT * FROM order_items WHERE order_id = ?",
-					[orderId]
+					[orderId],
 				);
 
 				// Calculate stock adjustments using a more accurate method
@@ -3530,7 +3707,9 @@ ipcMain.handle(
 				// Calculate adjustments for each product (drinks only)
 				const allProductIds = new Set([
 					...currentItems
-						.filter((item: any) => item.item_type === "drink" && item.product_id)
+						.filter(
+							(item: any) => item.item_type === "drink" && item.product_id,
+						)
 						.map((item: any) => item.product_id),
 					...newItems
 						.filter((item: any) => item.itemType === "drink" && item.productId)
@@ -3554,13 +3733,13 @@ ipcMain.handle(
 						// Get current stock before update
 						const currentProduct = await db.get(
 							"SELECT stock, name FROM products WHERE id = ?",
-							[productId]
+							[productId],
 						);
 						const oldStock = currentProduct?.stock || 0;
 
 						await db.run(
 							"UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-							[adjustment, productId]
+							[adjustment, productId],
 						);
 
 						const newStock = oldStock + adjustment;
@@ -3582,7 +3761,10 @@ ipcMain.handle(
 				}
 
 				// Delete all current order items and their extras
-				await db.run("DELETE FROM order_item_extras WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = ?)", [orderId]);
+				await db.run(
+					"DELETE FROM order_item_extras WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = ?)",
+					[orderId],
+				);
 				await db.run("DELETE FROM order_items WHERE order_id = ?", [orderId]);
 
 				// Insert new order items
@@ -3591,7 +3773,7 @@ ipcMain.handle(
 						// Insert order item for drink
 						await db.run(
 							"INSERT INTO order_items (order_id, product_id, food_item_id, item_type, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)",
-							[orderId, item.productId, null, "drink", item.quantity, null]
+							[orderId, item.productId, null, "drink", item.quantity, null],
 						);
 					} else if (item.itemType === "food" && item.foodItemId) {
 						// Insert order item for food
@@ -3604,7 +3786,7 @@ ipcMain.handle(
 								"food",
 								item.quantity,
 								item.notes || null,
-							]
+							],
 						);
 						const orderItemId = orderItemResult.lastID;
 
@@ -3619,7 +3801,7 @@ ipcMain.handle(
 							for (const [extraId, qty] of extraCounts.entries()) {
 								await db.run(
 									"INSERT OR IGNORE INTO order_item_extras (order_item_id, extra_id, quantity) VALUES (?, ?, ?)",
-									[orderItemId, extraId, qty]
+									[orderItemId, extraId, qty],
 								);
 							}
 						}
@@ -3632,7 +3814,7 @@ ipcMain.handle(
 					if (item.itemType === "drink" && item.productId) {
 						const product = await db.get(
 							"SELECT price FROM products WHERE id = ?",
-							[item.productId]
+							[item.productId],
 						);
 						if (product) {
 							amount_bt += product.price * item.quantity;
@@ -3640,16 +3822,20 @@ ipcMain.handle(
 					} else if (item.itemType === "food" && item.foodItemId) {
 						const foodItem = await db.get(
 							"SELECT price FROM food_items WHERE id = ?",
-							[item.foodItemId]
+							[item.foodItemId],
 						);
 						if (foodItem) {
 							let itemTotal = foodItem.price * item.quantity;
 							// Add extras prices
-							if (item.extraIds && Array.isArray(item.extraIds) && item.extraIds.length > 0) {
+							if (
+								item.extraIds &&
+								Array.isArray(item.extraIds) &&
+								item.extraIds.length > 0
+							) {
 								for (const extraId of item.extraIds) {
 									const extra = await db.get(
 										"SELECT price FROM food_extras WHERE id = ?",
-										[extraId]
+										[extraId],
 									);
 									if (extra) {
 										itemTotal += extra.price * item.quantity;
@@ -3673,11 +3859,11 @@ ipcMain.handle(
 				// Update order amounts and edited_by — mark unsynced for cloud backup
 				await db.run(
 					"UPDATE orders SET amount = ?, amount_bt = ?, edited_by = ?, synced_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-					[amount, amount_bt, editorId, orderId]
+					[amount, amount_bt, editorId, orderId],
 				);
 				await db.run(
 					"UPDATE order_items SET synced_at = NULL WHERE order_id = ?",
-					[orderId]
+					[orderId],
 				);
 
 				// Log action within the retry wrapper
@@ -3698,7 +3884,8 @@ ipcMain.handle(
 				});
 
 				// Return updated order with items (using same query as get-order-by-id)
-				const updatedOrder = await db.get(`
+				const updatedOrder = await db.get(
+					`
 					SELECT 
 						o.*,
 						u_creator.username AS creator_name,
@@ -3707,9 +3894,9 @@ ipcMain.handle(
 					LEFT JOIN users u_creator ON o.admin_id = u_creator.id
 					LEFT JOIN users u_editor ON o.edited_by = u_editor.id
 					WHERE o.id = ?
-				`, [
-					orderId,
-				]);
+				`,
+					[orderId],
+				);
 				const updatedItems = await db.all(
 					`
         SELECT 
@@ -3736,7 +3923,7 @@ ipcMain.handle(
         WHERE oi.order_id = ?
         ORDER BY oi.id
       `,
-					[orderId]
+					[orderId],
 				);
 
 				// Get extras for each food order item (with quantities)
@@ -3749,7 +3936,7 @@ ipcMain.handle(
               JOIN food_extras fe ON oie.extra_id = fe.id
               WHERE oie.order_item_id = ?
             `,
-							[item.id]
+							[item.id],
 						);
 						item.extras = extrasRaw.map((e: any) => ({
 							id: e.id,
@@ -3777,7 +3964,7 @@ ipcMain.handle(
 			console.error("Error updating order items:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 // Add after other IPC handlers:
@@ -3841,7 +4028,7 @@ ipcMain.handle("logout", async (_event, payload = {}) => {
 ipcMain.handle("get-food-stats", async () => {
 	try {
 		const db = await getDatabase();
-		
+
 		// Get all closed orders with food items
 		const foodOrderItems = await db.all(`
 			SELECT 
@@ -3867,12 +4054,15 @@ ipcMain.handle("get-food-stats", async () => {
 			totalFoodSales += foodPrice * quantity;
 
 			// Get extras for this order item
-			const extras = await db.all(`
+			const extras = await db.all(
+				`
 				SELECT fe.price
 				FROM order_item_extras oie
 				JOIN food_extras fe ON oie.extra_id = fe.id
 				WHERE oie.order_item_id = ?
-			`, [item.id]);
+			`,
+				[item.id],
+			);
 
 			// Calculate extras sales for this item
 			for (const extra of extras) {
@@ -3916,7 +4106,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -3986,7 +4176,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
       ORDER BY COALESCE(updated_at, created_at) DESC
       LIMIT 10
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		const closedOrders = await db.all(
@@ -3996,7 +4186,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
       AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
       AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		// Debug: Log what we found
@@ -4007,7 +4197,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
       SELECT COUNT(*) as count FROM orders 
       WHERE strftime('%Y-%m-%d', created_at) >= ? AND strftime('%Y-%m-%d', created_at) < ?
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		// Debug: Also get individual orders to see what's being counted
@@ -4018,7 +4208,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
       WHERE strftime('%Y-%m-%d', created_at) >= ? AND strftime('%Y-%m-%d', created_at) < ?
       ORDER BY created_at DESC
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		// Calculate previous period for comparison
@@ -4036,7 +4226,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
       AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
       AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
     `,
-			[prevStartDateStr, prevEndDateStr]
+			[prevStartDateStr, prevEndDateStr],
 		);
 
 		// Get previous period all orders count
@@ -4045,7 +4235,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
       SELECT COUNT(*) as count FROM orders 
       WHERE strftime('%Y-%m-%d', created_at) >= ? AND strftime('%Y-%m-%d', created_at) < ?
     `,
-			[prevStartDateStr, prevEndDateStr]
+			[prevStartDateStr, prevEndDateStr],
 		);
 
 		// Calculate current period stats (only from closed orders)
@@ -4061,7 +4251,7 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 		// Calculate previous period stats
 		const prevRevenue = prevClosedOrders.reduce(
 			(sum: number, order: any) => sum + (order.amount || 0),
-			0
+			0,
 		);
 		const prevOrdersCount = prevAllOrders[0]?.count || 0;
 		const prevAverageOrder =
@@ -4084,7 +4274,8 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 			: 0;
 
 		// Get breakdown of sales by item type (drinks vs. food)
-		const breakdownResult = await db.all(`
+		const breakdownResult = await db.all(
+			`
 			SELECT 
 				oi.item_type,
 				COALESCE(SUM(oi.quantity), 0) as count,
@@ -4097,21 +4288,32 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 			LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
 			LEFT JOIN food_items fi ON oi.food_item_id = fi.id AND oi.item_type = 'food'
 			GROUP BY oi.item_type
-		`, [startDateStr, endDateStr]);
+		`,
+			[startDateStr, endDateStr],
+		);
 
 		const breakdown = {
 			drinks: { revenue: 0, count: 0 },
 			food: { revenue: 0, count: 0 },
-			others: { revenue: 0, count: 0 }
+			others: { revenue: 0, count: 0 },
 		};
 
 		breakdownResult.forEach((row: any) => {
-			if (row.item_type === 'drink') {
-				breakdown.drinks = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
-			} else if (row.item_type === 'food') {
-				breakdown.food = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+			if (row.item_type === "drink") {
+				breakdown.drinks = {
+					revenue: Number(row.revenue) || 0,
+					count: Number(row.count) || 0,
+				};
+			} else if (row.item_type === "food") {
+				breakdown.food = {
+					revenue: Number(row.revenue) || 0,
+					count: Number(row.count) || 0,
+				};
 			} else {
-				breakdown.others = { revenue: Number(row.revenue) || 0, count: Number(row.count) || 0 };
+				breakdown.others = {
+					revenue: Number(row.revenue) || 0,
+					count: Number(row.count) || 0,
+				};
 			}
 		});
 
@@ -4153,13 +4355,21 @@ ipcMain.handle(
 					end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 					break;
 				case "yesterday":
-					start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+					start = new Date(
+						now.getFullYear(),
+						now.getMonth(),
+						now.getDate() - 1,
+					);
 					end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 					break;
 				case "week":
 					const dayOfWeek = now.getDay();
 					const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-					start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
+					start = new Date(
+						now.getFullYear(),
+						now.getMonth(),
+						now.getDate() - daysToSubtract,
+					);
 					end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 					break;
 				case "month":
@@ -4199,7 +4409,7 @@ ipcMain.handle(
         GROUP BY DATE(created_at)
         ORDER BY date
       `,
-					[startDateStr, endDateStr]
+					[startDateStr, endDateStr],
 				);
 
 				// 2. Top Products (only closed orders)
@@ -4223,7 +4433,7 @@ ipcMain.handle(
         ORDER BY revenue DESC
         LIMIT 10
       `,
-					[startDateStr, endDateStr]
+					[startDateStr, endDateStr],
 				);
 
 				// 3. Category Performance (only closed orders)
@@ -4263,7 +4473,7 @@ ipcMain.handle(
         GROUP BY category
         ORDER BY revenue DESC
       `,
-					[startDateStr, endDateStr, startDateStr, endDateStr]
+					[startDateStr, endDateStr, startDateStr, endDateStr],
 				);
 
 				// 4. Peak Hours (only closed orders)
@@ -4280,7 +4490,7 @@ ipcMain.handle(
 						filters.startDate ||
 							new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
 						filters.endDate || new Date().toISOString(),
-					]
+					],
 				);
 
 				// 5. Payment Methods
@@ -4295,7 +4505,7 @@ ipcMain.handle(
 						filters.startDate ||
 							new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
 						filters.endDate || new Date().toISOString(),
-					]
+					],
 				);
 
 				// 6. Inventory Insights
@@ -4319,7 +4529,7 @@ ipcMain.handle(
 						rows.forEach((row) => exportRows.push(row));
 					} else {
 						exportRows.push(
-							Object.fromEntries(columns.map((col) => [col, "No data"]))
+							Object.fromEntries(columns.map((col) => [col, "No data"])),
 						);
 					}
 					exportRows.push({}); // blank row
@@ -4328,19 +4538,19 @@ ipcMain.handle(
 				addSection(
 					"Revenue & Orders by Date",
 					["date", "revenue", "orders"],
-					salesData
+					salesData,
 				);
 				// Top Products
 				addSection(
 					"Top Products",
 					["product", "category", "sold", "revenue"],
-					topProducts
+					topProducts,
 				);
 				// Category Performance
 				addSection(
 					"Category Performance",
 					["category", "revenue", "orders"],
-					categoryPerformance
+					categoryPerformance,
 				);
 				// Peak Hours
 				addSection("Peak Hours", ["hour", "orders", "revenue"], peakHours);
@@ -4348,13 +4558,13 @@ ipcMain.handle(
 				addSection(
 					"Payment Methods",
 					["method", "count", "revenue"],
-					paymentMethods
+					paymentMethods,
 				);
 				// Inventory Insights
 				addSection(
 					"Inventory Insights",
 					["product", "category", "stock", "sold", "price", "stockValue"],
-					inventoryInsights
+					inventoryInsights,
 				);
 
 				// For export, columns are the union of all columns used
@@ -4416,56 +4626,71 @@ ipcMain.handle(
 				}
 			}
 
-			let finalPath = '';
+			let finalPath = "";
 
-			if (format === 'csv') {
-				let csvString = '';
-				if (type === 'dashboard') {
+			if (format === "csv") {
+				let csvString = "";
+				if (type === "dashboard") {
 					// data is { columns: string[], rows: any[] }
-					csvString += data.columns.join(',') + '\n';
+					csvString += data.columns.join(",") + "\n";
 					data.rows.forEach((row: any) => {
 						if (row.__section) {
 							csvString += `\n"${row.__section}"\n`;
 						} else {
-							csvString += data.columns.map((col: string) => {
-								const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : '';
-								// Escape quotes and wrap in quotes to handle commas within values
-								return `"${val.replace(/"/g, '""')}"`;
-							}).join(',') + '\n';
+							csvString +=
+								data.columns
+									.map((col: string) => {
+										const val =
+											row[col] !== undefined && row[col] !== null ?
+												String(row[col])
+											:	"";
+										// Escape quotes and wrap in quotes to handle commas within values
+										return `"${val.replace(/"/g, '""')}"`;
+									})
+									.join(",") + "\n";
 						}
 					});
 				} else {
 					// data is an array of objects
 					if (data.length > 0) {
 						const columns = Object.keys(data[0]);
-						csvString += columns.join(',') + '\n';
+						csvString += columns.join(",") + "\n";
 						data.forEach((row: any) => {
-							csvString += columns.map(col => {
-								const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : '';
-								return `"${val.replace(/"/g, '""')}"`;
-							}).join(',') + '\n';
+							csvString +=
+								columns
+									.map((col) => {
+										const val =
+											row[col] !== undefined && row[col] !== null ?
+												String(row[col])
+											:	"";
+										return `"${val.replace(/"/g, '""')}"`;
+									})
+									.join(",") + "\n";
 						});
 					} else {
-						csvString = 'No data available';
+						csvString = "No data available";
 					}
 				}
 
 				// Prompt save dialog
 				const { canceled, filePath } = await dialog.showSaveDialog({
-					title: 'Save CSV Export',
-					defaultPath: `Smartway_Export_${type}_${new Date().toISOString().split('T')[0]}.csv`,
-					filters: [{ name: 'CSV Files', extensions: ['csv'] }]
+					title: "Save CSV Export",
+					defaultPath: `Smartway_Export_${type}_${new Date().toISOString().split("T")[0]}.csv`,
+					filters: [{ name: "CSV Files", extensions: ["csv"] }],
 				});
 
 				if (canceled || !filePath) {
-					return { success: false, message: 'Export cancelled' };
+					return { success: false, message: "Export cancelled" };
 				}
 
-				fs.writeFileSync(filePath, csvString, 'utf8');
+				fs.writeFileSync(filePath, csvString, "utf8");
 				finalPath = filePath;
 			} else {
 				// Stub for PDF or other formats
-				return { success: false, message: `Export format ${format} not fully implemented yet. Please use CSV.` };
+				return {
+					success: false,
+					message: `Export format ${format} not fully implemented yet. Please use CSV.`,
+				};
 			}
 
 			return {
@@ -4477,7 +4702,7 @@ ipcMain.handle(
 			console.error("Export error:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 // Analytics handlers
@@ -4505,7 +4730,7 @@ ipcMain.handle("get-sales-analytics", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -4548,7 +4773,7 @@ ipcMain.handle("get-sales-analytics", async (_event, filters = {}) => {
       GROUP BY strftime('%Y-%m-%d', COALESCE(updated_at, created_at))
       ORDER BY date
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		// Ensure all dates in the range are represented (fill gaps with 0)
@@ -4612,7 +4837,7 @@ ipcMain.handle("get-top-products", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -4663,7 +4888,7 @@ ipcMain.handle("get-top-products", async (_event, filters = {}) => {
       ORDER BY revenue DESC
       LIMIT 10
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		return topProducts;
@@ -4697,7 +4922,7 @@ ipcMain.handle("get-category-performance", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -4763,13 +4988,13 @@ ipcMain.handle("get-category-performance", async (_event, filters = {}) => {
       GROUP BY category
       ORDER BY revenue DESC
     `,
-			[startDateStr, endDateStr, startDateStr, endDateStr]
+			[startDateStr, endDateStr, startDateStr, endDateStr],
 		);
 
 		// Calculate percentages
 		const totalRevenue = categoryData.reduce(
 			(sum: number, cat: any) => sum + cat.revenue,
-			0
+			0,
 		);
 		return categoryData.map((cat: any) => ({
 			...cat,
@@ -4805,7 +5030,7 @@ ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -4848,7 +5073,7 @@ ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
       GROUP BY CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER)
       ORDER BY hour
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		return peakHours;
@@ -4882,7 +5107,7 @@ ipcMain.handle("get-order-status", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -4922,13 +5147,13 @@ ipcMain.handle("get-order-status", async (_event, filters = {}) => {
       AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
       GROUP BY status
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		// Calculate percentages
 		const totalOrders = orderStatus.reduce(
 			(sum: number, status: any) => sum + status.count,
-			0
+			0,
 		);
 		return orderStatus.map((status: any) => ({
 			...status,
@@ -4964,7 +5189,7 @@ ipcMain.handle("get-payment-methods", async (_event, filters = {}) => {
 				start = new Date(
 					now.getFullYear(),
 					now.getMonth(),
-					now.getDate() - daysToSubtract
+					now.getDate() - daysToSubtract,
 				);
 				end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 				break;
@@ -5006,13 +5231,13 @@ ipcMain.handle("get-payment-methods", async (_event, filters = {}) => {
       AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
       GROUP BY payment_mode
     `,
-			[startDateStr, endDateStr]
+			[startDateStr, endDateStr],
 		);
 
 		// Calculate percentages
 		const totalOrders = paymentMethods.reduce(
 			(sum: number, method: any) => sum + method.count,
-			0
+			0,
 		);
 		return paymentMethods.map((method: any) => ({
 			...method,
@@ -5078,7 +5303,7 @@ ipcMain.handle(
 					`
         INSERT INTO tables (name, capacity, status) VALUES (?, ?, ?)
       `,
-					[table.name, table.capacity || null, table.status || "active"]
+					[table.name, table.capacity || null, table.status || "active"],
 				);
 
 				const newTable = await db.get("SELECT * FROM tables WHERE id = ?", [
@@ -5104,7 +5329,7 @@ ipcMain.handle(
 			console.error("Error adding table:", error);
 			throw error;
 		}
-	}
+	},
 );
 
 ipcMain.handle("update-table", async (_, table: Table, payload = {}) => {
@@ -5117,7 +5342,7 @@ ipcMain.handle("update-table", async (_, table: Table, payload = {}) => {
         SET name = ?, capacity = ?, status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `,
-				[table.name, table.capacity || null, table.status, table.id]
+				[table.name, table.capacity || null, table.status, table.id],
 			);
 
 			const updatedTable = await db.get("SELECT * FROM tables WHERE id = ?", [
@@ -5231,7 +5456,7 @@ ipcMain.handle("get-last-online-check", async () => {
 	try {
 		const checkFile = path.join(
 			app.getPath("userData"),
-			"last-online-check.json"
+			"last-online-check.json",
 		);
 		if (fs.existsSync(checkFile)) {
 			const data = fs.readFileSync(checkFile, "utf8");
@@ -5248,30 +5473,48 @@ ipcMain.handle("get-last-online-check", async () => {
 ipcMain.handle("get-sync-status", async () => {
 	try {
 		const databaseInstance = getDatabase();
-		if (!databaseInstance) return { success: false, message: "Database not initialized" };
+		if (!databaseInstance)
+			return { success: false, message: "Database not initialized" };
 
-		const ordersCount = await databaseInstance.get("SELECT COUNT(*) as count FROM orders WHERE synced_at IS NULL");
-		const itemsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM order_items WHERE synced_at IS NULL");
-		const logsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL");
+		const ordersCount = await databaseInstance.get(
+			"SELECT COUNT(*) as count FROM orders WHERE synced_at IS NULL",
+		);
+		const itemsCount = await databaseInstance.get(
+			"SELECT COUNT(*) as count FROM order_items WHERE synced_at IS NULL",
+		);
+		const logsCount = await databaseInstance.get(
+			"SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL",
+		);
 
-		const latestOrderSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM orders WHERE synced_at IS NOT NULL");
-		const latestItemSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM order_items WHERE synced_at IS NOT NULL");
-		const latestLogSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM inventory_logs WHERE synced_at IS NOT NULL");
+		const latestOrderSync = await databaseInstance.get(
+			"SELECT MAX(synced_at) as last_sync FROM orders WHERE synced_at IS NOT NULL",
+		);
+		const latestItemSync = await databaseInstance.get(
+			"SELECT MAX(synced_at) as last_sync FROM order_items WHERE synced_at IS NOT NULL",
+		);
+		const latestLogSync = await databaseInstance.get(
+			"SELECT MAX(synced_at) as last_sync FROM inventory_logs WHERE synced_at IS NOT NULL",
+		);
 
 		const lastSyncDates = [
 			latestOrderSync?.last_sync,
 			latestItemSync?.last_sync,
-			latestLogSync?.last_sync
-		].filter(Boolean).map(dateStr => new Date(dateStr).getTime());
+			latestLogSync?.last_sync,
+		]
+			.filter(Boolean)
+			.map((dateStr) => new Date(dateStr).getTime());
 
-		const lastSyncedAt = lastSyncDates.length > 0 ? new Date(Math.max(...lastSyncDates)).toISOString() : null;
+		const lastSyncedAt =
+			lastSyncDates.length > 0 ?
+				new Date(Math.max(...lastSyncDates)).toISOString()
+			:	null;
 
 		return {
 			success: true,
 			unsyncedOrders: Number(ordersCount?.count ?? 0),
 			unsyncedOrderItems: Number(itemsCount?.count ?? 0),
 			unsyncedInventoryLogs: Number(logsCount?.count ?? 0),
-			lastSyncedAt
+			lastSyncedAt,
 		};
 	} catch (error: any) {
 		console.error("Error in get-sync-status handler:", error);
@@ -5305,13 +5548,15 @@ ipcMain.handle("check-app-version", async () => {
 
 		const baseUrl = await getBaseUrl();
 
-		const response = await fetch(`${baseUrl}/api/pos/version?platform=${platform}`);
+		const response = await fetch(
+			`${baseUrl}/api/pos/version?platform=${platform}`,
+		);
 		if (!response.ok) {
 			throw new Error(`Version API returned ${response.status}`);
 		}
 
 		const result = await response.json();
-		
+
 		const compareVersions = (v1: string, v2: string): number => {
 			const parts1 = v1.split(".").map(Number);
 			const parts2 = v2.split(".").map(Number);
@@ -5329,15 +5574,22 @@ ipcMain.handle("check-app-version", async () => {
 				success: true,
 				currentVersion,
 				latestVersion: result.version,
-				downloadUrl: result.url,
+				// check platform specific url we have windows and mac
+				downloadUrl: result.download_url,
 				releaseNotes: result.releaseNotes,
-				updateAvailable: compareVersions(currentVersion, result.version) < 0
+				updateAvailable: compareVersions(currentVersion, result.version) < 0,
 			};
 		}
 		return { success: false, message: result.message };
 	} catch (error: any) {
-		if (error.message?.includes("fetch failed") || error.code === "ECONNREFUSED" || error.cause?.code === "ECONNREFUSED") {
-			console.log("[Version Check] Update server unreachable. Running in offline/local mode.");
+		if (
+			error.message?.includes("fetch failed") ||
+			error.code === "ECONNREFUSED" ||
+			error.cause?.code === "ECONNREFUSED"
+		) {
+			console.log(
+				"[Version Check] Update server unreachable. Running in offline/local mode.",
+			);
 		} else {
 			console.error("Error in check-app-version handler:", error);
 		}
@@ -5350,7 +5602,7 @@ ipcMain.handle(
 	"super-admin-login",
 	async (
 		_,
-		credentials: { username: string; password: string; licenseKey: string }
+		credentials: { username: string; password: string; licenseKey: string },
 	) => {
 		try {
 			// Get license server URL from environment or settings
@@ -5403,7 +5655,7 @@ ipcMain.handle(
 				message: error.message || "Failed to connect to license server",
 			};
 		}
-	}
+	},
 );
 
 ipcMain.handle("force-license-validation", async (_, licenseKey: string) => {
@@ -5454,28 +5706,34 @@ ipcMain.handle("trigger-cash-drawer", async (event) => {
 
 		// ALWAYS try to auto-detect the POS printer for the drawer to ensure we have the correct name
 		const printers = await event.sender.getPrintersAsync();
-		const autoDetected = printers.find((p: any) => 
-			p.name.toUpperCase().includes("POS") || 
-			p.name.includes("80") ||
-			p.name.toUpperCase().includes("THERMAL")
+		const autoDetected = printers.find(
+			(p: any) =>
+				p.name.toUpperCase().includes("POS") ||
+				p.name.includes("80") ||
+				p.name.toUpperCase().includes("THERMAL"),
 		);
 
 		if (autoDetected) {
 			finalPrinterName = autoDetected.name;
-			console.log(`Using auto-detected printer for drawer: "${finalPrinterName}"`);
+			console.log(
+				`Using auto-detected printer for drawer: "${finalPrinterName}"`,
+			);
 		}
 
 		// Fallback to default printer if no printer is configured/auto-detected
 		if (!finalPrinterName && printers.length > 0) {
-			const defaultPrinter = printers.find((p: any) => (p as any).isDefault) || printers[0];
+			const defaultPrinter =
+				printers.find((p: any) => (p as any).isDefault) || printers[0];
 			finalPrinterName = defaultPrinter.name;
-			console.log(`Falling back to default printer for drawer: "${finalPrinterName}"`);
+			console.log(
+				`Falling back to default printer for drawer: "${finalPrinterName}"`,
+			);
 		}
 
 		// CASE 1: RJ11 Drawer connected to Printer (Preferred)
 		if (finalPrinterName) {
 			console.log(`Attempting to kick drawer on: ${finalPrinterName}`);
-			
+
 			if (process.platform === "win32") {
 				// Windows raw print command using dynamically compiled P/Invoke C# winspool.drv in PowerShell
 				const psScript = `
@@ -5540,7 +5798,9 @@ Send-RawBytes -name "${finalPrinterName.replace(/"/g, '\\"')}" -bytes $b
 							console.error("stderr:", stderr);
 							return reject(error);
 						}
-						console.log("Windows Cash drawer triggered successfully via PowerShell!");
+						console.log(
+							"Windows Cash drawer triggered successfully via PowerShell!",
+						);
 						resolve(true);
 					});
 				});
@@ -5550,7 +5810,7 @@ Send-RawBytes -name "${finalPrinterName.replace(/"/g, '\\"')}" -bytes $b
 				// Force-cancel any stuck jobs in the CUPS queue, then Reset, Kick, and Reset again.
 				// Append '2>/dev/null || true' to prevent cancel command errors from failing the execution.
 				const command = `/usr/bin/cancel -a "${finalPrinterName}" 2>/dev/null || true ; /usr/bin/perl -e 'print "\\x1b\\x40\\x1b\\x70\\x00\\x32\\xfa\\x1b\\x40"' | /usr/bin/lp -d "${finalPrinterName}" -o raw`;
-								
+
 				return new Promise((resolve, reject) => {
 					exec(command, (error: any) => {
 						if (error) {
@@ -5620,27 +5880,39 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 		try {
 			const printers = await event.sender.getPrintersAsync();
 			console.log("-----------------------------------------");
-			console.log("PRINTERS FOUND:", printers.map(p => p.name).join(", "));
-			
+			console.log("PRINTERS FOUND:", printers.map((p) => p.name).join(", "));
+
 			let targetPrinter = null;
 			if (printerName) {
-				targetPrinter = printers.find(p => p.name === printerName) || 
-				                printers.find(p => p.name.toLowerCase().includes(printerName.toLowerCase()));
+				targetPrinter =
+					printers.find((p) => p.name === printerName) ||
+					printers.find((p) =>
+						p.name.toLowerCase().includes(printerName.toLowerCase()),
+					);
 			}
-			
+
 			if (!targetPrinter) {
 				console.log("Auto-detecting POS printer...");
-				targetPrinter = printers.find(p => 
-					p.name.toUpperCase().includes("POS") || 
-					p.name.includes("80") ||
-					p.name.toUpperCase().includes("THERMAL")
+				targetPrinter = printers.find(
+					(p) =>
+						p.name.toUpperCase().includes("POS") ||
+						p.name.includes("80") ||
+						p.name.toUpperCase().includes("THERMAL"),
 				);
 			}
 
-			const deviceName = targetPrinter ? targetPrinter.name : (printers.find(p => (p as any).isDefault)?.name || printers[0]?.name || "");
+			const deviceName =
+				targetPrinter ?
+					targetPrinter.name
+				:	printers.find((p) => (p as any).isDefault)?.name ||
+					printers[0]?.name ||
+					"";
 			console.log(`>>> TARGET: "${deviceName}"`);
 
-			const tempPath = path.join(app.getPath("temp"), `receipt_${Date.now()}.html`);
+			const tempPath = path.join(
+				app.getPath("temp"),
+				`receipt_${Date.now()}.html`,
+			);
 			const fs = require("fs");
 			fs.writeFileSync(tempPath, html);
 
@@ -5655,10 +5927,12 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 			});
 
 			await win.loadFile(tempPath);
-			await new Promise(r => setTimeout(r, 800));
+			await new Promise((r) => setTimeout(r, 800));
 
 			// MEASURE the exact content height for zero-waste
-			const contentHeight = await win.webContents.executeJavaScript('document.body.scrollHeight');
+			const contentHeight = await win.webContents.executeJavaScript(
+				"document.body.scrollHeight",
+			);
 			console.log(`Measured Content Height: ${contentHeight}px`);
 
 			win.webContents.print(
@@ -5670,12 +5944,14 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 					margins: { marginType: "none" },
 					pageSize: {
 						width: 72000, // 72mm
-						height: (contentHeight * 265) + 12000 // Increased safety margin (12mm)
-					}
+						height: contentHeight * 265 + 12000, // Increased safety margin (12mm)
+					},
 				},
 				(success, errorType) => {
 					win.destroy();
-					try { fs.unlinkSync(tempPath); } catch (e) {}
+					try {
+						fs.unlinkSync(tempPath);
+					} catch (e) {}
 					if (success) {
 						console.log("Silent print finished successfully.");
 						resolve(true);
@@ -5683,7 +5959,7 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 						console.error("Silent Print Error:", errorType);
 						reject(new Error(`Silent print failed: ${errorType}`));
 					}
-				}
+				},
 			);
 		} catch (error: any) {
 			console.error("Critical print error:", error);

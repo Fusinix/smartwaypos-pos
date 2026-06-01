@@ -187,33 +187,59 @@ export const SyncStatusBanner: React.FC = () => {
 		});
 	}, [syncStatus?.lastSyncedAt]);
 
+	// Check if last sync is at least 3 hours old
+	const isSyncStale = React.useMemo(() => {
+		if (!syncStatus?.lastSyncedAt) return false;
+		const lastSync = new Date(syncStatus.lastSyncedAt).getTime();
+		const now = Date.now();
+		const threeHoursInMs = 3 * 60 * 60 * 1000;
+		return now - lastSync >= threeHoursInMs;
+	}, [syncStatus?.lastSyncedAt]);
+
 	const updateAvailable = versionInfo?.updateAvailable && !isUpdateDismissed;
-	const hasSyncStatus = syncStatus !== null;
-	const showHealthyStatus =
-		hasSyncStatus &&
-		!isLagging &&
-		isOnline &&
-		!updateAvailable &&
-		!showSuccessToast &&
-		!errorMessage;
+	// const hasSyncStatus = syncStatus !== null;
+	// const showHealthyStatus =
+	// 	hasSyncStatus &&
+	// 	!isLagging &&
+	// 	isOnline &&
+	// 	!updateAvailable &&
+	// 	!showSuccessToast &&
+	// 	!errorMessage &&
+	// 	!isSyncStale;
 
 	return (
 		<div className="w-full flex flex-col gap-2 border-b border-white/5 backdrop-blur-md transition-all duration-300">
-			{/* {showHealthyStatus && (
-				<div className="flex items-center justify-between p-4 py-1 bg-emerald-600 backdrop-blur-lg text-emerald-100 animate-in fade-in duration-300">
+			{/* 0. Stale Sync Warning (if last sync is 3+ hours old) */}
+			{isSyncStale && isOnline && !errorMessage && (
+				<div className="flex items-center justify-between p-4 py-1 bg-amber-500 backdrop-blur-lg text-white animate-in fade-in duration-300">
 					<div className="flex items-center gap-3">
-						<div className="p-2 rounded-lg bg-white/20 text-white">
-							<CheckCircle2 className="size-4" />
+						<div className="p-2 rounded-lg bg-white/20">
+							<AlertCircle className="size-5" />
 						</div>
 						<div>
-							<p className="text-sm font-semibold">All systems synced</p>
-							<p className="text-[10px] leading-relaxed text-emerald-100/90">
-								{`Online • Last synced: ${lastSyncedText}`}
+							<p className="text-sm font-semibold">
+								Last sync: {lastSyncedText}
+							</p>
+							<p className="text-[10px] leading-relaxed text-white/90">
+								More than 3 hours since last backup. Consider syncing now.
 							</p>
 						</div>
 					</div>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={isSyncing}
+						className="!text-white hover:bg-white/20 shrink-0 flex items-center gap-1.5"
+						onClick={handleManualSync}
+					>
+						<RefreshCw
+							className={`size-3.5 ${isSyncing ? "animate-spin" : ""}`}
+						/>
+						{isSyncing ? "Syncing..." : "Sync Now"}
+					</Button>
 				</div>
-			)} */}
+			)}
+
 			{/* 1. App Update available (Blue modern glass card, dismissible) */}
 			{updateAvailable && versionInfo && (
 				<div className="relative flex items-center justify-between gap-4 p-4 py-1 bg-blue-600 backdrop-blur-lg animate-in fade-in slide-in-from-top-4 duration-300 text-blue-100">
@@ -235,12 +261,15 @@ export const SyncStatusBanner: React.FC = () => {
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
+						{/* {console.log("Version Info:", versionInfo)} */}
 						{versionInfo?.downloadUrl && (
 							<Button
 								size="sm"
 								variant="default"
 								className="bg-white hover:bg-white/90 text-blue-600 font-medium text-xs px-3.5 py-1.5 shadow-lg shadow-blue-500/20 flex items-center gap-1.5"
-								onClick={() => window.open(versionInfo?.downloadUrl, "_blank")}
+								onClick={() => {
+									window.open(versionInfo?.downloadUrl, "_blank");
+								}}
 							>
 								<Download className="size-3.5" />
 								Download Update
@@ -259,7 +288,7 @@ export const SyncStatusBanner: React.FC = () => {
 			)}
 
 			{/* 2. Critical/Warning backup lag or offline banner (Orange/Red card, non-dismissible) */}
-			{isLagging && (
+			{isLagging && isSyncStale && (
 				<div
 					className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap p-4 py-1 ${!isOnline ? "bg-rose-500 text-white" : "bg-amber-600 text-amber-600"} backdrop-blur-lg duration-300`}
 				>
@@ -303,7 +332,7 @@ export const SyncStatusBanner: React.FC = () => {
 			)}
 
 			{/* 3. Manual sync success message (Toast-style small banner, auto-dismissible) */}
-			{showSuccessToast && !isLagging && (
+			{showSuccessToast && !isLagging && isSyncStale && (
 				<div className="flex items-center justify-between p-4 py-1 bg-primary backdrop-blur-lg text-emerald-100 animate-in fade-in duration-300">
 					<div className="flex items-center gap-2.5">
 						<div className="p-1.5 rounded-lg bg-white/20 text-white">

@@ -32,6 +32,7 @@ import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
 import { Label } from "@/components/ui/label";
 import { AlertWithActions } from "@/components/alerts/alert-with-actions";
 import { useAlertStore } from "@/stores/useAlertStore";
+import { useOrderStore } from "@/stores/useOrderStore";
 import { useReceipt } from "@/hooks/useReceipt";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -52,6 +53,7 @@ import EmptyState from "@/components/alerts/empty-state";
 export const Orders: React.FC = () => {
 	const { orders, loading, error, fetchOrders, getOrderById, updateOrder } =
 		useOrders();
+	const { setEditingOrder } = useOrderStore();
 	const navigate = useNavigate();
 	const { fetchCategories } = useCategory();
 	const { settings } = useSettings();
@@ -323,7 +325,10 @@ export const Orders: React.FC = () => {
 	};
 
 	const handleEditItems = () => {
-		setEditItemsDialogOpen(true);
+		if (selectedOrder) {
+			setEditingOrder(selectedOrder);
+			navigate("/orders/edit");
+		}
 	};
 
 	const handleGenerateReport = async () => {
