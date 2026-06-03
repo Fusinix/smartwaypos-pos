@@ -41,7 +41,7 @@ import { useOrders } from "../../hooks/useOrders";
 import { useProducts } from "../../hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
 import { useKeyboard } from "@/context/KeyboardContext";
-import { SyncStatusBanner } from "./SyncStatusBanner";
+// import { SyncStatusBanner } from "./SyncStatusBanner";
 
 export const Layout: React.FC = () => {
 	const { isAuthenticated, user, logout } = useAuth();
@@ -146,7 +146,12 @@ export const Layout: React.FC = () => {
 
 			if (activeShift?.clock_in) {
 				let startStr = activeShift.clock_in;
-				if (startStr && !startStr.includes("Z") && !startStr.includes("+") && !startStr.includes("T")) {
+				if (
+					startStr &&
+					!startStr.includes("Z") &&
+					!startStr.includes("+") &&
+					!startStr.includes("T")
+				) {
 					startStr = startStr.replace(" ", "T") + "Z";
 				}
 				const start = new Date(startStr).getTime();
@@ -266,7 +271,7 @@ export const Layout: React.FC = () => {
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col min-w-0 ">
 				{/* Sync Status Banner */}
-				<SyncStatusBanner />
+				{/* <SyncStatusBanner /> */}
 				{/* Top Header Bar */}
 				<header className="bg-primary border-b h-14 flex items-center justify-between px-4 pl-1 sticky top-0 z-10 gap-4">
 					<div className="flex items-center gap-4 flex-1">

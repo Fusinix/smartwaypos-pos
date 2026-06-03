@@ -180,7 +180,7 @@ async function logAction({ db, admin_id, admin_name, admin_role, action, page, c
     ]);
 }
 async function logInventoryChange({ db, productId, changeAmount, previousStock, newStock, reason, adminId, productName, adminName, adminRole, note, }) {
-    await db.run("INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id, product_name, admin_name, admin_role, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    await db.run("INSERT INTO inventory_logs (product_id, change_amount, previous_stock, new_stock, reason, admin_id, product_name, admin_name, admin_role, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
         productId,
         changeAmount,
         previousStock,
@@ -191,6 +191,7 @@ async function logInventoryChange({ db, productId, changeAmount, previousStock, 
         adminName || null,
         adminRole || null,
         note || null,
+        new Date().toISOString(),
     ]);
 }
 // =====================================================
@@ -227,22 +228,34 @@ async function getBaseUrl() {
         lastCacheTime = now;
         return licenseServerUrl;
     }
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300);
-        const response = await fetch("http://localhost:3000/api/validate", {
-            method: "OPTIONS",
-            signal: controller.signal,
-        }).catch(() => null);
-        clearTimeout(timeoutId);
-        if (response) {
-            cachedBaseUrl = "http://localhost:3000";
+    // Dev mode: probe potential local portals ports
+    const ports = [3000, 3001, 3002];
+    let foundUrl = null;
+    for (const port of ports) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300);
+            const response = await fetch(`http://localhost:${port}/api/pos/ping`, {
+                method: "GET",
+                signal: controller.signal,
+            }).catch(() => null);
+            clearTimeout(timeoutId);
+            if (response && response.ok) {
+                const data = await response.json().catch(() => null);
+                if (data && data.success && data.service === "smartwaypos-portal") {
+                    foundUrl = `http://localhost:${port}`;
+                    break;
+                }
+            }
         }
-        else {
-            cachedBaseUrl = licenseServerUrl;
+        catch {
+            // Ignore connection issues and try next port
         }
     }
-    catch {
+    if (foundUrl) {
+        cachedBaseUrl = foundUrl;
+    }
+    else {
         cachedBaseUrl = licenseServerUrl;
     }
     lastCacheTime = now;
@@ -2588,7 +2601,8 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             tableNumber = await generateDineInTableNumber(db);
         }
         // Insert order with calculated amounts and order number
-        const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        const nowIso = new Date().toISOString();
+        const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
             orderNumber,
             orderData.sale_id || null,
             orderData.order_type,
@@ -2601,6 +2615,8 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             orderData.status || "open",
             orderData.admin_id || null,
             orderData.notes || null,
+            nowIso,
+            nowIso,
         ]);
         const orderId = result.lastID;
         // Get author info for logging

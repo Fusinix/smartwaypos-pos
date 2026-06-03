@@ -197,6 +197,22 @@ export const SyncStatusBanner: React.FC = () => {
 	}, [syncStatus?.lastSyncedAt]);
 
 	const updateAvailable = versionInfo?.updateAvailable && !isUpdateDismissed;
+
+	const cleanErrorMessage = (msg: string | null): string => {
+		if (!msg) return "";
+		try {
+			const jsonMatch = msg.match(/\{.*\}/);
+			if (jsonMatch) {
+				const parsed = JSON.parse(jsonMatch[0]);
+				if (parsed.message) {
+					return parsed.message;
+				}
+			}
+		} catch (e) {
+			// ignore JSON parse errors
+		}
+		return msg.replace(/^Sync server returned \d+:\s*/i, "");
+	};
 	// const hasSyncStatus = syncStatus !== null;
 	// const showHealthyStatus =
 	// 	hasSyncStatus &&
@@ -209,37 +225,6 @@ export const SyncStatusBanner: React.FC = () => {
 
 	return (
 		<div className="w-full flex flex-col gap-2 border-b border-white/5 backdrop-blur-md transition-all duration-300">
-			{/* 0. Stale Sync Warning (if last sync is 3+ hours old) */}
-			{isSyncStale && isOnline && !errorMessage && (
-				<div className="flex items-center justify-between p-4 py-1 bg-amber-500 backdrop-blur-lg text-white animate-in fade-in duration-300">
-					<div className="flex items-center gap-3">
-						<div className="p-2 rounded-lg bg-white/20">
-							<AlertCircle className="size-5" />
-						</div>
-						<div>
-							<p className="text-sm font-semibold">
-								Last sync: {lastSyncedText}
-							</p>
-							<p className="text-[10px] leading-relaxed text-white/90">
-								More than 3 hours since last backup. Consider syncing now.
-							</p>
-						</div>
-					</div>
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={isSyncing}
-						className="!text-white hover:bg-white/20 shrink-0 flex items-center gap-1.5"
-						onClick={handleManualSync}
-					>
-						<RefreshCw
-							className={`size-3.5 ${isSyncing ? "animate-spin" : ""}`}
-						/>
-						{isSyncing ? "Syncing..." : "Sync Now"}
-					</Button>
-				</div>
-			)}
-
 			{/* 1. App Update available (Blue modern glass card, dismissible) */}
 			{updateAvailable && versionInfo && (
 				<div className="relative flex items-center justify-between gap-4 p-4 py-1 bg-blue-600 backdrop-blur-lg animate-in fade-in slide-in-from-top-4 duration-300 text-blue-100">
@@ -288,9 +273,9 @@ export const SyncStatusBanner: React.FC = () => {
 			)}
 
 			{/* 2. Critical/Warning backup lag or offline banner (Orange/Red card, non-dismissible) */}
-			{isLagging && isSyncStale && (
+			{isLagging && (!isOnline || isSyncStale) && (
 				<div
-					className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap p-4 py-1 ${!isOnline ? "bg-rose-500 text-white" : "bg-amber-600 text-amber-600"} backdrop-blur-lg duration-300`}
+					className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap p-4 py-1 ${!isOnline ? "bg-rose-500 text-white" : "bg-amber-500 text-amber-500"} backdrop-blur-lg duration-300`}
 				>
 					<div className="flex items-start sm:items-center gap-3">
 						<div
@@ -332,7 +317,7 @@ export const SyncStatusBanner: React.FC = () => {
 			)}
 
 			{/* 3. Manual sync success message (Toast-style small banner, auto-dismissible) */}
-			{showSuccessToast && !isLagging && isSyncStale && (
+			{showSuccessToast && !isLagging && (
 				<div className="flex items-center justify-between p-4 py-1 bg-primary backdrop-blur-lg text-emerald-100 animate-in fade-in duration-300">
 					<div className="flex items-center gap-2.5">
 						<div className="p-1.5 rounded-lg bg-white/20 text-white">
@@ -368,7 +353,7 @@ export const SyncStatusBanner: React.FC = () => {
 						</div>
 						<div>
 							<p className="text-base font-medium text-white">Sync Failed</p>
-							<p className="text-[10px] text-white">{errorMessage}</p>
+							<p className="text-[10px] text-white">{cleanErrorMessage(errorMessage)}</p>
 						</div>
 					</div>
 					<Button
