@@ -48,6 +48,9 @@ function getDatabase() {
     db = new better_sqlite3_1.default(dbPath);
     // Enable foreign keys
     db.pragma('foreign_keys = ON');
+    // Enable Write-Ahead Logging (WAL) mode for robustness against power cuts and corruption
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = FULL');
     // Save original methods to avoid recursion when wrapping
     const originalExec = db.exec.bind(db);
     // These helper methods make it compatible with your existing async calls

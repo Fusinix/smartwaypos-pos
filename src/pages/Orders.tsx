@@ -555,7 +555,7 @@ export const Orders: React.FC = () => {
 		user?.role === "manager" ||
 		(user?.role === "cashier" &&
 			settings?.pos?.allowCashierInventoryManagement);
-	const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
+	// const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
 
 	return (
 		<div className="h-full flex flex-col">
@@ -704,7 +704,7 @@ export const Orders: React.FC = () => {
 									/>
 								</>
 							)}
-							{(user?.role === "admin" || canManageProducts) && (
+							{user?.role === "admin" && (
 								<Button
 									variant={isBulkMode ? "default" : "outline"}
 									size="default"
@@ -933,7 +933,7 @@ export const Orders: React.FC = () => {
 								</span>
 							</div>
 							<div className="flex gap-3">
-								{activeTab !== "active" && (
+								{activeTab === "active" && (
 									<Button
 										variant="default"
 										size="default"
