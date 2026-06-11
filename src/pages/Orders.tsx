@@ -25,6 +25,7 @@ import {
 	Share2,
 	Upload,
 	X,
+	CheckSquare,
 } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
@@ -80,6 +81,48 @@ export const Orders: React.FC = () => {
 	const [reportDialogOpen, setReportDialogOpen] = useState(false);
 	const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
 	const [reportData, setReportData] = useState<any>(null);
+
+	const [isBulkMode, setIsBulkMode] = useState(false);
+	const [selectedOrderIds, setSelectedOrderIds] = useState<Set<number>>(
+		new Set(),
+	);
+
+	const handleBulkUpdateStatus = (
+		status: "closed" | "cancelled" | "deleted",
+	) => {
+		if (selectedOrderIds.size === 0) return;
+		const actionWord =
+			status === "closed" ? "close"
+			: status === "cancelled" ? "cancel"
+			: "delete (mark as deleted)";
+
+		showConfirm({
+			title: `Bulk ${status.charAt(0).toUpperCase() + status.slice(1)} Orders?`,
+			description: `Are you sure you want to ${actionWord} the ${selectedOrderIds.size} selected orders? This action cannot be undone.`,
+			confirmText: `Confirm Bulk ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+			variant: status === "deleted" ? "destructive" : "default",
+			onConfirm: async () => {
+				try {
+					await window.electron.invoke("bulk-update-orders", {
+						ids: Array.from(selectedOrderIds),
+						status,
+						author: user,
+					});
+
+					toast.success(`Successfully updated ${selectedOrderIds.size} orders`);
+					setSelectedOrderIds(new Set());
+					setIsBulkMode(false);
+					await fetchOrders();
+					if (selectedOrder && selectedOrderIds.has(selectedOrder.id!)) {
+						setSelectedOrder(null);
+					}
+				} catch (err) {
+					console.error("Bulk update failed:", err);
+					toast.error("Failed to perform bulk update");
+				}
+			},
+		});
+	};
 
 	// Multi-enter shortcut for manual drawer trigger
 	useEffect(() => {
@@ -507,6 +550,13 @@ export const Orders: React.FC = () => {
 			PaymentModeIcons[selectedOrder.payment_mode as PaymentModes]
 		:	null;
 
+	const canManageProducts =
+		user?.role === "admin" ||
+		user?.role === "manager" ||
+		(user?.role === "cashier" &&
+			settings?.pos?.allowCashierInventoryManagement);
+	const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
+
 	return (
 		<div className="h-full flex flex-col">
 			{/* Page Header */}
@@ -541,6 +591,7 @@ export const Orders: React.FC = () => {
 							<Receipt className="h-5 w-5" />
 							Expenses
 						</Button>
+
 						<Button
 							size="default"
 							className="text-base"
@@ -617,7 +668,12 @@ export const Orders: React.FC = () => {
 							/>
 						</div>
 						{/* Date Filter */}
-						<div className={cn("flex items-center space-x-2")}>
+						<div
+							className={cn(
+								"flex items-center space-x-2",
+								selectedOrder ? "hidden" : "",
+							)}
+						>
 							<Select value={dateFilter} onValueChange={setDateFilter}>
 								<SelectTrigger className="w-40 text-base">
 									<SelectValue placeholder="Filter by Date" />
@@ -634,19 +690,39 @@ export const Orders: React.FC = () => {
 								<>
 									<Input
 										type="date"
-										className="w-40 text-base"
+										className="h-9 w-40 text-base"
 										placeholder="Start Date"
 										value={customDateStart}
 										onChange={(e) => setCustomDateStart(e.target.value)}
 									/>
 									<Input
 										type="date"
-										className="w-40 text-base"
+										className="h-9 w-40 text-base"
 										placeholder="End Date"
 										value={customDateEnd}
 										onChange={(e) => setCustomDateEnd(e.target.value)}
 									/>
 								</>
+							)}
+							{(user?.role === "admin" || canManageProducts) && (
+								<Button
+									variant={isBulkMode ? "default" : "outline"}
+									size="default"
+									className={cn(
+										ClassStyles.tabButton,
+										"text-base  shadow-none",
+										isBulkMode ? "" : (
+											" hover:bg-muted/20 text-muted-foreground"
+										),
+									)}
+									onClick={() => {
+										setIsBulkMode(!isBulkMode);
+										setSelectedOrderIds(new Set());
+									}}
+								>
+									<CheckSquare className="!size-4" />
+									{isBulkMode ? "Exit Bulk" : "Bulk Edit"}
+								</Button>
 							)}
 						</div>
 					</div>
@@ -710,12 +786,52 @@ export const Orders: React.FC = () => {
 														key={order.id}
 														className={cn(
 															"bg-card rounded-lg p-4 cursor-pointer transition-all relative",
-															selectedOrder?.id === order.id ?
+															(
+																isBulkMode &&
+																	order.id &&
+																	selectedOrderIds.has(order.id)
+															) ?
+																"ring-2 ring-primary bg-primary/5"
+															: selectedOrder?.id === order.id ?
 																"ring-2 ring-primary"
 															:	"hover:shadow-md hover:border-primary/50",
 														)}
-														onClick={() => handleOrderSelect(order)}
+														onClick={() => {
+															if (isBulkMode) {
+																if (!order.id) return;
+																const newSelected = new Set(selectedOrderIds);
+																if (newSelected.has(order.id)) {
+																	newSelected.delete(order.id);
+																} else {
+																	newSelected.add(order.id);
+																}
+																setSelectedOrderIds(newSelected);
+															} else {
+																handleOrderSelect(order);
+															}
+														}}
 													>
+														{isBulkMode && order.id && (
+															<div className="absolute top-3 left-3 z-10">
+																<input
+																	type="checkbox"
+																	checked={selectedOrderIds.has(order.id)}
+																	onChange={(e) => {
+																		e.stopPropagation();
+																		const newSelected = new Set(
+																			selectedOrderIds,
+																		);
+																		if (newSelected.has(order.id!)) {
+																			newSelected.delete(order.id!);
+																		} else {
+																			newSelected.add(order.id!);
+																		}
+																		setSelectedOrderIds(newSelected);
+																	}}
+																	className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+																/>
+															</div>
+														)}
 														{isOpen ?
 															<div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-blink" />
 														: order.status === "cancelled" ?
@@ -729,7 +845,12 @@ export const Orders: React.FC = () => {
 														<div className="space-y-3">
 															<div className="">
 																<div className="flex-1 pb-2 space-y-1">
-																	<div className="font-bold text-2xl text-gray-900 truncate">
+																	<div
+																		className={cn(
+																			"font-bold text-2xl text-gray-900 truncate",
+																			isBulkMode ? "pl-7" : "",
+																		)}
+																	>
 																		Order #{order.order_number ?? order.id}
 																		{order.customer_name && (
 																			<span className="text-base font-normal text-muted-foreground ml-2">
@@ -803,6 +924,54 @@ export const Orders: React.FC = () => {
 							</div>
 						}
 					</div>
+					{isBulkMode && selectedOrderIds.size > 0 && (
+						<div className="bg-card px-6 py-4 flex items-center justify-between animate-in slide-in-from-bottom duration-300">
+							<div className="flex items-center gap-2">
+								<span className="text-sm">
+									{selectedOrderIds.size}{" "}
+									{selectedOrderIds.size === 1 ? "order" : "orders"} selected
+								</span>
+							</div>
+							<div className="flex gap-3">
+								{activeTab !== "active" && (
+									<Button
+										variant="default"
+										size="default"
+										onClick={() => handleBulkUpdateStatus("closed")}
+										className="bg-green-600 hover:bg-green-700 text-white shadow-none text-base"
+									>
+										Mark Closed
+									</Button>
+								)}
+								{activeTab !== "cancelled" && (
+									<Button
+										variant="default"
+										size="default"
+										onClick={() => handleBulkUpdateStatus("cancelled")}
+										className="bg-orange-500 hover:bg-orange-600 text-white shadow-none text-base"
+									>
+										Mark Cancelled
+									</Button>
+								)}
+								<Button
+									variant="destructive"
+									size="default"
+									onClick={() => handleBulkUpdateStatus("deleted")}
+									className="bg-red-600 hover:bg-red-700 text-white shadow-none text-base"
+								>
+									Mark Deleted
+								</Button>
+								<Button
+									variant="outline"
+									size="default"
+									onClick={() => setSelectedOrderIds(new Set())}
+									className="text-base"
+								>
+									Clear Selection
+								</Button>
+							</div>
+						</div>
+					)}
 				</div>
 				{/* Right Panel: Order Details */}
 				<div

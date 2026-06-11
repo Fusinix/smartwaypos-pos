@@ -30,6 +30,7 @@ const validChannels = [
     'create-order',
     'update-order',
     'update-order-items',
+    'bulk-update-orders',
     'get-logs',
     'get-dashboard-stats',
     'export-data',

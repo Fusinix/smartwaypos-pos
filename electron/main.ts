@@ -2280,7 +2280,7 @@ ipcMain.handle(
 				"SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC",
 			);
 
-			const report = [];
+			const report: any[] = [];
 
 			for (const product of products) {
 				// 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
@@ -2315,7 +2315,7 @@ ipcMain.handle(
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
+				 AND date(o.updated_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
 					author?.id ?
 						[product.id, reportDate, author.id]
 					:	[product.id, reportDate],
@@ -2383,7 +2383,7 @@ ipcMain.handle(
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
 			 AND o.status = 'closed'
-			 AND date(o.created_at) = date(?)` +
+			 AND date(o.updated_at) = date(?)` +
 					(author?.id ? ` AND o.admin_id = ?` : ``) +
 					` GROUP BY fi.id, fi.name, fi.price`,
 				author?.id ? [reportDate, author.id] : [reportDate],
@@ -3690,6 +3690,101 @@ ipcMain.handle("update-order", async (_, order) => {
 	}
 });
 
+// Bulk update orders handler
+ipcMain.handle("bulk-update-orders", async (_, { ids, status, author }) => {
+	try {
+		const result = await withRetry(async () => {
+			const db = await getDatabase();
+			const editorId = author?.id || null;
+
+			for (const id of ids) {
+				// Fetch existing order to check for cancellation or deletion stock restore
+				const existingOrder = await db.get(
+					"SELECT status FROM orders WHERE id = ?",
+					[id]
+				);
+
+				if (!existingOrder) continue;
+
+				// If order is being cancelled or deleted, restore drink stock and log change
+				if (
+					existingOrder.status !== "cancelled" &&
+					existingOrder.status !== "deleted" &&
+					(status === "cancelled" || status === "deleted")
+				) {
+					const drinkItemsToRestore = await db.all(
+						"SELECT oi.product_id, oi.quantity FROM order_items oi WHERE oi.order_id = ? AND oi.item_type = 'drink'",
+						[id]
+					);
+					for (const item of drinkItemsToRestore) {
+						if (!item.product_id) continue;
+						const currentProduct = await db.get(
+							"SELECT stock, name FROM products WHERE id = ?",
+							[item.product_id]
+						);
+						const oldStock = currentProduct?.stock || 0;
+						const newStock = oldStock + item.quantity;
+						await db.run(
+							"UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+							[item.quantity, item.product_id]
+						);
+						await logInventoryChange({
+							db,
+							productId: item.product_id,
+							changeAmount: item.quantity,
+							previousStock: oldStock,
+							newStock,
+							reason: "sale",
+							adminId: author?.id || null,
+							productName: currentProduct?.name || null,
+							adminName: author?.name || null,
+							adminRole: author?.role || null,
+						});
+					}
+				}
+
+				// Perform update
+				await db.run(
+					`
+					UPDATE orders
+					SET status = ?,
+						edited_by = ?,
+						synced_at = NULL,
+						updated_at = CURRENT_TIMESTAMP
+					WHERE id = ?
+					`,
+					[status, editorId, id]
+				);
+
+				// Mark order items as unsynced
+				await db.run(
+					"UPDATE order_items SET synced_at = NULL WHERE order_id = ?",
+					[id]
+				);
+
+				// Log action
+				await logAction({
+					db,
+					admin_id: author?.id || null,
+					admin_name: author?.name || null,
+					admin_role: author?.role || null,
+					action: LOG_ACTIONS.UPDATE_ORDER,
+					page: "orders",
+					context: { id, status },
+				});
+			}
+
+			return { success: true, count: ids.length };
+		});
+
+		scheduleSyncAfterMutation();
+		return result;
+	} catch (error) {
+		console.error("Error in bulk update orders:", error);
+		throw error;
+	}
+});
+
 // Update order items handler
 ipcMain.handle(
 	"update-order-items",
@@ -3992,8 +4087,8 @@ ipcMain.handle("get-logs", async (_event, filters: any = {}) => {
 		const { startDate, endDate, type } = filters;
 
 		let query = "SELECT * FROM logs";
-		const params = [];
-		const conditions = [];
+		const params: any[] = [];
+		const conditions: string[] = [];
 
 		if (startDate && endDate) {
 			conditions.push("strftime('%Y-%m-%d', created_at) BETWEEN ? AND ?");
@@ -5900,7 +5995,7 @@ ipcMain.handle("print-receipt-silent", async (event, html, printerName) => {
 			console.log("-----------------------------------------");
 			console.log("PRINTERS FOUND:", printers.map((p) => p.name).join(", "));
 
-			let targetPrinter = null;
+			let targetPrinter: any = null;
 			if (printerName) {
 				targetPrinter =
 					printers.find((p) => p.name === printerName) ||
