@@ -40,7 +40,8 @@ export default function AddEditProduct({
 	const defaultProd: NewProduct = {
 		name: "",
 		description: "",
-		category: categories ? categories[0]?.name : "",
+		category: categories ? categories[0]?.id : "",
+		category_name: categories ? categories[0]?.name : "",
 		price: 0,
 		cost_price: 0,
 		stock: 0,
@@ -60,6 +61,7 @@ export default function AddEditProduct({
 
 	useEffect(() => {
 		if (product) {
+			console.log("Initializing form with product:", product);
 			setFormData(product);
 		}
 	}, [product]);
@@ -101,7 +103,7 @@ export default function AddEditProduct({
 			await onSave(
 				{
 					...formData,
-					category: getCategoryId(formData.category as any, categories),
+					category: getCategoryId(formData.category_name as any, categories),
 				},
 				stockChanged ? reason : undefined,
 			);
@@ -171,13 +173,18 @@ export default function AddEditProduct({
 
 						<div>
 							<Label htmlFor="category">Category</Label>
+							{/* {console.log(
+								"Categories in form:",
+								Number(formData.category)?.toFixed(0),
+								categories,
+							)} */}
 							{categories?.length ?
 								<Select
-									value={formData.category as any}
+									value={formData.category_name as string}
 									onValueChange={(value) =>
 										setFormData((prev) => ({
 											...prev,
-											category: value as any,
+											category: value as string,
 										}))
 									}
 								>
@@ -378,7 +385,7 @@ export default function AddEditProduct({
 									formData.name == "" ||
 									formData.price == 0 ||
 									formData.low_stock_threshold == 0 ||
-									!formData.category
+									!formData.category_name
 								}
 								type="submit"
 								className="flex-1"

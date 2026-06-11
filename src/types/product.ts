@@ -20,6 +20,7 @@ export interface NewProduct {
 	name: string;
 	description?: string;
 	category: number | string;
+	category_name?: string;
 	price: number;
 	cost_price?: number;
 	stock: number;

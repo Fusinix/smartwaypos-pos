@@ -1921,7 +1921,14 @@ electron_1.ipcMain.handle("update-product-stock", async (_, productId, newStock,
 electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const reportDate = date || new Date().toISOString().split("T")[0];
+        const getLocalDateString = () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            const day = String(now.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+        const reportDate = date || getLocalDateString();
         // 1. Get all products
         const products = await db.all("SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC");
         const report = [];
@@ -1929,7 +1936,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
             // 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
             const logs = await db.all(`SELECT * FROM inventory_logs 
 				 WHERE product_id = ? 
-				 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ?
+				 AND date(created_at, 'localtime') = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ?
                 [product.id, reportDate, author.id]
                 : [product.id, reportDate]);
             // 2b. Get today's sold qty (open + closed, not cancelled) for inventory reconciliation
@@ -1939,7 +1946,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status IN ('open', 'closed')
-				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
+				 AND date(o.created_at, 'localtime') = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
                 [product.id, reportDate, author.id]
                 : [product.id, reportDate]);
             // 2c. Get today's closed sales for revenue calculation
@@ -1949,7 +1956,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.updated_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
+				 AND date(o.updated_at, 'localtime') = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
                 [product.id, reportDate, author.id]
                 : [product.id, reportDate]);
             const sold = salesData?.sold_qty || 0;
@@ -1957,13 +1964,16 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
             let added = 0;
             let adjusted = 0;
             let damaged = 0;
+            let hasInventoryAction = false;
             logs.forEach((log) => {
                 if (log.reason === "restock") {
                     added += log.change_amount;
+                    hasInventoryAction = true;
                 }
                 else if (log.reason === "wastage") {
                     // 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
                     damaged += Math.abs(log.change_amount);
+                    hasInventoryAction = true;
                 }
                 else if (log.reason === "adjustment") {
                     if (log.change_amount > 0) {
@@ -1972,6 +1982,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
                     else {
                         adjusted += Math.abs(log.change_amount);
                     }
+                    hasInventoryAction = true;
                 }
             });
             // 3. Find opening stock
@@ -1984,8 +1995,8 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
             //    This ensures the row always balances for this user's session, regardless of other
             //    system-wide changes to the product stock by other users.
             const stockLeft = openingStock + added - sold - damaged - adjusted;
-            // 5. Only include in report if there was activity
-            if (sold > 0 || logs.length > 0) {
+            // 5. Only include in report if there was activity (sales, closed sales, or manual inventory actions)
+            if (sold > 0 || soldClosed > 0 || hasInventoryAction) {
                 report.push({
                     id: product.id,
                     name: product.name,
@@ -2009,16 +2020,16 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
 			 AND o.status = 'closed'
-			 AND date(o.updated_at) = date(?)` +
+			 AND date(o.updated_at, 'localtime') = date(?)` +
             (author?.id ? ` AND o.admin_id = ?` : ``) +
             ` GROUP BY fi.id, fi.name, fi.price`, author?.id ? [reportDate, author.id] : [reportDate]);
         // 6. Get pending orders summary
         const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
 			 FROM orders 
 			 WHERE status = 'open' 
-			 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
+			 AND date(created_at, 'localtime') = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
         // 7. Get today's expenses
-        const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
+        const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at, 'localtime') = date(?)` +
             (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
         return {
             date: reportDate,

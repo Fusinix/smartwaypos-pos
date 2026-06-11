@@ -2273,7 +2273,14 @@ ipcMain.handle(
 	async (_, date?: string, author?: any) => {
 		try {
 			const db = await getDatabase();
-			const reportDate = date || new Date().toISOString().split("T")[0];
+			const getLocalDateString = () => {
+				const now = new Date();
+				const year = now.getFullYear();
+				const month = String(now.getMonth() + 1).padStart(2, "0");
+				const day = String(now.getDate()).padStart(2, "0");
+				return `${year}-${month}-${day}`;
+			};
+			const reportDate = date || getLocalDateString();
 
 			// 1. Get all products
 			const products = await db.all(
@@ -2287,7 +2294,7 @@ ipcMain.handle(
 				const logs = await db.all(
 					`SELECT * FROM inventory_logs 
 				 WHERE product_id = ? 
-				 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``),
+				 AND date(created_at, 'localtime') = date(?)` + (author?.id ? ` AND admin_id = ?` : ``),
 					author?.id ?
 						[product.id, reportDate, author.id]
 					:	[product.id, reportDate],
@@ -2301,7 +2308,7 @@ ipcMain.handle(
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status IN ('open', 'closed')
-				 AND date(o.created_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
+				 AND date(o.created_at, 'localtime') = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
 					author?.id ?
 						[product.id, reportDate, author.id]
 					:	[product.id, reportDate],
@@ -2315,7 +2322,7 @@ ipcMain.handle(
 				 WHERE oi.product_id = ? 
 				 AND oi.item_type = 'drink'
 				 AND o.status = 'closed'
-				 AND date(o.updated_at) = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
+				 AND date(o.updated_at, 'localtime') = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``),
 					author?.id ?
 						[product.id, reportDate, author.id]
 					:	[product.id, reportDate],
@@ -2326,19 +2333,23 @@ ipcMain.handle(
 				let added = 0;
 				let adjusted = 0;
 				let damaged = 0;
+				let hasInventoryAction = false;
 
 				logs.forEach((log: any) => {
 					if (log.reason === "restock") {
 						added += log.change_amount;
+						hasInventoryAction = true;
 					} else if (log.reason === "wastage") {
 						// 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
 						damaged += Math.abs(log.change_amount);
+						hasInventoryAction = true;
 					} else if (log.reason === "adjustment") {
 						if (log.change_amount > 0) {
 							added += log.change_amount;
 						} else {
 							adjusted += Math.abs(log.change_amount);
 						}
+						hasInventoryAction = true;
 					}
 				});
 
@@ -2356,8 +2367,8 @@ ipcMain.handle(
 				//    system-wide changes to the product stock by other users.
 				const stockLeft = openingStock + added - sold - damaged - adjusted;
 
-				// 5. Only include in report if there was activity
-				if (sold > 0 || logs.length > 0) {
+				// 5. Only include in report if there was activity (sales, closed sales, or manual inventory actions)
+				if (sold > 0 || soldClosed > 0 || hasInventoryAction) {
 					report.push({
 						id: product.id,
 						name: product.name,
@@ -2383,7 +2394,7 @@ ipcMain.handle(
 			 JOIN orders o ON oi.order_id = o.id
 			 WHERE oi.item_type = 'food'
 			 AND o.status = 'closed'
-			 AND date(o.updated_at) = date(?)` +
+			 AND date(o.updated_at, 'localtime') = date(?)` +
 					(author?.id ? ` AND o.admin_id = ?` : ``) +
 					` GROUP BY fi.id, fi.name, fi.price`,
 				author?.id ? [reportDate, author.id] : [reportDate],
@@ -2394,13 +2405,13 @@ ipcMain.handle(
 				`SELECT COUNT(id) as count, SUM(amount) as total
 			 FROM orders 
 			 WHERE status = 'open' 
-			 AND date(created_at) = date(?)` + (author?.id ? ` AND admin_id = ?` : ``),
+			 AND date(created_at, 'localtime') = date(?)` + (author?.id ? ` AND admin_id = ?` : ``),
 				author?.id ? [reportDate, author.id] : [reportDate],
 			);
 
 			// 7. Get today's expenses
 			const expenses = await db.all(
-				`SELECT * FROM expenses WHERE date(created_at) = date(?)` +
+				`SELECT * FROM expenses WHERE date(created_at, 'localtime') = date(?)` +
 					(author?.id ? ` AND admin_id = ?` : ``),
 				author?.id ? [reportDate, author.id] : [reportDate],
 			);
