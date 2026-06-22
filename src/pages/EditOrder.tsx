@@ -608,7 +608,7 @@ export const EditOrder: React.FC = () => {
 														<Button
 															size="icon"
 															variant="ghost"
-															className="bg-destructive/10 hover:bg-destructive/20 rounded-md !ml-12"
+															className="bg-destructive/10 hover:bg-destructive/20 rounded-md !ml-auto"
 															onClick={() =>
 																removeFromOrder(item.product_id, "drink")
 															}
@@ -681,17 +681,7 @@ export const EditOrder: React.FC = () => {
 														</div>
 													)}
 
-													<div className="flex items-center space-x-2 flex-shrink-0 mt-4">
-														<Button
-															size="icon"
-															variant="ghost"
-															className="bg-muted rounded-md mr-auto"
-															onClick={() =>
-																setEditingFoodItem({ item, index })
-															}
-														>
-															<Eye />
-														</Button>
+													<div className="w-full flex items-center space-x-2 flex-shrink-0 mt-4">
 														<Button
 															size="icon"
 															variant="ghost"
@@ -722,7 +712,7 @@ export const EditOrder: React.FC = () => {
 														<Button
 															size="icon"
 															variant="ghost"
-															className="bg-muted rounded-md"
+															className="bg-muted rounded-md !mr-auto"
 															onClick={() =>
 																updateItemQuantity(
 																	index,
@@ -733,10 +723,22 @@ export const EditOrder: React.FC = () => {
 														>
 															+
 														</Button>
+
 														<Button
 															size="icon"
 															variant="ghost"
-															className="bg-destructive/10 hover:bg-destructive/20 rounded-md !ml-12"
+															className="bg-muted rounded-md ml-auto"
+															onClick={() =>
+																setEditingFoodItem({ item, index })
+															}
+														>
+															<Eye />
+														</Button>
+
+														<Button
+															size="icon"
+															variant="ghost"
+															className="bg-destructive/10 hover:bg-destructive/20 rounded-md"
 															onClick={() => removeFromOrder(index, "food")}
 														>
 															<Trash2 className="text-destructive" />
@@ -752,7 +754,7 @@ export const EditOrder: React.FC = () => {
 
 						{/* Totals and actions */}
 						<div className="p-4 space-y-4 border-t flex-shrink-0">
-							<div className="space-y-3">
+							<div className="space-y-3 p-4 bg-muted rounded-2xl">
 								<div className="flex justify-between text-sm">
 									<span>Subtotal</span>
 									<span>{formatCurrency(subtotal)}</span>
@@ -761,15 +763,16 @@ export const EditOrder: React.FC = () => {
 									<span>Tax ({tax}%)</span>
 									<span>{formatCurrency(taxAmount)}</span>
 								</div>
-								<div className="flex justify-between font-semibold text-lg border-y py-3">
+								<div className="flex justify-between font-semibold text-lg border-t pt-3">
 									<span>Total</span>
 									<span>{formatCurrency(total)}</span>
 								</div>
 							</div>
-							<div className="flex gap-2">
+							<div className="flex gap-2 border-t pt-4">
 								<Button
 									type="button"
-									variant="outline"
+									size="lg"
+									variant="destructive"
 									onClick={handleBack}
 									disabled={loading}
 								>
@@ -777,8 +780,10 @@ export const EditOrder: React.FC = () => {
 								</Button>
 								<Button
 									type="button"
+									size="lg"
 									disabled={editingItems.length === 0 || loading}
 									onClick={handleSave}
+									className="flex-1"
 								>
 									{loading ? "Saving..." : "Save Changes"}
 								</Button>

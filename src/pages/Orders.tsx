@@ -766,7 +766,7 @@ export const Orders: React.FC = () => {
 									/>
 								</>
 							)}
-							{user?.role === "admin" && (
+							{user?.role === "admin" && groupedOrders?.length > 0 && (
 								<Button
 									variant={isBulkMode ? "default" : "outline"}
 									size="default"
@@ -1210,7 +1210,7 @@ export const Orders: React.FC = () => {
 									</div>
 								)} */}
 								<div className="flex items-center justify-between gap-x-2">
-									<span className="text-base text-gray-500">Order type:</span>
+									<span className="text-base text-gray-500">Type:</span>
 
 									<span className="capitalize text-base font-medium flex items-center gap-2">
 										{OrderTypeIcon ?
@@ -1236,9 +1236,7 @@ export const Orders: React.FC = () => {
 									</span>
 								</div>
 								<div className="flex flex-col gap-1">
-									<p className="text-sm font-medium text-gray-700">
-										Order name:
-									</p>
+									<p className="text-sm font-medium text-gray-700">Name:</p>
 									{selectedOrder.status === "open" ?
 										<Input
 											id="customer-name"
