@@ -279,7 +279,7 @@ export const EditOrder: React.FC = () => {
 
 			const result = await updateOrderItems(editingOrder.id, itemsForUpdate);
 			setEditingOrder(null);
-			navigation.back();
+			navigate("/orders");
 		} catch (error) {
 			console.error("Failed to update order items:", error);
 		} finally {

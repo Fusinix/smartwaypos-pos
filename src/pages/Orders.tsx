@@ -52,21 +52,53 @@ import { ClassStyles } from "@/components/classnames";
 import EmptyState from "@/components/alerts/empty-state";
 
 export const Orders: React.FC = () => {
-	const { orders, loading, error, fetchOrders, getOrderById, updateOrder } =
-		useOrders();
+	const {
+		orders,
+		loading,
+		error,
+		fetchOrders,
+		getOrderById,
+		updateOrder,
+		activeTab,
+		setActiveTab,
+		search,
+		setSearch,
+		dateFilter,
+		setDateFilter,
+		customDateStart,
+		setCustomDateStart,
+		customDateEnd,
+		setCustomDateEnd,
+		selectedOrder,
+		setSelectedOrder,
+	} = useOrders();
 	const { setEditingOrder } = useOrderStore();
 	const navigate = useNavigate();
 	const { fetchCategories } = useCategory();
 	const { settings } = useSettings();
 	const { showConfirm } = useAlertStore();
-	const [activeTab, setActiveTab] = useState<"active" | "closed" | "cancelled">(
-		"active",
-	);
-	const [search, setSearch] = useState("");
-	const [dateFilter, setDateFilter] = useState<string>("today"); // "all", "today", "week", "month", "custom"
-	const [customDateStart, setCustomDateStart] = useState<string>("");
-	const [customDateEnd, setCustomDateEnd] = useState<string>("");
-	const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+	const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
+
+	const hasChanges = useMemo(() => {
+		if (!selectedOrder || !originalOrder) return false;
+		return (
+			(selectedOrder.customer_name || "") !==
+				(originalOrder.customer_name || "") ||
+			(selectedOrder.notes || "") !== (originalOrder.notes || "")
+		);
+	}, [selectedOrder, originalOrder]);
+
+	const handleSaveOrderDetails = async () => {
+		if (!selectedOrder) return;
+		try {
+			const updated = await updateOrder(selectedOrder);
+			setOriginalOrder(updated);
+			setSelectedOrder(updated);
+		} catch (error) {
+			console.error("Failed to save order details:", error);
+			toast.error("Failed to save order changes");
+		}
+	};
 	const [selectedOrderLoading, setSelectedOrderLoading] = useState(false);
 	const [editItemsDialogOpen, setEditItemsDialogOpen] = useState(false);
 	const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -115,6 +147,7 @@ export const Orders: React.FC = () => {
 					await fetchOrders();
 					if (selectedOrder && selectedOrderIds.has(selectedOrder.id!)) {
 						setSelectedOrder(null);
+						setOriginalOrder(null);
 					}
 				} catch (err) {
 					console.error("Bulk update failed:", err);
@@ -150,8 +183,20 @@ export const Orders: React.FC = () => {
 	}, [enterCount, lastEnterPress]);
 
 	useEffect(() => {
-		fetchOrders();
-		fetchCategories();
+		const init = async () => {
+			await fetchOrders();
+			fetchCategories();
+			if (selectedOrder?.id) {
+				try {
+					const orderWithItems = await getOrderById(selectedOrder.id);
+					setSelectedOrder(orderWithItems);
+					setOriginalOrder(orderWithItems);
+				} catch (error) {
+					console.error("Failed to refresh selected order details:", error);
+				}
+			}
+		};
+		init();
 	}, []);
 
 	const handleOrderSelect = async (order: Order) => {
@@ -162,10 +207,12 @@ export const Orders: React.FC = () => {
 		try {
 			const orderWithItems = await getOrderById(order.id);
 			setSelectedOrder(orderWithItems);
+			setOriginalOrder(orderWithItems);
 		} catch (error) {
 			console.error("Failed to fetch order details:", error);
 			// Fallback to basic order data
 			setSelectedOrder(order);
+			setOriginalOrder(order);
 		} finally {
 			setSelectedOrderLoading(false);
 		}
@@ -318,6 +365,7 @@ export const Orders: React.FC = () => {
 			if (selectedOrder.id) {
 				const updated = await getOrderById(selectedOrder.id);
 				setSelectedOrder(updated);
+				setOriginalOrder(updated);
 				// Refresh orders list to update UI
 				await fetchOrders();
 
@@ -356,6 +404,7 @@ export const Orders: React.FC = () => {
 					if (selectedOrder.id) {
 						const updated = await getOrderById(selectedOrder.id);
 						setSelectedOrder(updated);
+						setOriginalOrder(updated);
 						// Refresh orders list to update UI
 						await fetchOrders();
 					}
@@ -367,9 +416,22 @@ export const Orders: React.FC = () => {
 		});
 	};
 
-	const handleEditItems = () => {
+	const handleEditItems = async () => {
 		if (selectedOrder) {
-			setEditingOrder(selectedOrder);
+			if (hasChanges) {
+				try {
+					const updated = await updateOrder(selectedOrder);
+					setOriginalOrder(updated);
+					setSelectedOrder(updated);
+					setEditingOrder(updated);
+				} catch (error) {
+					console.error("Failed to save changes before editing:", error);
+					toast.error("Failed to save changes before editing items");
+					return;
+				}
+			} else {
+				setEditingOrder(selectedOrder);
+			}
 			navigate("/orders/edit");
 		}
 	};
@@ -985,7 +1047,10 @@ export const Orders: React.FC = () => {
 						<Button
 							variant="ghost"
 							size="icon"
-							onClick={() => setSelectedOrder(null)}
+							onClick={() => {
+								setSelectedOrder(null);
+								setOriginalOrder(null);
+							}}
 						>
 							<X />
 						</Button>
@@ -1135,7 +1200,7 @@ export const Orders: React.FC = () => {
 							</div>
 							{/* Order Info Section */}
 							<div className="space-y-4 p-6 py-0">
-								<div className="text-base font-semibold">Payment Info</div>
+								<div className="text-base font-semibold">Order Info</div>
 								{/* {selectedOrder.customer_name && (
 									<div className="flex items-center justify-between gap-x-2">
 										<span className="text-base text-gray-500">Order Name:</span>
@@ -1145,7 +1210,7 @@ export const Orders: React.FC = () => {
 									</div>
 								)} */}
 								<div className="flex items-center justify-between gap-x-2">
-									<span className="text-base text-gray-500">Order Type:</span>
+									<span className="text-base text-gray-500">Order type:</span>
 
 									<span className="capitalize text-base font-medium flex items-center gap-2">
 										{OrderTypeIcon ?
@@ -1170,22 +1235,15 @@ export const Orders: React.FC = () => {
 											)}
 									</span>
 								</div>
-								<div
-									className={cn(
-										"",
-										selectedOrder.status === "closed" && !selectedOrder.notes ?
-											"flex items-center justify-between"
-										:	"",
-									)}
-								>
+								<div className="flex flex-col gap-1">
 									<p className="text-sm font-medium text-gray-700">
-										Order Name:
+										Order name:
 									</p>
 									{selectedOrder.status === "open" ?
 										<Input
 											id="customer-name"
 											name="customer-name"
-											value={selectedOrder.customer_name}
+											value={selectedOrder.customer_name || ""}
 											onChange={(e) => {
 												setSelectedOrder({
 													...selectedOrder,
@@ -1193,26 +1251,19 @@ export const Orders: React.FC = () => {
 												});
 											}}
 											placeholder="Customer / Order name..."
-											className="h-11 text-base rounded-xl bg-muted border-0"
+											className="h-11 text-base rounded-xl bg-muted/60 border-0"
 										/>
 									:	<span className="text-base font-medium">
-											{selectedOrder.customer_name}
+											{selectedOrder.customer_name ?? "No name"}
 										</span>
 									}
 								</div>
-								<div
-									className={cn(
-										"",
-										selectedOrder.status === "closed" && !selectedOrder.notes ?
-											"flex items-center justify-between"
-										:	"",
-									)}
-								>
-									<div className="text-base text-gray-500">Notes:</div>
+								<div className="flex flex-col gap-1">
+									<div className="text-base text-gray-500 mb-1">Notes:</div>
 									{selectedOrder.status === "open" ?
 										<Textarea
 											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
-											defaultValue={selectedOrder.notes || ""}
+											value={selectedOrder.notes || ""}
 											placeholder="Order notes..."
 											onChange={(e) => {
 												setSelectedOrder({
@@ -1234,7 +1285,9 @@ export const Orders: React.FC = () => {
 										:	"",
 									)}
 								>
-									<div className="text-base text-gray-500">Payment:</div>
+									<div className="text-base text-gray-500 mb-2">
+										Payment info:
+									</div>
 									{selectedOrder.status === "closed" ?
 										<div className="capitalize text-base font-medium flex items-center gap-2 ">
 											{PaymentIcon ?
@@ -1274,7 +1327,7 @@ export const Orders: React.FC = () => {
 								</div>
 							</div>
 							{/* Totals Section */}
-							<div className="space-y-2 border-y py-6">
+							<div className="space-y-2 border-y py-6 px-6">
 								{(() => {
 									// Calculate subtotal from items to ensure accuracy
 									let calculatedSubtotal = 0;
@@ -1318,7 +1371,7 @@ export const Orders: React.FC = () => {
 									);
 
 									return (
-										<div className="space-y-4 px-6">
+										<div className="space-y-4 p-4 rounded-2xl bg-muted">
 											<div className="space-y-2">
 												<div className="flex justify-between text-base">
 													<span>Subtotal</span>
@@ -1392,38 +1445,84 @@ export const Orders: React.FC = () => {
 								})()}
 							</div>
 							{/* Actions Section */}
-							<div className="flex flex-col gap-2 px-6 pb-6">
-								{/* show this button only if there are food items in the order */}
-								{selectedOrder.status === "open" &&
-									(selectedOrder.items?.filter(
-										(item: any) => item.item_type === "food",
-									)?.length ?? 0) > 0 && (
+							<div className="flex flex-col gap-4 px-6 pb-6">
+								{/* Save Changes Button */}
+								{selectedOrder.status === "open" && hasChanges && (
+									<Button
+										variant="default"
+										onClick={handleSaveOrderDetails}
+										className="text-base w-full bg-green-600 hover:bg-green-700 text-white shadow-none mb-2 font-semibold"
+									>
+										Save Changes
+									</Button>
+								)}
+								<div
+									className={cn(
+										"grid items-center gap-3",
+										(
+											selectedOrder.status === "open" &&
+												selectedOrder.items?.some(
+													(item: any) => item.item_type === "food",
+												)
+										) ?
+											"grid-cols-2 "
+										:	"grid-cols-1",
+									)}
+								>
+									{/* show this button only if there are food items in the order */}
+									{selectedOrder.status === "open" &&
+										(selectedOrder.items?.filter(
+											(item: any) => item.item_type === "food",
+										)?.length ?? 0) > 0 && (
+											<Button
+												variant="outline"
+												onClick={() => printKitchenOrder(selectedOrder)}
+												className="rounded-md"
+											>
+												Print Kitchen Order
+											</Button>
+										)}
+									{/* Print Bill (Receipt preview for open orders) */}
+									{selectedOrder.status === "open" && (
 										<Button
 											variant="outline"
-											onClick={() => printKitchenOrder(selectedOrder)}
-											className="text-base w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 mb-2"
+											onClick={() => printReceipt(selectedOrder, false)}
+											className="rounded-md"
 										>
-											Print Kitchen Order
+											Print Bill
 										</Button>
 									)}
-								{selectedOrder.status === "open" &&
-									(selectedOrder.order_type === "table" ||
-										selectedOrder.order_type === "takeout") && (
-										<Button
-											variant="destructive"
-											onClick={handleCancelOrder}
-											className="text-base w-full bg-red-50 hover:bg-red-100 border-red-200 text-red-700 hover:text-red-800 shadow-none mb-2"
-										>
-											Cancel Order
-										</Button>
-									)}
+								</div>
+
+								{selectedOrder?.status === "open" ?
+									<Button
+										variant="outline"
+										onClick={handleEditItems}
+										className="rounded-md"
+									>
+										Edit Items
+									</Button>
+								:	null}
+
 								<div className="flex space-x-4">
 									{selectedOrder?.status === "open" ?
 										<>
+											{selectedOrder.status === "open" &&
+												(selectedOrder.order_type === "table" ||
+													selectedOrder.order_type === "takeout") && (
+													<Button
+														variant="destructive"
+														size="lg"
+														onClick={handleCancelOrder}
+														// className="text-base bg-red-50 hover:bg-red-100 border-red-200 text-red-700 hover:text-red-800 shadow-none mb-2"
+													>
+														Cancel Order
+													</Button>
+												)}
 											<Button
-												variant="default"
 												onClick={handleCloseOrder}
-												className="text-base flex-1"
+												className="flex-1"
+												size="lg"
 												disabled={
 													!selectedOrder?.payment_mode ||
 													(selectedOrder.payment_mode === "cash" &&
@@ -1433,32 +1532,23 @@ export const Orders: React.FC = () => {
 											>
 												Close Order
 											</Button>
-											<Button
-												variant="outline"
-												onClick={handleEditItems}
-												className="text-base flex-1"
-											>
-												Edit Items
-											</Button>
 										</>
 									: selectedOrder.status !== "cancelled" ?
-										<>
+										<div className="space-y-4 w-full flex flex-col">
 											<Button
 												variant="outline"
 												onClick={() => setShareDialogOpen(true)}
-												className="text-base flex-1"
+												className="rounded-md"
 											>
-												<Share2 className="h-4 w-4" />
 												Share Receipt
 											</Button>
 											<Button
-												variant="default"
 												onClick={() => printReceipt(selectedOrder, false)}
-												className="text-base flex-1"
+												className=""
 											>
 												Print Receipt
 											</Button>
-										</>
+										</div>
 									:	null}
 								</div>
 							</div>

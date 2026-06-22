@@ -108,7 +108,7 @@ export const useReceipt = () => {
                     ${businessLogo ? `<div style="text-align: center; margin-bottom: 6px;"><img src="${businessLogo}" style="max-height: 80px; max-width: 80px; filter: grayscale(1) contrast(2);"></div>` : ""}
                     <div style="text-align: center; border-bottom: 1pt dashed #000; padding: 4px 0; margin-bottom: 6px;">
                         <h1 style="font-size: 10pt; margin: 0; font-weight: 800; color: #000;">${businessName}</h1>
-                        <div style="font-size: 8pt; font-weight: 700; margin-top: 2px;">OFFICIAL RECEIPT</div>
+                        <div style="font-size: 8pt; font-weight: 700; margin-top: 2px;">${order.status === "open" ? "BILL PREVIEW" : "OFFICIAL RECEIPT"}</div>
                     </div>
                     
                     <div style="margin-bottom: 8px; font-size: 7pt; font-weight: 700;">
@@ -162,17 +162,23 @@ export const useReceipt = () => {
                         <div style="display: flex; justify-content: space-between; font-size: 8pt; font-weight: 700;"><span>TOTAL:</span><span>${receiptCurrency} ${safeFormat(total)}</span></div>
                     </div>
     
-                    <div style="margin-top: 10px; border-top: 1pt dashed #585858ff; padding-top: 6px; font-size: 7pt; font-weight: 700;">
-                        <div style="display: flex; justify-content: space-between; font-weight: 700;font-size:7pt"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
-                        ${
-													order.amount_tendered && order.amount_tendered > 0 ?
-														`
-                            <div style="display:flex; justify-content:space-between; "><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
-                            <div style="display:flex; justify-content:space-between; "><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
-                        `
-													:	""
-												}
-                    </div>
+                    ${order.status === "open" ? `
+                        <div style="margin-top: 10px; border-top: 1pt dashed #585858ff; padding-top: 6px; font-size: 7pt; font-weight: 700; text-align: center;">
+                            * UNPAID BILL *
+                        </div>
+                    ` : `
+                        <div style="margin-top: 10px; border-top: 1pt dashed #585858ff; padding-top: 6px; font-size: 7pt; font-weight: 700;">
+                            <div style="display: flex; justify-content: space-between; font-weight: 700;font-size:7pt"><strong>PAYMENT:</strong> <span>${(order.payment_mode || "CASH").toUpperCase()}</span></div>
+                            ${
+															order.amount_tendered && order.amount_tendered > 0 ?
+																`
+                                <div style="display:flex; justify-content:space-between; "><span>Tendered:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered)}</span></div>
+                                <div style="display:flex; justify-content:space-between; "><span>Change:</span><span>${receiptCurrency} ${safeFormat(order.amount_tendered - total)}</span></div>
+                            `
+															:	""
+														}
+                        </div>
+                    `}
     
                     <div style="text-align: center; margin-top: 8px; font-size: 7pt; border-top: 1pt dashed #000; padding-top: 6px;">
                         <p style="margin: 3px 0; font-weight: 700;">Thank you for choosing ${businessName}</p>
