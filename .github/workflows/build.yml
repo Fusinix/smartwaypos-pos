@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-2022]
 
     steps:
       - name: Checkout Code
@@ -40,7 +40,7 @@ jobs:
         run: npm install
 
       - name: Install Windows Build Tools (Windows Only)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: npm install --global node-gyp
 
       - name: Rebuild Native Modules
