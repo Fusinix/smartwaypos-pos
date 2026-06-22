@@ -296,7 +296,12 @@ export default function AddEditFoodItem({
 						</div>
 
 						<div className="pt-4 flex flex-wrap gap-4 items-center">
-							<Button type="button" variant="outline" onClick={onClose}>
+							<Button
+								type="button"
+								variant="destructive"
+								size="lg"
+								onClick={onClose}
+							>
 								Cancel
 							</Button>
 							<Button
@@ -307,6 +312,8 @@ export default function AddEditFoodItem({
 									!formData.category_id
 								}
 								type="submit"
+								className="flex-1"
+								size="lg"
 							>
 								{foodItem ? "Save Changes" : "Add Food Item"}
 							</Button>
@@ -315,7 +322,7 @@ export default function AddEditFoodItem({
 				:	<div className="text-gray-500">
 						<div>You must create a food category before adding food items.</div>
 						<Button
-							className="mt-4"
+							className="mt-4 "
 							onClick={() => {
 								onClose();
 								navigate("/food?tab=categories");

@@ -28,6 +28,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: './package-lock.json'
 
+      - name: Cache Electron Headers
+        uses: actions/cache@v4
+        with:
+          path: ~/.electron-gyp
+          key: ${{ runner.os }}-electron-gyp-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-gyp-
+
       - name: Install Dependencies
         run: npm install
 
@@ -36,7 +44,22 @@ jobs:
         run: npm install --global node-gyp
 
       - name: Rebuild Native Modules
-        run: npx @electron/rebuild -f -w better-sqlite3,serialport
+        run: |
+          node -e "
+          const cp = require('child_process');
+          for (let i = 1; i <= 3; i++) {
+            try {
+              console.log('Running electron-rebuild (attempt ' + i + ')...');
+              cp.execSync('npx @electron/rebuild -f -w better-sqlite3,serialport', { stdio: 'inherit' });
+              process.exit(0);
+            } catch (e) {
+              console.error('Attempt ' + i + ' failed:', e.message);
+              if (i === 3) process.exit(1);
+              console.log('Waiting 10 seconds before next attempt...');
+              Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10000);
+            }
+          }
+          "
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

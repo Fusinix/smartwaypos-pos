@@ -375,7 +375,7 @@ export default function AddEditProduct({
 						</div>
 
 						<div className="pt-4 flex flex-wrap gap-4 items-center">
-							<Button type="button" variant="outline" onClick={onClose}>
+							<Button type="button" variant="destructive" onClick={onClose}>
 								Cancel
 							</Button>
 							<Button

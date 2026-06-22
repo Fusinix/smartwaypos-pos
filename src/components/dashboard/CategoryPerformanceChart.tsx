@@ -88,13 +88,9 @@ export const CategoryPerformanceChart: React.FC<
 							cx="50%"
 							cy="50%"
 							labelLine={false}
-							label={({
-								category,
-								percentage,
-							}: {
-								category: any;
-								percentage: any;
-							}) => `${category} ${percentage.toFixed(1)}%`}
+							label={({ category, percentage }) =>
+								`${category} ${percentage.toFixed(1)}%`
+							}
 							outerRadius={80}
 							fill="#8884d8"
 							dataKey="revenue"
@@ -107,7 +103,7 @@ export const CategoryPerformanceChart: React.FC<
 							))}
 						</Pie>
 						<Tooltip content={<CustomTooltip />} />
-						<Legend content={<CustomLegend />} />
+						{/* <Legend content={<CustomLegend />} /> */}
 					</PieChart>
 				</ResponsiveContainer>
 				<div className="mt-4 space-y-2">

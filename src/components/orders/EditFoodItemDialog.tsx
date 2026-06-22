@@ -129,13 +129,16 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 									return (
 										<div
 											key={extra.id}
-											className={`flex items-center justify-between p-3 border rounded-lg transition-all ${
+											className={`flex items-center justify-between pr-3 border rounded-lg transition-all ${
 												isSelected ?
 													"bg-primary/10 border-primary"
 												:	"bg-white border-gray-200 hover:border-gray-300"
 											}`}
 										>
-											<div className="flex items-center space-x-3 flex-1">
+											<div
+												className="flex items-center space-x-3 flex-1 p-3"
+												onClick={() => handleToggleExtra(extra.id)}
+											>
 												<input
 													type="checkbox"
 													id={`edit-extra-${extra.id}`}
@@ -149,7 +152,7 @@ export const EditFoodItemDialog: React.FC<EditFoodItemDialogProps> = ({
 												<label
 													htmlFor={`edit-extra-${extra.id}`}
 													className="text-sm font-medium text-gray-900 cursor-pointer flex-1"
-													onClick={() => handleToggleExtra(extra.id)}
+													// onClick={() => handleToggleExtra(extra.id)}
 												>
 													{extra.name}
 												</label>

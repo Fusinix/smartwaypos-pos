@@ -26,6 +26,7 @@ import {
 	Upload,
 	X,
 	CheckSquare,
+	User,
 } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
@@ -650,7 +651,7 @@ export const Orders: React.FC = () => {
 							className="text-base flex items-center gap-2 bg-red-50 border-red-100 text-red-700 hover:bg-red-50 hover:border-red-100 hover:text-red-500 shadow-none"
 							onClick={() => setExpensesDialogOpen(true)}
 						>
-							<Receipt className="h-5 w-5" />
+							<Plus className="h-5 w-5" />
 							Expenses
 						</Button>
 
@@ -926,7 +927,7 @@ export const Orders: React.FC = () => {
 																	<div className="mt-1 flex items-center gap-2 flex-wrap">
 																		<div
 																			className={cn(
-																				"inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase",
+																				"inline-flex items-center px-2 py-1 rounded-md text-xs font-medium uppercase",
 																				isOpen ? "bg-primary/10 text-primary"
 																				: order.status === "cancelled" ?
 																					"bg-red-100 text-red-800"
@@ -944,13 +945,13 @@ export const Orders: React.FC = () => {
 																		</div>
 																		{order.order_type === "table" &&
 																			order.table_number && (
-																				<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+																				<span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
 																					Table {order.table_number}
 																				</span>
 																			)}
 																		{order.order_type === "takeout" &&
 																			order.table_number && (
-																				<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+																				<span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
 																					{order.table_number}
 																				</span>
 																			)}
@@ -1112,7 +1113,7 @@ export const Orders: React.FC = () => {
 														key={itemKey}
 														className="flex items-start justify-between py-3 pt-4 text-base"
 													>
-														<div className="flex items-start gap-3 flex-1 min-w-0">
+														<div className="flex items-start gap-4 flex-1 min-w-0">
 															{itemImage ?
 																<img
 																	src={itemImage}
@@ -1235,8 +1236,8 @@ export const Orders: React.FC = () => {
 											)}
 									</span>
 								</div>
-								<div className="flex flex-col gap-1">
-									<p className="text-sm font-medium text-gray-700">Name:</p>
+								<div className={cn("flex justify-between items-center gap-1")}>
+									<p className="text-sm font-medium text-gray-500">Name:</p>
 									{selectedOrder.status === "open" ?
 										<Input
 											id="customer-name"
@@ -1249,9 +1250,10 @@ export const Orders: React.FC = () => {
 												});
 											}}
 											placeholder="Customer / Order name..."
-											className="h-11 text-base rounded-xl bg-muted/60 border-0"
+											className="max-w-[250px] h-11 text-base rounded-xl bg-muted/60"
 										/>
-									:	<span className="text-base font-medium">
+									:	<span className="text-base font-medium flex items-center gap-2">
+											<User className="size-4 text-muted-foreground/80" />
 											{selectedOrder.customer_name ?? "No name"}
 										</span>
 									}
@@ -1260,7 +1262,7 @@ export const Orders: React.FC = () => {
 									<div className="text-base text-gray-500 mb-1">Notes:</div>
 									{selectedOrder.status === "open" ?
 										<Textarea
-											className="bg-muted/60 border-0 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
+											className="bg-muted/60 resize-none min-h-20 rounded-xl px-3 py-2 text-base flex-1"
 											value={selectedOrder.notes || ""}
 											placeholder="Order notes..."
 											onChange={(e) => {
