@@ -1,7 +1,20 @@
 /** @format */
 
+import { AlertWithActions } from "@/components/alerts/alert-with-actions";
+import EmptyState from "@/components/alerts/empty-state";
+import { ClassStyles } from "@/components/classnames";
+import { DailyReportDialog } from "@/components/dialogs/daily-report-dialog";
+import { ExpensesDialog } from "@/components/dialogs/expenses-dialog";
+import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
+import {
+	OrderTypeIcons,
+	PaymentModeIcons,
+	type PaymentModes,
+} from "@/components/Icons";
+import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -10,47 +23,39 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
 import { useCategory } from "@/hooks/useCategory";
-import { paymentModes, useOrders } from "@/hooks/useOrders";
-import { useSettings } from "@/hooks/useSettings";
 import { useCurrency } from "@/hooks/useCurrency";
+import { paymentModes, useOrders } from "@/hooks/useOrders";
+import { useReceipt } from "@/hooks/useReceipt";
+import { useSettings } from "@/hooks/useSettings";
 import { cn, parseJSONString } from "@/lib/utils";
+import { useAlertStore } from "@/stores/useAlertStore";
+import { useOrderStore } from "@/stores/useOrderStore";
 import type { Order } from "@/types";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
+	CheckSquare,
 	Clipboard,
 	Clock,
+	FileText,
 	Lock,
 	Plus,
 	Search,
-	Share2,
 	Upload,
-	X,
-	CheckSquare,
 	User,
+	X,
 } from "lucide-react";
-import React, { useMemo, useState, useEffect } from "react";
-import { ReceiptShareDialog } from "@/components/dialogs/receipt-share-dialog";
-import { EditOrderItemsDialog } from "@/components/orders/EditOrderItemsDialog";
-import { Label } from "@/components/ui/label";
-import { AlertWithActions } from "@/components/alerts/alert-with-actions";
-import { useAlertStore } from "@/stores/useAlertStore";
-import { useOrderStore } from "@/stores/useOrderStore";
-import { useReceipt } from "@/hooks/useReceipt";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { FileText, Receipt } from "lucide-react";
-import { DailyReportDialog } from "@/components/dialogs/daily-report-dialog";
-import { ExpensesDialog } from "@/components/dialogs/expenses-dialog";
-import {
-	OrderTypeIcons,
-	PaymentModeIcons,
-	type PaymentModes,
-} from "@/components/Icons";
-import { ClassStyles } from "@/components/classnames";
-import EmptyState from "@/components/alerts/empty-state";
+
+const TabColors = {
+	active: ["bg-primary", "text-primary", "border-primary"],
+	closed: ["bg-blue-500", "text-blue-500", "border-blue-500"],
+	cancelled: ["bg-destructive", "text-destructive", "border-destructive"],
+};
 
 export const Orders: React.FC = () => {
 	const {
@@ -264,6 +269,8 @@ export const Orders: React.FC = () => {
 			// Search filter
 			const searchLower = search.toLowerCase();
 			const matchesSearch =
+				(order.customer_name &&
+					order.customer_name.toLowerCase().includes(searchLower)) ||
 				(order.id && order.id.toString().includes(searchLower)) ||
 				(order.order_number &&
 					order.order_number.toString().includes(searchLower)) ||
@@ -618,6 +625,7 @@ export const Orders: React.FC = () => {
 		user?.role === "manager" ||
 		(user?.role === "cashier" &&
 			settings?.pos?.allowCashierInventoryManagement);
+
 	// const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
 
 	return (
@@ -681,9 +689,9 @@ export const Orders: React.FC = () => {
 							className={cn(
 								ClassStyles.tabButton,
 								"text-base shadow-none",
-								activeTab === "active" ? "" : (
-									" hover:bg-muted/20 text-muted-foreground"
-								),
+								activeTab === "active" ?
+									`!${TabColors["active"][0]}`
+								:	" hover:bg-muted/20 text-muted-foreground",
 							)}
 							onClick={() => setActiveTab("active")}
 						>
@@ -695,10 +703,10 @@ export const Orders: React.FC = () => {
 							size="default"
 							className={cn(
 								ClassStyles.tabButton,
-								"text-base  shadow-none",
-								activeTab === "closed" ? "" : (
-									" hover:bg-muted/20 text-muted-foreground"
-								),
+								"text-base shadow-none",
+								activeTab === "closed" ?
+									`${TabColors["closed"][0]} hover:${TabColors["closed"][0]}`
+								:	" hover:bg-muted/20 text-muted-foreground",
 							)}
 							onClick={() => setActiveTab("closed")}
 						>
@@ -711,9 +719,9 @@ export const Orders: React.FC = () => {
 							className={cn(
 								ClassStyles.tabButton,
 								"text-base  shadow-none",
-								activeTab === "cancelled" ? "" : (
-									" hover:bg-muted/20 text-muted-foreground"
-								),
+								activeTab === "cancelled" ?
+									`${TabColors["cancelled"][0]} hover:${TabColors["cancelled"][0]}`
+								:	" hover:bg-muted/20 text-muted-foreground",
 							)}
 							onClick={() => setActiveTab("cancelled")}
 						>
@@ -725,7 +733,7 @@ export const Orders: React.FC = () => {
 							<Search className="absolute size-5 left-4 text-muted-foreground z-10" />
 							<Input
 								className="w-full flex-1 text-base rounded-md pl-11 h-10 bg-muted/80"
-								placeholder="Search by Order # or Table #"
+								placeholder="Search by Name, Order # or Table #"
 								value={search}
 								onChange={(e) => setSearch(e.target.value)}
 							/>
@@ -849,15 +857,15 @@ export const Orders: React.FC = () => {
 														key={order.id}
 														className={cn(
 															"bg-card rounded-lg p-4 cursor-pointer transition-all relative",
+															TabColors[activeTab][2],
 															(
 																isBulkMode &&
 																	order.id &&
 																	selectedOrderIds.has(order.id)
 															) ?
-																"ring-2 ring-primary bg-primary/5"
-															: selectedOrder?.id === order.id ?
-																"ring-2 ring-primary"
-															:	"hover:shadow-md hover:border-primary/50",
+																`border-2 bg-primary/5`
+															: selectedOrder?.id === order.id ? `border-2`
+															: "hover:shadow-md hover:border-primary/50",
 														)}
 														onClick={() => {
 															if (isBulkMode) {
@@ -965,7 +973,12 @@ export const Orders: React.FC = () => {
 																	<p className="text-sm text-gray-500 mr-auto">
 																		Total
 																	</p>
-																	<p className="font-bold text-xl text-primary">
+																	<p
+																		className={cn(
+																			"font-bold text-xl",
+																			TabColors[activeTab][1],
+																		)}
+																	>
 																		{formatCurrency(order.amount ?? 0)}
 																	</p>
 																</div>
@@ -1405,7 +1418,7 @@ export const Orders: React.FC = () => {
 																<Input
 																	type="number"
 																	placeholder="0.00"
-																	className="pl-14 text-xl font-bold h-12  focus:ring-green-500"
+																	className="pl-14 text-xl font-bold h-12 focus:ring-green-500 bg-background"
 																	value={amountTendered}
 																	onChange={(e) =>
 																		setAmountTendered(e.target.value)
@@ -1504,7 +1517,7 @@ export const Orders: React.FC = () => {
 									</Button>
 								:	null}
 
-								<div className="flex space-x-4">
+								<div className="flex space-x-3">
 									{selectedOrder?.status === "open" ?
 										<>
 											{selectedOrder.status === "open" &&
@@ -1514,6 +1527,7 @@ export const Orders: React.FC = () => {
 														variant="destructive"
 														size="lg"
 														onClick={handleCancelOrder}
+														className="flex-1"
 														// className="text-base bg-red-50 hover:bg-red-100 border-red-200 text-red-700 hover:text-red-800 shadow-none mb-2"
 													>
 														Cancel Order

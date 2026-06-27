@@ -1089,7 +1089,7 @@ export const CreateOrder: React.FC = () => {
 												placeholder="0.00"
 												value={amountTendered}
 												onChange={(e) => setAmountTendered(e.target.value)}
-												className="h-11 text-lg font-bold border-primary/20 focus:border-primary shadow-sm"
+												className="h-11 text-lg font-bold border-primary/20 focus:border-primary shadow-sm bg-background"
 												autoFocus
 											/>
 										</div>
