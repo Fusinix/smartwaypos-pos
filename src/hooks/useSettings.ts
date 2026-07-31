@@ -247,6 +247,29 @@ export const useSettings = () => {
 		}
 	};
 
+	const clearSelectiveData = async (options: {
+		clearLogs: boolean;
+		clearTransactions: boolean;
+		clearStock: boolean;
+	}) => {
+		try {
+			setGlobalLoading(true, "Clearing selected data...");
+			await window.electron.invoke("clear-selective-data", {
+				...options,
+				author: adminUser,
+			});
+			showSuccess("Selected data cleared successfully");
+		} catch (err) {
+			console.error("Error clearing selective data:", err);
+			const errorMessage =
+				err instanceof Error ? err.message : "Failed to clear selected data";
+			showError(errorMessage);
+			throw err;
+		} finally {
+			setGlobalLoading(false);
+		}
+	};
+
 	return {
 		settings,
 		users,
@@ -261,5 +284,6 @@ export const useSettings = () => {
 		exportDatabase,
 		importDatabase,
 		clearAllData,
+		clearSelectiveData,
 	};
 };

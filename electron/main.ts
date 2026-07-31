@@ -102,6 +102,7 @@ const LOG_ACTIONS = {
 	UPDATE_FOOD_CATEGORY: "update_food_category",
 	DELETE_FOOD_CATEGORY: "delete_food_category",
 	CLEAR_ALL_DATA: "clear_all_data",
+	CLEAR_SELECTIVE_DATA: "clear_selective_data",
 	ADD_EXPENSE: "add_expense",
 	DELETE_EXPENSE: "delete_expense",
 };
@@ -1755,7 +1756,7 @@ ipcMain.handle(
 // Clear all data handler
 ipcMain.handle("clear-all-data", async (_, user) => {
 	try {
-		// console.log('Clearing all data...');
+		const db = await getDatabase();
 
 		// Delete all data from all tables (order matters due to foreign keys)
 		await db.run("DELETE FROM order_items");
@@ -1789,6 +1790,56 @@ ipcMain.handle("clear-all-data", async (_, user) => {
 		return { success: true };
 	} catch (error) {
 		console.error("Error clearing all data:", error);
+		throw error;
+	}
+});
+
+// Clear selective data handler
+ipcMain.handle("clear-selective-data", async (_, options) => {
+	try {
+		const db = await getDatabase();
+		const { clearLogs, clearTransactions, clearStock, author } = options || {};
+		const clearedItems: string[] = [];
+
+		if (clearLogs) {
+			await db.run("DELETE FROM logs");
+			await db.run("DELETE FROM inventory_logs");
+			clearedItems.push("logs");
+		}
+
+		if (clearTransactions) {
+			try {
+				await db.run("DELETE FROM order_item_extras");
+			} catch (e) {
+				// Ignore error if table doesn't exist
+			}
+			await db.run("DELETE FROM order_items");
+			await db.run("DELETE FROM orders");
+			await db.run("DELETE FROM expenses");
+			clearedItems.push("transactions");
+		}
+
+		if (clearStock) {
+			await db.run("UPDATE products SET stock = 0");
+			clearedItems.push("stock_data");
+		}
+
+		const userAuthor = author || {};
+		if (!clearLogs) {
+			await logAction({
+				db,
+				admin_id: userAuthor.id || null,
+				admin_name: userAuthor.username || userAuthor.name || null,
+				admin_role: userAuthor.role || null,
+				action: LOG_ACTIONS.CLEAR_SELECTIVE_DATA,
+				page: "settings",
+				context: { cleared: clearedItems },
+			});
+		}
+
+		return { success: true, cleared: clearedItems };
+	} catch (error) {
+		console.error("Error clearing selective data:", error);
 		throw error;
 	}
 });

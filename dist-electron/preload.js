@@ -67,6 +67,7 @@ const validChannels = [
     'super-admin-login',
     'force-license-validation',
     'clear-all-data',
+    'clear-selective-data',
     'list-serial-ports',
     'list-ports',
     'list-printers',

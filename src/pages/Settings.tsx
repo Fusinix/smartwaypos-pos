@@ -2,6 +2,7 @@
 
 import { ClassStyles } from "@/components/classnames";
 import { AddEditTableDialog } from "@/components/dialogs/add-edit-table-dialog";
+import { ClearSelectiveDataDialog } from "@/components/dialogs/clear-selective-data-dialog";
 import AddUserDialog from "@/components/dialogs/add-user-dialog";
 import EditUserDialog from "@/components/dialogs/edit-user-dialog";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export const Settings: React.FC = () => {
 		exportDatabase,
 		importDatabase,
 		clearAllData,
+		clearSelectiveData,
 	} = useSettings();
 
 	const {
@@ -83,6 +85,8 @@ export const Settings: React.FC = () => {
 	const [showErrorDialog, setShowErrorDialog] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [showClearDataDialog, setShowClearDataDialog] = useState(false);
+	const [showClearSelectiveDataDialog, setShowClearSelectiveDataDialog] =
+		useState(false);
 	const [userToDelete, setUserToDelete] = useState<number | null>(null);
 	const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
 	const [isAddTableDialogOpen, setIsAddTableDialogOpen] = useState(false);
@@ -1588,26 +1592,57 @@ export const Settings: React.FC = () => {
 									className="mt-1 block w-full"
 								/>
 							</div>
-							<div className="pt-4 border-t">
-								<Label className="block text-sm font-medium text-red-700 mb-2">
-									Danger Zone
-								</Label>
-								<Button
-									onClick={() => setShowClearDataDialog(true)}
-									variant="destructive"
-									className="bg-red-600 hover:bg-red-700"
-								>
-									Clear All Data
-								</Button>
-								<p className="text-xs text-gray-500 mt-2">
-									This will permanently delete all orders, products, categories,
-									tables, logs, and settings. All users will be deleted except
-									the default admin user (username: admin).
-								</p>
+							<div className="pt-4 border-t space-y-6">
+								<div>
+									<Label className="block text-sm font-medium text-gray-900 mb-2">
+										Selective Data Cleanup
+									</Label>
+									<Button
+										onClick={() => setShowClearSelectiveDataDialog(true)}
+										variant="outline"
+										className="border-amber-500 text-amber-700 hover:bg-amber-50"
+									>
+										Clear Selective Data...
+									</Button>
+									<p className="text-xs text-gray-500 mt-2">
+										Selectively clear system logs, order transaction records, or reset stock quantities to 0 without deleting products or food items.
+									</p>
+								</div>
+								<div className="pt-4 border-t">
+									<Label className="block text-sm font-medium text-red-700 mb-2">
+										Danger Zone
+									</Label>
+									<Button
+										onClick={() => setShowClearDataDialog(true)}
+										variant="destructive"
+										className="bg-red-600 hover:bg-red-700"
+									>
+										Clear All Data
+									</Button>
+									<p className="text-xs text-gray-500 mt-2">
+										This will permanently delete all orders, products, categories,
+										tables, logs, and settings. All users will be deleted except
+										the default admin user (username: admin).
+									</p>
+								</div>
 							</div>
 						</div>
 					</SectionCard>
 				)}
+
+				<ClearSelectiveDataDialog
+					open={showClearSelectiveDataDialog}
+					onOpenChange={setShowClearSelectiveDataDialog}
+					onConfirm={async (options) => {
+						await clearSelectiveData(options);
+						if (options.clearLogs) {
+							setLogs([]);
+							if (isAdmin) {
+								fetchLogs();
+							}
+						}
+					}}
+				/>
 			</div>
 
 			{/* Log Details Drawer */}
