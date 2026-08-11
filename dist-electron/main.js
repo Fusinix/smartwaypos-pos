@@ -2078,6 +2078,23 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
         // 7. Get today's expenses
         const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at, 'localtime') = date(?)` +
             (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
+        // 8. Get today's payment breakdown (cash vs momo) for closed orders
+        const paymentBreakdown = await db.all(`SELECT LOWER(payment_mode) as method, SUM(amount) as total
+			 FROM orders
+			 WHERE status = 'closed'
+			 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?))` +
+            (author?.id ? ` AND admin_id = ?` : ``) +
+            ` GROUP BY LOWER(payment_mode)`, author?.id ? [reportDate, reportDate, author.id] : [reportDate, reportDate]);
+        let cashTotal = 0;
+        let momoTotal = 0;
+        paymentBreakdown.forEach((p) => {
+            if (p.method === "cash") {
+                cashTotal += p.total || 0;
+            }
+            else if (p.method === "momo") {
+                momoTotal += p.total || 0;
+            }
+        });
         return {
             date: reportDate,
             inventory: report,
@@ -2097,6 +2114,8 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) 
                 staff: e.admin_name,
             })),
             totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
+            cashTotal,
+            momoTotal,
         };
     }
     catch (error) {

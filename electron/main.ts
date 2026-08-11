@@ -2467,6 +2467,28 @@ ipcMain.handle(
 				author?.id ? [reportDate, author.id] : [reportDate],
 			);
 
+			// 8. Get today's payment breakdown (cash vs momo) for closed orders
+			const paymentBreakdown = await db.all(
+				`SELECT LOWER(payment_mode) as method, SUM(amount) as total
+			 FROM orders
+			 WHERE status = 'closed'
+			 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?))` +
+					(author?.id ? ` AND admin_id = ?` : ``) +
+					` GROUP BY LOWER(payment_mode)`,
+				author?.id ? [reportDate, reportDate, author.id] : [reportDate, reportDate],
+			);
+
+			let cashTotal = 0;
+			let momoTotal = 0;
+
+			paymentBreakdown.forEach((p: any) => {
+				if (p.method === "cash") {
+					cashTotal += p.total || 0;
+				} else if (p.method === "momo") {
+					momoTotal += p.total || 0;
+				}
+			});
+
 			return {
 				date: reportDate,
 				inventory: report,
@@ -2489,6 +2511,8 @@ ipcMain.handle(
 					(sum: number, e: any) => sum + e.amount,
 					0,
 				),
+				cashTotal,
+				momoTotal,
 			};
 		} catch (error) {
 			console.error("Error generating daily report:", error);

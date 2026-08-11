@@ -578,15 +578,27 @@ export const Orders: React.FC = () => {
 				{ align: "right" },
 			);
 			doc.text(
-				`Total Expenses: -${formatCurrency(reportData.totalExpenses || 0)}`,
+				`Total Cash: ${formatCurrency(reportData.cashTotal || 0)}`,
 				pageWidth - 14,
 				currentY + 23,
 				{ align: "right" },
 			);
 			doc.text(
-				`Pending Orders: ${formatCurrency(reportData.pendingOrders?.total || 0)} (${reportData.pendingOrders?.count})`,
+				`Total MoMo: ${formatCurrency(reportData.momoTotal || 0)}`,
 				pageWidth - 14,
 				currentY + 31,
+				{ align: "right" },
+			);
+			doc.text(
+				`Total Expenses: -${formatCurrency(reportData.totalExpenses || 0)}`,
+				pageWidth - 14,
+				currentY + 39,
+				{ align: "right" },
+			);
+			doc.text(
+				`Pending Orders: ${formatCurrency(reportData.pendingOrders?.total || 0)} (${reportData.pendingOrders?.count})`,
+				pageWidth - 14,
+				currentY + 47,
 				{ align: "right" },
 			);
 
@@ -595,7 +607,7 @@ export const Orders: React.FC = () => {
 			doc.text(
 				`NET REVENUE: ${formatCurrency(netRevenue)}`,
 				pageWidth - 14,
-				currentY + 45,
+				currentY + 61,
 				{ align: "right" },
 			);
 
