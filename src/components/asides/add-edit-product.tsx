@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { getCategoryId } from "@/lib/utils";
+import { getCategoryId, getCategoryName } from "@/lib/utils";
 import type { Category } from "@/types/category";
 import type { NewProduct, Product } from "@/types/product";
 import { useEffect, useState } from "react";
@@ -62,9 +62,35 @@ export default function AddEditProduct({
 	useEffect(() => {
 		if (product) {
 			console.log("Initializing form with product:", product);
-			setFormData(product);
+			const categoryName =
+				product.category_name ||
+				getCategoryName(product.category as any, categories) ||
+				"";
+			const categoryId =
+				getCategoryId(categoryName, categories) || product.category;
+
+			setFormData({
+				name: product.name || "",
+				description: product.description || "",
+				category: categoryId,
+				category_name: categoryName,
+				price: Number(product.price || 0),
+				cost_price: Number(product.cost_price || 0),
+				stock: Number(product.stock || 0),
+				low_stock_threshold: Number(product.low_stock_threshold ?? 10),
+				status: product.status || "active",
+				image: product.image || "",
+			});
+			setImagePreview(product.image || null);
+		} else {
+			setFormData({
+				...defaultProd,
+				category: categories?.[0]?.id || "",
+				category_name: categories?.[0]?.name || "",
+			});
+			setImagePreview(null);
 		}
-	}, [product]);
+	}, [product, categories]);
 
 	const handleReasonChange = (newReason: string) => {
 		setReason(newReason);
@@ -100,10 +126,13 @@ export default function AddEditProduct({
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		try {
+			const catId =
+				getCategoryId(formData.category_name as string, categories) ||
+				formData.category;
 			await onSave(
 				{
 					...formData,
-					category: getCategoryId(formData.category_name as any, categories),
+					category: catId,
 				},
 				stockChanged ? reason : undefined,
 			);
@@ -181,12 +210,14 @@ export default function AddEditProduct({
 							{categories?.length ?
 								<Select
 									value={formData.category_name as string}
-									onValueChange={(value) =>
+									onValueChange={(value) => {
+										const catId = getCategoryId(value, categories);
 										setFormData((prev) => ({
 											...prev,
-											category: value as string,
-										}))
-									}
+											category: catId || value,
+											category_name: value,
+										}));
+									}}
 								>
 									<SelectTrigger className="capitalize">
 										<SelectValue placeholder="Select category" />
@@ -194,7 +225,7 @@ export default function AddEditProduct({
 									<SelectContent>
 										{categories.map((category: any, index: number) => (
 											<SelectItem
-												key={index}
+												key={category?.id || index}
 												value={category?.name}
 												className="capitalize"
 											>
@@ -381,10 +412,12 @@ export default function AddEditProduct({
 							<Button
 								disabled={
 									!categories ||
-									categories.length == 0 ||
-									formData.name == "" ||
-									formData.price == 0 ||
-									formData.low_stock_threshold == 0 ||
+									categories.length === 0 ||
+									!formData.name?.trim() ||
+									formData.price === undefined ||
+									formData.price < 0 ||
+									formData.low_stock_threshold === undefined ||
+									formData.low_stock_threshold < 0 ||
 									!formData.category_name
 								}
 								type="submit"

@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getCategoryId, getCategoryName } from "@/lib/utils";
 import type { NewProduct, Product } from "@/types/product";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const STOCK_REASONS = [
@@ -57,27 +57,37 @@ export default function AddEditProductDialog({
 		status: "active",
 		image: "",
 	};
-	const [formData, setFormData] = useState<NewProduct>(
-		product ?
-			{
-				name: product.name,
-				description: product.description || "",
-				category: getCategoryName(product.category as any, categories),
-				price: Number(product.price),
-				cost_price: Number(product.cost_price || 0),
-				stock: Number(product.stock),
-				low_stock_threshold: Number(product.low_stock_threshold || 10),
-				status: product.status,
-				image: product.image || "",
-			}
-		:	defaultProd,
-	);
+	const [formData, setFormData] = useState<NewProduct>(defaultProd);
 	const [imagePreview, setImagePreview] = useState<string | null>(
 		product?.image || null,
 	);
 	const [reason, setReason] = useState<string>("adjustment");
 	const [adjustmentValue, setAdjustmentValue] = useState<number>(0);
 	const navigate = useNavigate();
+
+	useEffect(() => {
+		if (product) {
+			const categoryName =
+				product.category_name ||
+				getCategoryName(product.category as any, categories) ||
+				"";
+			setFormData({
+				name: product.name || "",
+				description: product.description || "",
+				category: categoryName,
+				price: Number(product.price || 0),
+				cost_price: Number(product.cost_price || 0),
+				stock: Number(product.stock || 0),
+				low_stock_threshold: Number(product.low_stock_threshold ?? 10),
+				status: product.status || "active",
+				image: product.image || "",
+			});
+			setImagePreview(product.image || null);
+		} else {
+			setFormData(defaultProd);
+			setImagePreview(null);
+		}
+	}, [product, categories, open]);
 
 	const stockChanged = product && Number(product.stock) !== formData.stock;
 
@@ -391,10 +401,12 @@ export default function AddEditProductDialog({
 							<Button
 								disabled={
 									!categories ||
-									categories.length == 0 ||
-									formData.name == "" ||
-									formData.price == 0 ||
-									formData.low_stock_threshold == 0 ||
+									categories.length === 0 ||
+									!formData.name?.trim() ||
+									formData.price === undefined ||
+									formData.price < 0 ||
+									formData.low_stock_threshold === undefined ||
+									formData.low_stock_threshold < 0 ||
 									!formData.category
 								}
 								type="submit"
