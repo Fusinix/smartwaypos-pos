@@ -371,10 +371,8 @@ async function performSyncInternal(): Promise<SyncResult> {
 		return { status: "skipped", reason: "Database not initialised yet." };
 	}
 
-	// Fetch unsynced records from SQLite (including modified/updated records)
-	const unsyncedOrders = await databaseInstance.all(
-		"SELECT * FROM orders WHERE synced_at IS NULL OR updated_at > synced_at",
-	);
+	// Fetch all records from SQLite to ensure Supabase is 1:1 with local machine
+	const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders");
 	const unsyncedOrderItems = await databaseInstance.all(`
 		SELECT 
 			oi.*,
@@ -395,7 +393,6 @@ async function performSyncInternal(): Promise<SyncResult> {
 		FROM order_items oi
 		LEFT JOIN products p ON oi.product_id = p.id
 		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
-		WHERE oi.synced_at IS NULL OR oi.updated_at > oi.synced_at
 	`);
 	const unsyncedInventoryLogs = await databaseInstance.all(`
 		SELECT 
@@ -403,7 +400,6 @@ async function performSyncInternal(): Promise<SyncResult> {
 			COALESCE(p.name, 'Unknown Product') as product_name
 		FROM inventory_logs il
 		LEFT JOIN products p ON il.product_id = p.id
-		WHERE il.synced_at IS NULL OR il.updated_at > il.synced_at
 	`);
 
 	if (
@@ -411,12 +407,12 @@ async function performSyncInternal(): Promise<SyncResult> {
 		unsyncedOrderItems.length === 0 &&
 		unsyncedInventoryLogs.length === 0
 	) {
-		console.log("[Sync] Database is fully backed up and in sync.");
+		console.log("[Sync] Local database is empty. No records to sync.");
 		return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0 };
 	}
 
 	console.log(
-		`[Sync] Found unsynced records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs.`,
+		`[Sync] Uploading database records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs to Supabase...`,
 	);
 
 	// Post payload to Next.js portals api gateway
