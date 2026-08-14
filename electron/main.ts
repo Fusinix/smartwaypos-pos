@@ -179,6 +179,22 @@ ipcMain.handle("set-fullscreen", (_, enabled: boolean) => {
 	}
 });
 
+function getDeviceLocalISOString(date = new Date()): string {
+	const tzo = -date.getTimezoneOffset();
+	const pad = (num: number) => String(num).padStart(2, "0");
+	const dif = tzo >= 0 ? "+" : "-";
+	return (
+		date.getFullYear() +
+		"-" + pad(date.getMonth() + 1) +
+		"-" + pad(date.getDate()) +
+		"T" + pad(date.getHours()) +
+		":" + pad(date.getMinutes()) +
+		":" + pad(date.getSeconds()) +
+		dif + pad(Math.floor(Math.abs(tzo) / 60)) +
+		":" + pad(Math.abs(tzo) % 60)
+	);
+}
+
 // Add before logAction:
 interface LogActionParams {
 	db: any;
@@ -202,7 +218,7 @@ async function logAction({
 	await db.run(
 		"INSERT INTO logs (created_at, admin_id, admin_name, admin_role, action, page, context) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		[
-			new Date().toISOString(),
+			getDeviceLocalISOString(),
 			admin_id || null,
 			admin_name || null,
 			admin_role || null,
@@ -251,7 +267,7 @@ async function logInventoryChange({
 			adminName || null,
 			adminRole || null,
 			note || null,
-			new Date().toISOString(),
+			getDeviceLocalISOString(),
 		],
 	);
 }
@@ -3296,7 +3312,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 		}
 
 		// Insert order with calculated amounts and order number
-		const nowIso = new Date().toISOString();
+		const nowIso = getDeviceLocalISOString();
 		const result = await db.run(
 			"INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			[

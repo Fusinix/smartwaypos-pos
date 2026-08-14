@@ -226,8 +226,27 @@ export const Orders: React.FC = () => {
 		}
 	};
 
-	const filteredOrders = useMemo(() => {
+	const uniqueOrders = useMemo(() => {
+		const seen = new Set();
 		return orders.filter((order) => {
+			const id = order.id || order.order_number;
+			if (!id) return true;
+			if (seen.has(id)) return false;
+			seen.add(id);
+			return true;
+		});
+	}, [orders]);
+
+	const parseOrderDate = (val: string) => {
+		let str = String(val).trim();
+		if (str.includes(" ") && !str.includes("T")) {
+			str = str.replace(" ", "T");
+		}
+		return new Date(str);
+	};
+
+	const filteredOrders = useMemo(() => {
+		return uniqueOrders.filter((order) => {
 			// Tab filter
 			if (activeTab === "active" && order.status !== "open") return false;
 			if (activeTab === "closed" && order.status !== "closed") return false;
@@ -236,7 +255,7 @@ export const Orders: React.FC = () => {
 
 			// Date filter
 			if (dateFilter !== "all" && order.created_at) {
-				const orderDate = new Date(order.created_at);
+				const orderDate = parseOrderDate(order.created_at);
 				const now = new Date();
 
 				if (dateFilter === "today") {
@@ -291,7 +310,7 @@ export const Orders: React.FC = () => {
 			return matchesSearch;
 		});
 	}, [
-		orders,
+		uniqueOrders,
 		activeTab,
 		search,
 		dateFilter,
@@ -308,9 +327,9 @@ export const Orders: React.FC = () => {
 		let totalCancelledAmount = 0;
 		let cancelledCount = 0;
 
-		orders.forEach((order) => {
+		uniqueOrders.forEach((order) => {
 			if (dateFilter !== "all" && order.created_at) {
-				const orderDate = new Date(order.created_at);
+				const orderDate = parseOrderDate(order.created_at);
 				const now = new Date();
 
 				if (dateFilter === "today") {
@@ -373,13 +392,7 @@ export const Orders: React.FC = () => {
 			totalCancelledAmount,
 			cancelledCount,
 		};
-	}, [
-		orders,
-		dateFilter,
-		customSingleDate,
-		customDateStart,
-		customDateEnd,
-	]);
+	}, [uniqueOrders, dateFilter, customSingleDate, customDateStart, customDateEnd]);
 
 	const groupedOrders = useMemo(() => {
 		const groups: { [key: string]: Order[] } = {};
