@@ -870,11 +870,17 @@ export default function Products() {
 															<TableHead className="text-right">
 																Selling Price
 															</TableHead>
+															{(user?.role === "admin" ||
+																user?.role === "manager") && (
+																<TableHead className="text-right">
+																	Cost Price
+																</TableHead>
+															)}
 															<TableHead className="text-right">
-																Cost Price
+																Starting Stock
 															</TableHead>
 															<TableHead className="text-right">
-																Stock
+																Closing Stock
 															</TableHead>
 														</>
 													:	null}
@@ -924,10 +930,16 @@ export default function Products() {
 																	<TableCell className="text-right font-semibold">
 																		{formatCurrency(product.price)}
 																	</TableCell>
-																	<TableCell className="text-right text-gray-500">
-																		{product.cost_price ?
-																			formatCurrency(product.cost_price)
-																		:	"—"}
+																	{(user?.role === "admin" ||
+																		user?.role === "manager") && (
+																		<TableCell className="text-right text-gray-500">
+																			{product.cost_price ?
+																				formatCurrency(product.cost_price)
+																			:	"—"}
+																		</TableCell>
+																	)}
+																	<TableCell className="text-right font-semibold text-gray-700">
+																		{product.starting_stock ?? product.stock}
 																	</TableCell>
 																	<TableCell className="text-right">
 																		<span
@@ -940,7 +952,7 @@ export default function Products() {
 																				:	"text-green-600",
 																			)}
 																		>
-																			{product.stock}
+																			{product.closing_stock ?? product.stock}
 																		</span>
 																	</TableCell>
 																</>

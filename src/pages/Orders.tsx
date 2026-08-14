@@ -71,6 +71,8 @@ export const Orders: React.FC = () => {
 		setSearch,
 		dateFilter,
 		setDateFilter,
+		customSingleDate,
+		setCustomSingleDate,
 		customDateStart,
 		setCustomDateStart,
 		customDateEnd,
@@ -255,6 +257,12 @@ export const Orders: React.FC = () => {
 				} else if (dateFilter === "month") {
 					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 					if (orderDate < monthStart) return false;
+				} else if (dateFilter === "custom_date" && customSingleDate) {
+					const singleStart = new Date(customSingleDate);
+					singleStart.setHours(0, 0, 0, 0);
+					const singleEnd = new Date(customSingleDate);
+					singleEnd.setHours(23, 59, 59, 999);
+					if (orderDate < singleStart || orderDate > singleEnd) return false;
 				} else if (dateFilter === "custom") {
 					if (customDateStart && orderDate < new Date(customDateStart))
 						return false;
@@ -282,7 +290,96 @@ export const Orders: React.FC = () => {
 				false;
 			return matchesSearch;
 		});
-	}, [orders, activeTab, search, dateFilter, customDateStart, customDateEnd]);
+	}, [
+		orders,
+		activeTab,
+		search,
+		dateFilter,
+		customSingleDate,
+		customDateStart,
+		customDateEnd,
+	]);
+
+	const periodStats = useMemo(() => {
+		let totalSales = 0;
+		let totalCash = 0;
+		let totalMomo = 0;
+		let closedCount = 0;
+		let totalCancelledAmount = 0;
+		let cancelledCount = 0;
+
+		orders.forEach((order) => {
+			if (dateFilter !== "all" && order.created_at) {
+				const orderDate = new Date(order.created_at);
+				const now = new Date();
+
+				if (dateFilter === "today") {
+					const todayStart = new Date(
+						now.getFullYear(),
+						now.getMonth(),
+						now.getDate(),
+					);
+					const todayEnd = new Date(
+						now.getFullYear(),
+						now.getMonth(),
+						now.getDate() + 1,
+					);
+					if (orderDate < todayStart || orderDate >= todayEnd) return;
+				} else if (dateFilter === "week") {
+					const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+					if (orderDate < weekAgo) return;
+				} else if (dateFilter === "month") {
+					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+					if (orderDate < monthStart) return;
+				} else if (dateFilter === "custom_date" && customSingleDate) {
+					const singleStart = new Date(customSingleDate);
+					singleStart.setHours(0, 0, 0, 0);
+					const singleEnd = new Date(customSingleDate);
+					singleEnd.setHours(23, 59, 59, 999);
+					if (orderDate < singleStart || orderDate > singleEnd) return;
+				} else if (dateFilter === "custom") {
+					if (customDateStart && orderDate < new Date(customDateStart))
+						return;
+					if (customDateEnd) {
+						const endDate = new Date(customDateEnd);
+						endDate.setHours(23, 59, 59, 999);
+						if (orderDate > endDate) return;
+					}
+				}
+			}
+
+			const amount = Number(order.amount || 0);
+
+			if (order.status === "closed") {
+				closedCount++;
+				totalSales += amount;
+				const pm = (order.payment_mode || "").toLowerCase();
+				if (pm === "cash") {
+					totalCash += amount;
+				} else if (pm === "momo" || pm === "mobile money") {
+					totalMomo += amount;
+				}
+			} else if (order.status === "cancelled") {
+				cancelledCount++;
+				totalCancelledAmount += amount;
+			}
+		});
+
+		return {
+			totalSales,
+			totalCash,
+			totalMomo,
+			closedCount,
+			totalCancelledAmount,
+			cancelledCount,
+		};
+	}, [
+		orders,
+		dateFilter,
+		customSingleDate,
+		customDateStart,
+		customDateEnd,
+	]);
 
 	const groupedOrders = useMemo(() => {
 		const groups: { [key: string]: Order[] } = {};
@@ -632,12 +729,6 @@ export const Orders: React.FC = () => {
 			PaymentModeIcons[selectedOrder.payment_mode as PaymentModes]
 		:	null;
 
-	const canManageProducts =
-		user?.role === "admin" ||
-		user?.role === "manager" ||
-		(user?.role === "cashier" &&
-			settings?.pos?.allowCashierInventoryManagement);
-
 	// const canDeleteProducts = user?.role === "admin" || user?.role === "manager";
 
 	return (
@@ -766,9 +857,19 @@ export const Orders: React.FC = () => {
 									<SelectItem value="today">Today</SelectItem>
 									<SelectItem value="week">Last 7 Days</SelectItem>
 									<SelectItem value="month">This Month</SelectItem>
+									<SelectItem value="custom_date">Custom Date</SelectItem>
 									<SelectItem value="custom">Custom Range</SelectItem>
 								</SelectContent>
 							</Select>
+							{dateFilter === "custom_date" && (
+								<Input
+									type="date"
+									className="h-9 w-40 text-base"
+									placeholder="Select Date"
+									value={customSingleDate}
+									onChange={(e) => setCustomSingleDate(e.target.value)}
+								/>
+							)}
 							{dateFilter === "custom" && (
 								<>
 									<Input
@@ -809,6 +910,55 @@ export const Orders: React.FC = () => {
 							)}
 						</div>
 					</div>
+
+					{/* Period Stats Summary Bar - Admin Only */}
+					{user?.role === "admin" && (
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-b">
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Total Sales
+								</span>
+								<span className="text-xl font-bold text-emerald-600 mt-1">
+									{formatCurrency(periodStats.totalSales)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">
+									{periodStats.closedCount} closed order{periodStats.closedCount !== 1 ? "s" : ""}
+								</span>
+							</div>
+
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Total Cash
+								</span>
+								<span className="text-xl font-bold text-blue-600 mt-1">
+									{formatCurrency(periodStats.totalCash)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">Cash payments</span>
+							</div>
+
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Total MoMo
+								</span>
+								<span className="text-xl font-bold text-purple-600 mt-1">
+									{formatCurrency(periodStats.totalMomo)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">Mobile Money</span>
+							</div>
+
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Cancelled Orders
+								</span>
+								<span className="text-xl font-bold text-rose-600 mt-1">
+									{formatCurrency(periodStats.totalCancelledAmount)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">
+									{periodStats.cancelledCount} cancelled order{periodStats.cancelledCount !== 1 ? "s" : ""}
+								</span>
+							</div>
+						</div>
+					)}
 
 					{/* Order List - Responsive Grid */}
 					<div

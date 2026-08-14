@@ -371,9 +371,9 @@ async function performSyncInternal(): Promise<SyncResult> {
 		return { status: "skipped", reason: "Database not initialised yet." };
 	}
 
-	// Fetch unsynced records from SQLite
+	// Fetch unsynced records from SQLite (including modified/updated records)
 	const unsyncedOrders = await databaseInstance.all(
-		"SELECT * FROM orders WHERE synced_at IS NULL",
+		"SELECT * FROM orders WHERE synced_at IS NULL OR updated_at > synced_at",
 	);
 	const unsyncedOrderItems = await databaseInstance.all(`
 		SELECT 
@@ -395,7 +395,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 		FROM order_items oi
 		LEFT JOIN products p ON oi.product_id = p.id
 		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
-		WHERE oi.synced_at IS NULL
+		WHERE oi.synced_at IS NULL OR oi.updated_at > oi.synced_at
 	`);
 	const unsyncedInventoryLogs = await databaseInstance.all(`
 		SELECT 
@@ -403,7 +403,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 			COALESCE(p.name, 'Unknown Product') as product_name
 		FROM inventory_logs il
 		LEFT JOIN products p ON il.product_id = p.id
-		WHERE il.synced_at IS NULL
+		WHERE il.synced_at IS NULL OR il.updated_at > il.synced_at
 	`);
 
 	if (
@@ -2034,12 +2034,53 @@ ipcMain.handle("get-products", async () => {
 	try {
 		const products = await withRetry(async () => {
 			const db = await getDatabase();
-			return await db.all(`
+			const rawProducts = await db.all(`
         SELECT p.*, c.name as category_name 
         FROM products p 
         LEFT JOIN categories c ON p.category = c.id 
         ORDER BY p.name ASC
       `);
+
+			const enrichedProducts = await Promise.all(
+				rawProducts.map(async (product: any) => {
+					let starting_stock = product.stock;
+
+					// Check today's inventory logs
+					const logs = await db.all(
+						`SELECT previous_stock FROM inventory_logs 
+						 WHERE product_id = ? 
+						 AND date(created_at, 'localtime') = date('now', 'localtime') 
+						 ORDER BY id ASC`,
+						[product.id],
+					);
+
+					if (logs.length > 0) {
+						starting_stock = logs[0].previous_stock;
+					} else {
+						// Check sales today if no inventory log exists yet
+						const salesData = await db.get(
+							`SELECT SUM(oi.quantity) as sold_qty
+							 FROM order_items oi
+							 JOIN orders o ON oi.order_id = o.id
+							 WHERE oi.product_id = ? 
+							 AND oi.item_type = 'drink'
+							 AND o.status IN ('open', 'closed')
+							 AND date(o.created_at, 'localtime') = date('now', 'localtime')`,
+							[product.id],
+						);
+						const sold = salesData?.sold_qty || 0;
+						starting_stock = product.stock + sold;
+					}
+
+					return {
+						...product,
+						starting_stock,
+						closing_stock: product.stock,
+					};
+				}),
+			);
+
+			return enrichedProducts;
 		});
 		return products;
 	} catch (error) {

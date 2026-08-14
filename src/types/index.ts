@@ -11,7 +11,7 @@ export interface User {
 export interface Product {
 	id: number;
 	name: string;
-	category: string;
+	category: number | string;
 	price: number;
 	cost_price?: number;
 	quantity?: number;
@@ -21,6 +21,8 @@ export interface Product {
 	description?: string;
 	image?: string;
 	category_name?: string;
+	starting_stock?: number;
+	closing_stock?: number;
 }
 
 export interface Order {

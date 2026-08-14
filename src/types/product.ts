@@ -14,6 +14,8 @@ export interface Product {
 	updated_at: string;
 	image?: string;
 	category_name?: string;
+	starting_stock?: number;
+	closing_stock?: number;
 }
 
 export interface NewProduct {

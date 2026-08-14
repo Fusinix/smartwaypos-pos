@@ -1711,12 +1711,41 @@ electron_1.ipcMain.handle("get-products", async () => {
     try {
         const products = await withRetry(async () => {
             const db = await (0, database_1.getDatabase)();
-            return await db.all(`
+            const rawProducts = await db.all(`
         SELECT p.*, c.name as category_name 
         FROM products p 
         LEFT JOIN categories c ON p.category = c.id 
         ORDER BY p.name ASC
       `);
+            const enrichedProducts = await Promise.all(rawProducts.map(async (product) => {
+                let starting_stock = product.stock;
+                // Check today's inventory logs
+                const logs = await db.all(`SELECT previous_stock FROM inventory_logs 
+						 WHERE product_id = ? 
+						 AND date(created_at, 'localtime') = date('now', 'localtime') 
+						 ORDER BY id ASC`, [product.id]);
+                if (logs.length > 0) {
+                    starting_stock = logs[0].previous_stock;
+                }
+                else {
+                    // Check sales today if no inventory log exists yet
+                    const salesData = await db.get(`SELECT SUM(oi.quantity) as sold_qty
+							 FROM order_items oi
+							 JOIN orders o ON oi.order_id = o.id
+							 WHERE oi.product_id = ? 
+							 AND oi.item_type = 'drink'
+							 AND o.status IN ('open', 'closed')
+							 AND date(o.created_at, 'localtime') = date('now', 'localtime')`, [product.id]);
+                    const sold = salesData?.sold_qty || 0;
+                    starting_stock = product.stock + sold;
+                }
+                return {
+                    ...product,
+                    starting_stock,
+                    closing_stock: product.stock,
+                };
+            }));
+            return enrichedProducts;
         });
         return products;
     }

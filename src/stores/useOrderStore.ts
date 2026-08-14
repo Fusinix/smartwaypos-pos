@@ -18,6 +18,7 @@ interface OrderState {
 	activeTab: "active" | "closed" | "cancelled";
 	search: string;
 	dateFilter: string;
+	customSingleDate: string;
 	customDateStart: string;
 	customDateEnd: string;
 	selectedOrder: Order | null;
@@ -25,6 +26,7 @@ interface OrderState {
 	setActiveTab: (tab: "active" | "closed" | "cancelled") => void;
 	setSearch: (search: string) => void;
 	setDateFilter: (filter: string) => void;
+	setCustomSingleDate: (date: string) => void;
 	setCustomDateStart: (date: string) => void;
 	setCustomDateEnd: (date: string) => void;
 	setSelectedOrder: (order: Order | null) => void;
@@ -45,6 +47,7 @@ export const useOrderStore = create<OrderState>((set) => ({
 	activeTab: "active",
 	search: "",
 	dateFilter: "today",
+	customSingleDate: "",
 	customDateStart: "",
 	customDateEnd: "",
 	selectedOrder: null,
@@ -52,6 +55,7 @@ export const useOrderStore = create<OrderState>((set) => ({
 	setActiveTab: (activeTab) => set({ activeTab }),
 	setSearch: (search) => set({ search }),
 	setDateFilter: (dateFilter) => set({ dateFilter }),
+	setCustomSingleDate: (customSingleDate) => set({ customSingleDate }),
 	setCustomDateStart: (customDateStart) => set({ customDateStart }),
 	setCustomDateEnd: (customDateEnd) => set({ customDateEnd }),
 	setSelectedOrder: (selectedOrder) => set({ selectedOrder }),
