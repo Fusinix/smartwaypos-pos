@@ -572,8 +572,9 @@ export const Orders: React.FC = () => {
 		}
 	};
 
-	const handleDownloadPDF = () => {
-		if (!reportData) return;
+	const handleDownloadPDF = (targetData?: any) => {
+		const activeReportData = targetData && targetData.inventory ? targetData : reportData;
+		if (!activeReportData) return;
 
 		try {
 			const doc = new jsPDF();
@@ -594,7 +595,7 @@ export const Orders: React.FC = () => {
 				28,
 				{ align: "center" },
 			);
-			doc.text(`Staff: ${user?.username || "Admin"}`, pageWidth / 2, 35, {
+			doc.text(`Staff: ${activeReportData.accountName || user?.username || "Admin"}`, pageWidth / 2, 35, {
 				align: "center",
 			});
 
@@ -603,7 +604,7 @@ export const Orders: React.FC = () => {
 			doc.setTextColor(0, 0, 0);
 			doc.text("Drinks Inventory Reconciliation", 14, 50);
 
-			const inventoryBody = reportData.inventory.map((item: any) => [
+			const inventoryBody = (activeReportData.inventory || []).map((item: any) => [
 				item.name,
 				item.openingStock,
 				item.added,
@@ -631,11 +632,19 @@ export const Orders: React.FC = () => {
 			doc.setTextColor(0, 0, 0);
 			doc.text("Food Sales Summary", 14, currentY + 15);
 
-			const foodBody = reportData.foodSales.map((item: any) => [
-				item.name,
-				item.quantity,
-				formatCurrency(item.totalSales),
-			]);
+			const foodBody = (activeReportData.foodSales || []).map((item: any) => {
+				let nameText = item.name;
+				if (item.extras && item.extras.length > 0) {
+					const extrasStr = item.extras
+						.map(
+							(e: any) =>
+								`  + ${e.name} (${e.quantity}x @ ${formatCurrency(e.price)}) = ${formatCurrency(e.totalSales)}`,
+						)
+						.join("\n");
+					nameText += "\n" + extrasStr;
+				}
+				return [nameText, item.quantity, formatCurrency(item.totalSales)];
+			});
 
 			autoTable(doc, {
 				startY: currentY + 20,
@@ -651,7 +660,7 @@ export const Orders: React.FC = () => {
 			doc.setFontSize(14);
 			doc.text("Daily Expenses", 14, currentY + 15);
 
-			const expenseBody = reportData.expenses.map((e: any) => [
+			const expenseBody = (activeReportData.expenses || []).map((e: any) => [
 				e.description,
 				formatCurrency(e.amount),
 				e.staff,
@@ -667,46 +676,46 @@ export const Orders: React.FC = () => {
 			});
 
 			// 5. Final Summary
-			currentY = (doc as any).lastAutoTable.finalY || 250;
-			const drinksTotal = reportData.inventory.reduce(
+			const closedSalesTotal = (activeReportData.cashTotal || 0) + (activeReportData.momoTotal || 0);
+			const drinksTotal = (activeReportData.inventory || []).reduce(
 				(sum: number, item: any) => sum + item.totalSales,
 				0,
 			);
-			const foodTotal = reportData.foodSales.reduce(
+			const foodTotal = (activeReportData.foodSales || []).reduce(
 				(sum: number, item: any) => sum + item.totalSales,
 				0,
 			);
-			const netRevenue =
-				drinksTotal + foodTotal - (reportData.totalExpenses || 0);
+			const grandTotal = closedSalesTotal > 0 ? closedSalesTotal : (drinksTotal + foodTotal);
+			const netRevenue = grandTotal - (activeReportData.totalExpenses || 0);
 
 			doc.setFontSize(12);
 			doc.setFont("helvetica", "bold");
 			doc.text(
-				`Total Sales: ${formatCurrency(drinksTotal + foodTotal)}`,
+				`Total Sales: ${formatCurrency(grandTotal)}`,
 				pageWidth - 14,
 				currentY + 15,
 				{ align: "right" },
 			);
 			doc.text(
-				`Total Cash: ${formatCurrency(reportData.cashTotal || 0)}`,
+				`Total Cash: ${formatCurrency(activeReportData.cashTotal || 0)}`,
 				pageWidth - 14,
 				currentY + 23,
 				{ align: "right" },
 			);
 			doc.text(
-				`Total MoMo: ${formatCurrency(reportData.momoTotal || 0)}`,
+				`Total MoMo: ${formatCurrency(activeReportData.momoTotal || 0)}`,
 				pageWidth - 14,
 				currentY + 31,
 				{ align: "right" },
 			);
 			doc.text(
-				`Total Expenses: -${formatCurrency(reportData.totalExpenses || 0)}`,
+				`Total Expenses: -${formatCurrency(activeReportData.totalExpenses || 0)}`,
 				pageWidth - 14,
 				currentY + 39,
 				{ align: "right" },
 			);
 			doc.text(
-				`Pending Orders: ${formatCurrency(reportData.pendingOrders?.total || 0)} (${reportData.pendingOrders?.count})`,
+				`Pending Orders: ${formatCurrency(activeReportData.pendingOrders?.total || 0)} (${activeReportData.pendingOrders?.count || 0})`,
 				pageWidth - 14,
 				currentY + 47,
 				{ align: "right" },
@@ -722,7 +731,8 @@ export const Orders: React.FC = () => {
 			);
 
 			// Save the PDF
-			const fileName = `DailyReport_${reportData.date}_${user?.username || "Admin"}.pdf`;
+			const accountNameStr = activeReportData.accountName ? `_${activeReportData.accountName}` : "";
+			const fileName = `DailyReport_${activeReportData.date}${accountNameStr}.pdf`;
 			doc.save(fileName);
 			toast.success("Report downloaded successfully");
 		} catch (error) {

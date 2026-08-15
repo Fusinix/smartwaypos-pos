@@ -169,9 +169,25 @@ electron_1.ipcMain.handle("set-fullscreen", (_, enabled) => {
         mainWindow.setFullScreen(enabled);
     }
 });
+const DEFAULT_VENUE_TIMEZONE = "Africa/Accra";
+function getLocalDateString(d = new Date()) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+function getDeviceLocalDateTimeString(date = new Date()) {
+    const pad = (num) => String(num).padStart(2, "0");
+    return (date.getFullYear() +
+        "-" + pad(date.getMonth() + 1) +
+        "-" + pad(date.getDate()) +
+        " " + pad(date.getHours()) +
+        ":" + pad(date.getMinutes()) +
+        ":" + pad(date.getSeconds()));
+}
 async function logAction({ db, admin_id, admin_name, admin_role, action, page, context, }) {
     await db.run("INSERT INTO logs (created_at, admin_id, admin_name, admin_role, action, page, context) VALUES (?, ?, ?, ?, ?, ?, ?)", [
-        new Date().toISOString(),
+        getDeviceLocalDateTimeString(),
         admin_id || null,
         admin_name || null,
         admin_role || null,
@@ -192,7 +208,7 @@ async function logInventoryChange({ db, productId, changeAmount, previousStock, 
         adminName || null,
         adminRole || null,
         note || null,
-        new Date().toISOString(),
+        getDeviceLocalDateTimeString(),
     ]);
 }
 // =====================================================
@@ -825,6 +841,25 @@ async function createWindow() {
         catch (error) {
             // Column might already exist, ignore error
         }
+        // Migration: Add timezone and business_date columns to orders, order_items, inventory_logs, and expenses if not exist
+        for (const table of ["orders", "order_items", "inventory_logs", "expenses"]) {
+            try {
+                await db.run(`ALTER TABLE ${table} ADD COLUMN timezone TEXT DEFAULT 'Africa/Accra'`);
+            }
+            catch { }
+            try {
+                await db.run(`ALTER TABLE ${table} ADD COLUMN business_date TEXT`);
+            }
+            catch { }
+        }
+        // Backfill business_date for historical records where business_date IS NULL
+        try {
+            await db.run("UPDATE orders SET business_date = DATE(created_at) WHERE business_date IS NULL");
+            await db.run("UPDATE order_items SET business_date = DATE(created_at) WHERE business_date IS NULL");
+            await db.run("UPDATE inventory_logs SET business_date = DATE(created_at) WHERE business_date IS NULL");
+            await db.run("UPDATE expenses SET business_date = DATE(created_at) WHERE business_date IS NULL");
+        }
+        catch { }
         // Create default admin user if not exists
         const adminUser = await db.get("SELECT * FROM users WHERE role = ? LIMIT 1", ["admin"]);
         console.log("--- Startup Check ---");
@@ -1992,157 +2027,265 @@ electron_1.ipcMain.handle("update-product-stock", async (_, productId, newStock,
         throw error;
     }
 });
-electron_1.ipcMain.handle("get-daily-inventory-report", async (_, date, author) => {
+electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, author) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const getLocalDateString = () => {
+        const getLocalDateString = (offsetDays = 0) => {
             const now = new Date();
+            now.setDate(now.getDate() + offsetDays);
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, "0");
             const day = String(now.getDate()).padStart(2, "0");
             return `${year}-${month}-${day}`;
         };
-        const reportDate = date || getLocalDateString();
-        // 1. Get all products
-        const products = await db.all("SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC");
-        const report = [];
-        for (const product of products) {
-            // 2. Get today's logs for this product (for Opening Stock, Added, and Damaged)
-            const logs = await db.all(`SELECT * FROM inventory_logs 
-				 WHERE product_id = ? 
-				 AND date(created_at, 'localtime') = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ?
-                [product.id, reportDate, author.id]
-                : [product.id, reportDate]);
-            // 2b. Get today's sold qty (open + closed, not cancelled) for inventory reconciliation
-            const salesData = await db.get(`SELECT SUM(oi.quantity) as sold_qty
-				 FROM order_items oi
-				 JOIN orders o ON oi.order_id = o.id
-				 WHERE oi.product_id = ? 
-				 AND oi.item_type = 'drink'
-				 AND o.status IN ('open', 'closed')
-				 AND date(o.created_at, 'localtime') = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
-                [product.id, reportDate, author.id]
-                : [product.id, reportDate]);
-            // 2c. Get today's closed sales for revenue calculation
-            const closedSalesData = await db.get(`SELECT SUM(oi.quantity) as sold_closed_qty
-				 FROM order_items oi
-				 JOIN orders o ON oi.order_id = o.id
-				 WHERE oi.product_id = ? 
-				 AND oi.item_type = 'drink'
-				 AND o.status = 'closed'
-				 AND date(o.updated_at, 'localtime') = date(?)` + (author?.id ? ` AND o.admin_id = ?` : ``), author?.id ?
-                [product.id, reportDate, author.id]
-                : [product.id, reportDate]);
-            const sold = salesData?.sold_qty || 0;
-            const soldClosed = closedSalesData?.sold_closed_qty || 0;
-            let added = 0;
-            let adjusted = 0;
-            let damaged = 0;
-            let hasInventoryAction = false;
-            logs.forEach((log) => {
-                if (log.reason === "restock") {
-                    added += log.change_amount;
-                    hasInventoryAction = true;
-                }
-                else if (log.reason === "wastage") {
-                    // 'wastage' is the correct reason value stored in DB (was incorrectly 'damage')
-                    damaged += Math.abs(log.change_amount);
-                    hasInventoryAction = true;
-                }
-                else if (log.reason === "adjustment") {
-                    if (log.change_amount > 0) {
-                        added += log.change_amount;
-                    }
-                    else {
-                        adjusted += Math.abs(log.change_amount);
-                    }
-                    hasInventoryAction = true;
-                }
-            });
-            // 3. Find opening stock
-            let openingStock = product.stock;
-            if (logs.length > 0) {
-                const firstLog = logs.reduce((prev, curr) => prev.id < curr.id ? prev : curr);
-                openingStock = firstLog.previous_stock;
+        let reportDate = getLocalDateString(0);
+        let period = "today";
+        if (typeof dateArg === "string") {
+            if (dateArg === "today") {
+                reportDate = getLocalDateString(0);
+                period = "today";
             }
-            // 4. Compute stockLeft as reconciled math (openingStock + added - sold - damaged - adjusted)
-            //    This ensures the row always balances for this user's session, regardless of other
-            //    system-wide changes to the product stock by other users.
-            const stockLeft = openingStock + added - sold - damaged - adjusted;
-            // 5. Only include in report if there was activity (sales, closed sales, or manual inventory actions)
-            if (sold > 0 || soldClosed > 0 || hasInventoryAction) {
-                report.push({
-                    id: product.id,
-                    name: product.name,
-                    openingStock,
-                    added,
-                    sold,
-                    damaged,
-                    adjusted,
-                    totalStock: openingStock + added,
-                    price: product.price,
-                    totalSales: soldClosed * product.price,
-                    stockLeft,
-                    lowStockThreshold: product.low_stock_threshold,
-                });
+            else if (dateArg === "yesterday") {
+                reportDate = getLocalDateString(-1);
+                period = "yesterday";
+            }
+            else if (dateArg.trim()) {
+                reportDate = dateArg.trim();
+                period = "custom_date";
             }
         }
-        // 5. Get food sales summary (closed orders only)
-        const foodSales = await db.all(`SELECT fi.name, SUM(oi.quantity) as quantity, fi.price
-			 FROM order_items oi
-			 JOIN food_items fi ON oi.food_item_id = fi.id
-			 JOIN orders o ON oi.order_id = o.id
-			 WHERE oi.item_type = 'food'
-			 AND o.status = 'closed'
-			 AND date(o.updated_at, 'localtime') = date(?)` +
-            (author?.id ? ` AND o.admin_id = ?` : ``) +
-            ` GROUP BY fi.id, fi.name, fi.price`, author?.id ? [reportDate, author.id] : [reportDate]);
-        // 6. Get pending orders summary
-        const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
-			 FROM orders 
-			 WHERE status = 'open' 
-			 AND date(created_at, 'localtime') = date(?)` + (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
-        // 7. Get today's expenses
-        const expenses = await db.all(`SELECT * FROM expenses WHERE date(created_at, 'localtime') = date(?)` +
-            (author?.id ? ` AND admin_id = ?` : ``), author?.id ? [reportDate, author.id] : [reportDate]);
-        // 8. Get today's payment breakdown (cash vs momo) for closed orders
-        const paymentBreakdown = await db.all(`SELECT LOWER(payment_mode) as method, SUM(amount) as total
-			 FROM orders
-			 WHERE status = 'closed'
-			 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?))` +
-            (author?.id ? ` AND admin_id = ?` : ``) +
-            ` GROUP BY LOWER(payment_mode)`, author?.id ? [reportDate, reportDate, author.id] : [reportDate, reportDate]);
-        let cashTotal = 0;
-        let momoTotal = 0;
-        paymentBreakdown.forEach((p) => {
-            if (p.method === "cash") {
-                cashTotal += p.total || 0;
+        else if (dateArg && typeof dateArg === "object") {
+            if (dateArg.period === "yesterday") {
+                reportDate = getLocalDateString(-1);
+                period = "yesterday";
             }
-            else if (p.method === "momo") {
-                momoTotal += p.total || 0;
+            else if (dateArg.period === "today") {
+                reportDate = getLocalDateString(0);
+                period = "today";
             }
-        });
+            else if (dateArg.date) {
+                reportDate = dateArg.date;
+                period = "custom_date";
+            }
+        }
+        // Only allow admins to view all accounts and filter periods
+        const isAdmin = author?.role === "admin";
+        const filterAdminId = !isAdmin ? author?.id || null : null;
+        // Helper function to build report for a specific date and admin_id filter
+        const buildReportForAdmin = async (targetAdminId) => {
+            const products = await db.all("SELECT id, name, price, stock, low_stock_threshold FROM products ORDER BY name ASC");
+            const report = [];
+            for (const product of products) {
+                const logs = await db.all(`SELECT * FROM inventory_logs 
+					 WHERE product_id = ? 
+					 AND (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+                    (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
+                    [product.id, reportDate, reportDate, targetAdminId]
+                    : [product.id, reportDate, reportDate]);
+                const salesData = await db.get(`SELECT SUM(oi.quantity) as sold_qty
+					 FROM order_items oi
+					 JOIN orders o ON oi.order_id = o.id
+					 WHERE oi.product_id = ? 
+					 AND oi.item_type = 'drink'
+					 AND o.status IN ('open', 'closed')
+					 AND (date(o.created_at, 'localtime') = date(?) OR date(o.updated_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
+                    (targetAdminId ? ` AND o.admin_id = ?` : ``), targetAdminId ?
+                    [product.id, reportDate, reportDate, reportDate, targetAdminId]
+                    : [product.id, reportDate, reportDate, reportDate]);
+                const closedSalesData = await db.get(`SELECT SUM(oi.quantity) as sold_closed_qty
+					 FROM order_items oi
+					 JOIN orders o ON oi.order_id = o.id
+					 WHERE oi.product_id = ? 
+					 AND oi.item_type = 'drink'
+					 AND o.status = 'closed'
+					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
+                    (targetAdminId ? ` AND o.admin_id = ?` : ``), targetAdminId ?
+                    [product.id, reportDate, reportDate, reportDate, targetAdminId]
+                    : [product.id, reportDate, reportDate, reportDate]);
+                const sold = salesData?.sold_qty || 0;
+                const soldClosed = closedSalesData?.sold_closed_qty || 0;
+                let added = 0;
+                let adjusted = 0;
+                let damaged = 0;
+                let hasInventoryAction = false;
+                logs.forEach((log) => {
+                    if (log.reason === "restock") {
+                        added += log.change_amount;
+                        hasInventoryAction = true;
+                    }
+                    else if (log.reason === "wastage") {
+                        damaged += Math.abs(log.change_amount);
+                        hasInventoryAction = true;
+                    }
+                    else if (log.reason === "adjustment") {
+                        if (log.change_amount > 0) {
+                            added += log.change_amount;
+                        }
+                        else {
+                            adjusted += Math.abs(log.change_amount);
+                        }
+                        hasInventoryAction = true;
+                    }
+                });
+                let openingStock = product.stock;
+                if (logs.length > 0) {
+                    const firstLog = logs.reduce((prev, curr) => prev.id < curr.id ? prev : curr);
+                    openingStock = firstLog.previous_stock;
+                }
+                const stockLeft = openingStock + added - sold - damaged - adjusted;
+                if (sold > 0 || soldClosed > 0 || hasInventoryAction) {
+                    report.push({
+                        id: product.id,
+                        name: product.name,
+                        openingStock,
+                        added,
+                        sold,
+                        damaged,
+                        adjusted,
+                        totalStock: openingStock + added,
+                        price: product.price,
+                        totalSales: soldClosed * product.price,
+                        stockLeft,
+                        lowStockThreshold: product.low_stock_threshold,
+                    });
+                }
+            }
+            const foodSalesRaw = await db.all(`SELECT fi.id, fi.name, SUM(oi.quantity) as quantity, fi.price
+				 FROM order_items oi
+				 JOIN food_items fi ON oi.food_item_id = fi.id
+				 JOIN orders o ON oi.order_id = o.id
+				 WHERE oi.item_type = 'food'
+				 AND o.status = 'closed'
+				 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
+                (targetAdminId ? ` AND o.admin_id = ?` : ``) +
+                ` GROUP BY fi.id, fi.name, fi.price`, targetAdminId ?
+                [reportDate, reportDate, reportDate, targetAdminId]
+                : [reportDate, reportDate, reportDate]);
+            const foodSalesEnriched = await Promise.all(foodSalesRaw.map(async (f) => {
+                const extrasRaw = await db.all(`SELECT fe.id, fe.name, fe.price, SUM(COALESCE(oie.quantity, 1) * COALESCE(oi.quantity, 1)) as quantity
+						 FROM order_item_extras oie
+						 JOIN food_extras fe ON oie.extra_id = fe.id
+						 JOIN order_items oi ON oie.order_item_id = oi.id
+						 JOIN orders o ON oi.order_id = o.id
+						 WHERE oi.food_item_id = ?
+						 AND oi.item_type = 'food'
+						 AND o.status = 'closed'
+						 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
+                    (targetAdminId ? ` AND o.admin_id = ?` : ``) +
+                    ` GROUP BY fe.id, fe.name, fe.price`, targetAdminId ?
+                    [f.id, reportDate, reportDate, reportDate, targetAdminId]
+                    : [f.id, reportDate, reportDate, reportDate]);
+                const baseSales = f.quantity * f.price;
+                const extrasSales = extrasRaw.reduce((sum, e) => sum + (e.quantity || 1) * Number(e.price || 0), 0);
+                const totalSales = baseSales + extrasSales;
+                return {
+                    id: f.id,
+                    name: f.name,
+                    quantity: f.quantity,
+                    price: f.price,
+                    baseSales,
+                    extrasSales,
+                    totalSales,
+                    extras: extrasRaw.map((e) => ({
+                        id: e.id,
+                        name: e.name,
+                        quantity: e.quantity || 1,
+                        price: e.price,
+                        totalSales: (e.quantity || 1) * Number(e.price || 0),
+                    })),
+                };
+            }));
+            const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
+				 FROM orders 
+				 WHERE status = 'open' 
+				 AND (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+                (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
+                [reportDate, reportDate, targetAdminId]
+                : [reportDate, reportDate]);
+            const expenses = await db.all(`SELECT * FROM expenses WHERE (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+                (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
+                [reportDate, reportDate, targetAdminId]
+                : [reportDate, reportDate]);
+            const paymentBreakdown = await db.all(`SELECT LOWER(payment_mode) as method, SUM(amount) as total
+				 FROM orders
+				 WHERE status = 'closed'
+				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+                (targetAdminId ? ` AND admin_id = ?` : ``) +
+                ` GROUP BY LOWER(payment_mode)`, targetAdminId ?
+                [reportDate, reportDate, reportDate, targetAdminId]
+                : [reportDate, reportDate, reportDate]);
+            let cashTotal = 0;
+            let momoTotal = 0;
+            paymentBreakdown.forEach((p) => {
+                if (p.method === "cash") {
+                    cashTotal += p.total || 0;
+                }
+                else if (p.method === "momo") {
+                    momoTotal += p.total || 0;
+                }
+            });
+            return {
+                date: reportDate,
+                inventory: report,
+                foodSales: foodSalesEnriched,
+                pendingOrders: {
+                    count: pendingOrders?.count || 0,
+                    total: pendingOrders?.total || 0,
+                },
+                expenses: expenses.map((e) => ({
+                    description: e.description,
+                    amount: e.amount,
+                    staff: e.admin_name,
+                })),
+                totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
+                cashTotal,
+                momoTotal,
+            };
+        };
+        // Build overall report
+        const overallReport = await buildReportForAdmin(filterAdminId);
+        // Multi-account reports only for admin role
+        const accountReports = [];
+        if (isAdmin) {
+            const activeAccounts = await db.all(`SELECT DISTINCT admin_id, username, role FROM (
+						SELECT o.admin_id, u.username, u.role 
+						FROM orders o 
+						LEFT JOIN users u ON o.admin_id = u.id 
+						WHERE (date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
+						AND o.admin_id IS NOT NULL
+
+						UNION
+
+						SELECT e.admin_id, COALESCE(u.username, e.admin_name) as username, COALESCE(u.role, 'staff') as role 
+						FROM expenses e 
+						LEFT JOIN users u ON e.admin_id = u.id 
+						WHERE (date(e.created_at, 'localtime') = date(?) OR date(e.created_at) = date(?)) 
+						AND e.admin_id IS NOT NULL
+
+						UNION
+
+						SELECT i.admin_id, COALESCE(u.username, i.admin_name) as username, COALESCE(u.role, 'staff') as role 
+						FROM inventory_logs i 
+						LEFT JOIN users u ON i.admin_id = u.id 
+						WHERE (date(i.created_at, 'localtime') = date(?) OR date(i.created_at) = date(?)) 
+						AND i.admin_id IS NOT NULL
+					)`, [reportDate, reportDate, reportDate, reportDate, reportDate, reportDate]);
+            for (const acc of activeAccounts) {
+                if (acc.admin_id) {
+                    const subReport = await buildReportForAdmin(acc.admin_id);
+                    accountReports.push({
+                        accountId: acc.admin_id,
+                        accountName: acc.username || `User #${acc.admin_id}`,
+                        role: acc.role || "staff",
+                        ...subReport,
+                    });
+                }
+            }
+        }
         return {
-            date: reportDate,
-            inventory: report,
-            foodSales: foodSales.map((f) => ({
-                name: f.name,
-                quantity: f.quantity,
-                price: f.price,
-                totalSales: f.quantity * f.price,
-            })),
-            pendingOrders: {
-                count: pendingOrders?.count || 0,
-                total: pendingOrders?.total || 0,
-            },
-            expenses: expenses.map((e) => ({
-                description: e.description,
-                amount: e.amount,
-                staff: e.admin_name,
-            })),
-            totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
-            cashTotal,
-            momoTotal,
+            ...overallReport,
+            period,
+            accountReports,
         };
     }
     catch (error) {
@@ -2704,9 +2847,10 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
         else if (orderData.order_type === "table") {
             tableNumber = await generateDineInTableNumber(db);
         }
-        // Insert order with calculated amounts and order number
-        const nowIso = new Date().toISOString();
-        const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        // Insert order with calculated amounts, order number, venue timezone, and business date
+        const nowUtcIso = new Date().toISOString();
+        const bDate = getLocalDateString();
+        const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes, timezone, business_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
             orderNumber,
             orderData.sale_id || null,
             orderData.order_type,
@@ -2719,8 +2863,10 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             orderData.status || "open",
             orderData.admin_id || null,
             orderData.notes || null,
-            nowIso,
-            nowIso,
+            DEFAULT_VENUE_TIMEZONE,
+            bDate,
+            nowUtcIso,
+            nowUtcIso,
         ]);
         const orderId = result.lastID;
         // Get author info for logging
@@ -2730,7 +2876,7 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             for (const item of items) {
                 if (item.itemType === "drink" && item.productId) {
                     // Insert order item for drink
-                    const orderItemResult = await db.run("INSERT INTO order_items (order_id, product_id, food_item_id, item_type, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)", [orderId, item.productId, null, "drink", item.quantity, null]);
+                    const orderItemResult = await db.run("INSERT INTO order_items (order_id, product_id, food_item_id, item_type, quantity, notes, timezone, business_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [orderId, item.productId, null, "drink", item.quantity, null, DEFAULT_VENUE_TIMEZONE, bDate, nowUtcIso]);
                     // Update product stock (reduce by ordered quantity)
                     // Get stock before update for logging
                     const oldProduct = await db.get("SELECT name, stock FROM products WHERE id = ?", [item.productId]);
@@ -2771,13 +2917,16 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
                 }
                 else if (item.itemType === "food" && item.foodItemId) {
                     // Insert order item for food
-                    const orderItemResult = await db.run("INSERT INTO order_items (order_id, product_id, food_item_id, item_type, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)", [
+                    const orderItemResult = await db.run("INSERT INTO order_items (order_id, product_id, food_item_id, item_type, quantity, notes, timezone, business_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
                         orderId,
                         null,
                         item.foodItemId,
                         "food",
                         item.quantity,
                         item.notes || null,
+                        DEFAULT_VENUE_TIMEZONE,
+                        bDate,
+                        nowUtcIso,
                     ]);
                     const orderItemId = orderItemResult.lastID;
                     // Insert order item extras if any

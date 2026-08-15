@@ -1,6 +1,6 @@
 /** @format */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -9,6 +9,14 @@ import {
 	DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import {
 	Table,
 	TableBody,
@@ -17,15 +25,16 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { FileDown, Printer, X } from "lucide-react";
+import { FileDown, X, Users, UserCheck } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cn } from "@/lib/utils";
+import { ClassStyles } from "@/components/classnames";
 
 interface DailyReportDialogProps {
 	open: boolean;
 	onClose: () => void;
 	reportData: any;
-	onDownload: () => void;
+	onDownload: (dataToDownload?: any) => void;
 	user: any;
 }
 
@@ -38,24 +47,95 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 }) => {
 	const { format: formatCurrency } = useCurrency();
 
-	if (!reportData) return null;
+	const isAdmin = user?.role === "admin";
 
-	const drinksTotal = reportData.inventory.reduce(
+	const [periodFilter, setPeriodFilter] = useState<string>("today");
+	const [customDate, setCustomDate] = useState<string>(() => {
+		const today = new Date();
+		return today.toISOString().split("T")[0];
+	});
+	const [fetchedReportData, setFetchedReportData] = useState<any>(null);
+	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [activeTabId, setActiveTabId] = useState<string>("all");
+
+	// Reset state when opening
+	useEffect(() => {
+		if (open) {
+			setPeriodFilter("today");
+			setFetchedReportData(reportData);
+			setActiveTabId("all");
+		}
+	}, [open, reportData]);
+
+	// Fetch report data when periodFilter or customDate changes (Admins only)
+	useEffect(() => {
+		if (!open || !isAdmin) return;
+
+		let isMounted = true;
+		const loadReport = async () => {
+			setIsLoading(true);
+			try {
+				let payload: any = periodFilter;
+				if (periodFilter === "custom_date") {
+					payload = customDate;
+				}
+				const data = await (window as any).electron.invoke(
+					"get-daily-inventory-report",
+					payload,
+					user,
+				);
+				if (isMounted) {
+					setFetchedReportData(data);
+					setActiveTabId("all");
+				}
+			} catch (err) {
+				console.error("Failed to re-fetch report data:", err);
+			} finally {
+				if (isMounted) {
+					setIsLoading(false);
+				}
+			}
+		};
+
+		loadReport();
+		return () => {
+			isMounted = false;
+		};
+	}, [periodFilter, customDate, open, user, isAdmin]);
+
+	const currentData = fetchedReportData || reportData;
+	if (!currentData) return null;
+
+	const accountReports: any[] = currentData.accountReports || [];
+	const hasMultipleAccounts = accountReports.length > 1;
+
+	// Determine active report based on selected tab (Admin only)
+	const activeReport =
+		isAdmin && activeTabId !== "all" && hasMultipleAccounts ?
+			(accountReports.find(
+				(acc: any) => String(acc.accountId) === activeTabId,
+			) || currentData)
+		:	currentData;
+
+	const closedSalesTotal =
+		(activeReport.cashTotal || 0) + (activeReport.momoTotal || 0);
+	const drinksTotal = (activeReport.inventory || []).reduce(
 		(sum: number, item: any) => sum + item.totalSales,
 		0,
 	);
-	const foodTotal = reportData.foodSales.reduce(
+	const foodTotal = (activeReport.foodSales || []).reduce(
 		(sum: number, item: any) => sum + item.totalSales,
 		0,
 	);
-	const grandTotal = drinksTotal + foodTotal;
-	const netRevenue = grandTotal - (reportData.totalExpenses || 0);
+	const grandTotal =
+		closedSalesTotal > 0 ? closedSalesTotal : drinksTotal + foodTotal;
+	const netRevenue = grandTotal - (activeReport.totalExpenses || 0);
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+			<DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
 				<DialogHeader className="px-6 py-4 border-b bg-white z-10">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-wrap items-center justify-between gap-4">
 						<div>
 							<DialogTitle className="text-2xl font-bold">
 								Daily Sales & Inventory Report
@@ -73,241 +153,353 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 								</span>
 							</div>
 						</div>
-						<div className="text-sm text-gray-500 font-normal text-right">
-							<div className="font-medium text-gray-900">{reportData.date}</div>
-							<div>Report Summary</div>
+
+						<div className="flex items-center gap-3">
+							{/* Period Filter Dropdown - Admins only */}
+							{isAdmin && (
+								<div className="flex items-center gap-2">
+									<Select
+										value={periodFilter}
+										onValueChange={(val) => setPeriodFilter(val)}
+									>
+										<SelectTrigger className="w-40 h-10 text-sm bg-gray-50 border-gray-200">
+											<SelectValue placeholder="Select Period" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="today">Today</SelectItem>
+											<SelectItem value="yesterday">Yesterday</SelectItem>
+											<SelectItem value="custom_date">Custom Date</SelectItem>
+										</SelectContent>
+									</Select>
+
+									{periodFilter === "custom_date" && (
+										<Input
+											type="date"
+											value={customDate}
+											onChange={(e) => setCustomDate(e.target.value)}
+											className="w-40 h-10 text-sm bg-gray-50 border-gray-200"
+										/>
+									)}
+								</div>
+							)}
+
+							<div className="text-sm text-gray-500 font-normal text-right">
+								<div className="font-medium text-gray-900">
+									{currentData.date}
+								</div>
+								<div>Report Summary</div>
+							</div>
 						</div>
 					</div>
+
+					{/* Account Tabs if multiple accounts exist - Admins only */}
+					{isAdmin && hasMultipleAccounts && (
+						<div className="flex items-center gap-2 mt-4 pt-3 border-t overflow-x-auto no-scrollbar">
+							<span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+								<Users className="w-3.5 h-3.5" />
+								Accounts:
+							</span>
+							<Button
+								variant={activeTabId === "all" ? "default" : "outline"}
+								size="sm"
+								onClick={() => setActiveTabId("all")}
+								className={cn(ClassStyles.tabButton, "text-xs shadow-none")}
+							>
+								All Accounts (Combined)
+							</Button>
+							{accountReports.map((acc: any) => (
+								<Button
+									key={acc.accountId}
+									variant={
+										activeTabId === String(acc.accountId) ? "default" : "outline"
+									}
+									size="sm"
+									onClick={() => setActiveTabId(String(acc.accountId))}
+									className={cn(
+										ClassStyles.tabButton,
+										"text-xs shadow-none flex items-center gap-1.5",
+									)}
+								>
+									<UserCheck className="w-3.5 h-3.5" />
+									<span>{acc.accountName}</span>
+									<span className="opacity-75 text-[10px] uppercase font-normal bg-white/20 px-1 py-0.2 rounded">
+										({acc.role})
+									</span>
+								</Button>
+							))}
+						</div>
+					)}
 				</DialogHeader>
 
 				<div className="flex-1 px-6 py-4 overflow-y-auto bg-gray-50/30">
-					<div className="space-y-8">
-						{/* Summary Stats Overview */}
-						<div className="flex flex-wrap gap-4">
-							<div className="bg-white p-4 rounded-lg border shadow-sm">
-								<p className="text-xs text-gray-500 uppercase font-semibold">
-									Total Sales
-								</p>
-								<p className="text-xl font-bold text-gray-900">
-									{formatCurrency(grandTotal)}
-								</p>
-							</div>
-							<div className="bg-white p-4 rounded-lg border shadow-sm">
-								<p className="text-xs text-gray-500 uppercase font-semibold">
-									Total Cash
-								</p>
-								<p className="text-xl font-bold text-emerald-600">
-									{formatCurrency(reportData.cashTotal || 0)}
-								</p>
-							</div>
-							<div className="bg-white p-4 rounded-lg border shadow-sm">
-								<p className="text-xs text-gray-500 uppercase font-semibold">
-									Total MoMo
-								</p>
-								<p className="text-xl font-bold text-purple-600">
-									{formatCurrency(reportData.momoTotal || 0)}
-								</p>
-							</div>
-							<div className="bg-white p-4 rounded-lg border shadow-sm">
-								<p className="text-xs text-gray-500 uppercase font-semibold">
-									Total Expenses
-								</p>
-								<p className="text-xl font-bold text-red-600">
-									{formatCurrency(reportData.totalExpenses || 0)}
-								</p>
-							</div>
-							<div
-								className={cn(
-									"bg-white p-4 rounded-lg border shadow-sm",
-									user?.role === "cashier" ? "hidden" : "",
-								)}
-							>
-								<p className="text-xs text-gray-500 uppercase font-semibold">
-									Net Revenue
-								</p>
-								<p className="text-xl font-bold text-green-600">
-									{formatCurrency(netRevenue)}
-								</p>
-							</div>
-							<div className="bg-white p-4 rounded-lg border shadow-sm">
-								<p className="text-xs text-gray-500 uppercase font-semibold">
-									Pending
-								</p>
-								<p className="text-xl font-bold text-blue-600">
-									{reportData.pendingOrders?.count || 0} (
-									{formatCurrency(reportData.pendingOrders?.total || 0)})
-								</p>
-							</div>
+					{isLoading ?
+						<div className="flex flex-col items-center justify-center py-20 space-y-3 text-gray-500">
+							<div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+							<p className="text-sm font-medium">Loading report data...</p>
 						</div>
-
-						{/* Drinks Inventory Section */}
-						<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
-							<div className="px-4 py-3 border-b bg-gray-50/50 flex items-center justify-between">
-								<h3 className="font-bold flex items-center gap-2">
-									<span className="w-2 h-4 bg-blue-600 rounded-full"></span>
-									Drinks Inventory Reconciliation
-								</h3>
+					:	<div className="space-y-8">
+							{/* Summary Stats Overview */}
+							<div className="flex flex-wrap gap-4">
+								<div className="bg-white p-4 rounded-lg border shadow-sm">
+									<p className="text-xs text-gray-500 uppercase font-semibold">
+										Total Sales
+									</p>
+									<p className="text-xl font-bold text-gray-900">
+										{formatCurrency(grandTotal)}
+									</p>
+								</div>
+								<div className="bg-white p-4 rounded-lg border shadow-sm">
+									<p className="text-xs text-gray-500 uppercase font-semibold">
+										Total Cash
+									</p>
+									<p className="text-xl font-bold text-emerald-600">
+										{formatCurrency(activeReport.cashTotal || 0)}
+									</p>
+								</div>
+								<div className="bg-white p-4 rounded-lg border shadow-sm">
+									<p className="text-xs text-gray-500 uppercase font-semibold">
+										Total MoMo
+									</p>
+									<p className="text-xl font-bold text-purple-600">
+										{formatCurrency(activeReport.momoTotal || 0)}
+									</p>
+								</div>
+								<div className="bg-white p-4 rounded-lg border shadow-sm">
+									<p className="text-xs text-gray-500 uppercase font-semibold">
+										Total Expenses
+									</p>
+									<p className="text-xl font-bold text-red-600">
+										{formatCurrency(activeReport.totalExpenses || 0)}
+									</p>
+								</div>
+								<div
+									className={cn(
+										"bg-white p-4 rounded-lg border shadow-sm",
+										user?.role === "cashier" ? "hidden" : "",
+									)}
+								>
+									<p className="text-xs text-gray-500 uppercase font-semibold">
+										Net Revenue
+									</p>
+									<p className="text-xl font-bold text-green-600">
+										{formatCurrency(netRevenue)}
+									</p>
+								</div>
+								<div className="bg-white p-4 rounded-lg border shadow-sm">
+									<p className="text-xs text-gray-500 uppercase font-semibold">
+										Pending
+									</p>
+									<p className="text-xl font-bold text-blue-600">
+										{activeReport.pendingOrders?.count || 0} (
+										{formatCurrency(activeReport.pendingOrders?.total || 0)})
+									</p>
+								</div>
 							</div>
-							<Table>
-								<TableHeader>
-									<TableRow className="bg-gray-50/30">
-										<TableHead className="font-bold">Item Name</TableHead>
-										<TableHead className="text-right">Opening</TableHead>
-										<TableHead className="text-right">Added</TableHead>
-										<TableHead className="text-right">Sold</TableHead>
-										<TableHead className="text-right">Wasted</TableHead>
-										<TableHead className="text-right">Adj</TableHead>
-										<TableHead className="text-right">Left</TableHead>
-										<TableHead className="text-right">Sales</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{reportData.inventory?.length > 0 ?
-										reportData.inventory.map((item: any) => (
-											<TableRow key={item.id}>
-												<TableCell className="font-medium">
-													{item.name}
-												</TableCell>
-												<TableCell className="text-right">
-													{item.openingStock}
-												</TableCell>
-												<TableCell className="text-right text-green-600">
-													{item.added > 0 ? `+${item.added}` : item.added}
-												</TableCell>
-												<TableCell className="text-right text-blue-600">
-													{item.sold}
-												</TableCell>
-												<TableCell className="text-right text-orange-600">
-													{item.damaged > 0 ? `-${item.damaged}` : item.damaged}
-												</TableCell>
-												<TableCell className="text-right text-red-500">
-													{item.adjusted > 0 ?
-														`-${item.adjusted}`
-													:	item.adjusted}
-												</TableCell>
-												<TableCell className="text-right font-bold">
-													{item.stockLeft}
-												</TableCell>
-												<TableCell className="text-right font-semibold">
-													{formatCurrency(item.totalSales)}
-												</TableCell>
-											</TableRow>
-										))
-									:	<TableRow>
-											<TableCell
-												colSpan={8}
-												className="text-center py-4 text-gray-500 italic"
-											>
-												No Inventory Data
-											</TableCell>
-										</TableRow>
-									}
-								</TableBody>
-							</Table>
-						</section>
 
-						{/* Food Sales & Expenses Row */}
-						<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-							{/* Food Sales Section */}
+							{/* Drinks Inventory Section */}
 							<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
-								<div className="px-4 py-3 border-b bg-gray-50/50">
+								<div className="px-4 py-3 border-b bg-gray-50/50 flex items-center justify-between">
 									<h3 className="font-bold flex items-center gap-2">
-										<span className="w-2 h-4 bg-green-600 rounded-full"></span>
-										Food Sales Summary
+										<span className="w-2 h-4 bg-blue-600 rounded-full"></span>
+										Drinks Inventory Reconciliation
 									</h3>
 								</div>
 								<Table>
 									<TableHeader>
 										<TableRow className="bg-gray-50/30">
 											<TableHead className="font-bold">Item Name</TableHead>
-											<TableHead className="text-right">Qty Sold</TableHead>
-											<TableHead className="text-right">
-												Total Revenue
-											</TableHead>
+											<TableHead className="text-right">Opening</TableHead>
+											<TableHead className="text-right">Added</TableHead>
+											<TableHead className="text-right">Sold</TableHead>
+											<TableHead className="text-right">Wasted</TableHead>
+											<TableHead className="text-right">Adj</TableHead>
+											<TableHead className="text-right">Left</TableHead>
+											<TableHead className="text-right">Sales</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										{reportData.foodSales.length === 0 ?
-											<TableRow>
-												<TableCell
-													colSpan={3}
-													className="text-center py-4 text-gray-500 italic"
-												>
-													No food sales.
-												</TableCell>
-											</TableRow>
-										:	reportData.foodSales.map((item: any, idx: number) => (
-												<TableRow key={idx}>
+										{activeReport.inventory?.length > 0 ?
+											activeReport.inventory.map((item: any) => (
+												<TableRow key={item.id}>
 													<TableCell className="font-medium">
 														{item.name}
 													</TableCell>
 													<TableCell className="text-right">
-														{item.quantity}
+														{item.openingStock}
+													</TableCell>
+													<TableCell className="text-right text-green-600">
+														{item.added > 0 ? `+${item.added}` : item.added}
+													</TableCell>
+													<TableCell className="text-right text-blue-600">
+														{item.sold}
+													</TableCell>
+													<TableCell className="text-right text-orange-600">
+														{item.damaged > 0 ? `-${item.damaged}` : item.damaged}
+													</TableCell>
+													<TableCell className="text-right text-red-500">
+														{item.adjusted > 0 ?
+															`-${item.adjusted}`
+														:	item.adjusted}
+													</TableCell>
+													<TableCell className="text-right font-bold">
+														{item.stockLeft}
 													</TableCell>
 													<TableCell className="text-right font-semibold">
 														{formatCurrency(item.totalSales)}
 													</TableCell>
 												</TableRow>
 											))
+										:	<TableRow>
+												<TableCell
+													colSpan={8}
+													className="text-center py-4 text-gray-500 italic"
+												>
+													No Inventory Data
+												</TableCell>
+											</TableRow>
 										}
 									</TableBody>
 								</Table>
 							</section>
 
-							{/* Expenses Section */}
-							<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
-								<div className="px-4 py-3 border-b bg-gray-50/50">
-									<h3 className="font-bold flex items-center gap-2">
-										<span className="w-2 h-4 bg-red-600 rounded-full"></span>
-										Today's Expenses
-									</h3>
-								</div>
-								<Table>
-									<TableHeader>
-										<TableRow className="bg-gray-50/30">
-											<TableHead className="font-bold">Description</TableHead>
-											<TableHead className="text-right">Amount</TableHead>
-											<TableHead className="text-right">By</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{reportData.expenses.length === 0 ?
-											<TableRow>
-												<TableCell
-													colSpan={3}
-													className="text-center py-4 text-gray-500 italic"
-												>
-													No expenses recorded.
-												</TableCell>
+							{/* Food Sales & Expenses Row */}
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+								{/* Food Sales Section */}
+								<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
+									<div className="px-4 py-3 border-b bg-gray-50/50">
+										<h3 className="font-bold flex items-center gap-2">
+											<span className="w-2 h-4 bg-green-600 rounded-full"></span>
+											Food Sales Summary
+										</h3>
+									</div>
+									<Table>
+										<TableHeader>
+											<TableRow className="bg-gray-50/30">
+												<TableHead className="font-bold">Item Name</TableHead>
+												<TableHead className="text-right">Qty Sold</TableHead>
+												<TableHead className="text-right">
+													Total Revenue
+												</TableHead>
 											</TableRow>
-										:	reportData.expenses.map((expense: any, idx: number) => (
-												<TableRow key={idx}>
-													<TableCell className="font-medium">
-														{expense.description}
-													</TableCell>
-													<TableCell className="text-right text-red-600 font-semibold">
-														{formatCurrency(expense.amount)}
-													</TableCell>
-													<TableCell className="text-right text-xs text-gray-500">
-														{expense.staff}
+										</TableHeader>
+										<TableBody>
+											{activeReport.foodSales?.length === 0 ?
+												<TableRow>
+													<TableCell
+														colSpan={3}
+														className="text-center py-4 text-gray-500 italic"
+													>
+														No food sales.
 													</TableCell>
 												</TableRow>
-											))
-										}
-										{reportData.expenses.length > 0 && (
-											<TableRow className="bg-gray-50/50 font-bold">
-												<TableCell>Total Expenses</TableCell>
-												<TableCell className="text-right text-red-600">
-													{formatCurrency(reportData.totalExpenses)}
-												</TableCell>
-												<TableCell />
+											:	(activeReport.foodSales || []).map(
+													(item: any, idx: number) => (
+														<TableRow key={idx} className="align-top">
+															<TableCell className="font-medium py-3">
+																<div className="font-semibold text-gray-900">
+																	{item.name}
+																</div>
+																{item.extras && item.extras.length > 0 && (
+																	<div className="mt-1.5 space-y-1">
+																		<div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+																			Extras:
+																		</div>
+																		{item.extras.map(
+																			(extra: any, eIdx: number) => (
+																				<div
+																					key={eIdx}
+																					className="text-xs text-muted-foreground flex flex-wrap items-center justify-between pl-2 bg-gray-50 p-1 rounded border border-gray-100"
+																				>
+																					<span className="flex items-center gap-1">
+																						<span className="text-primary font-bold">
+																							+
+																						</span>
+																						<span>{extra.name}</span>
+																						<span className="text-gray-400">
+																							({extra.quantity}x @{" "}
+																							{formatCurrency(extra.price)})
+																						</span>
+																					</span>
+																					<span className="font-medium text-gray-700">
+																						{formatCurrency(extra.totalSales)}
+																					</span>
+																				</div>
+																			),
+																		)}
+																	</div>
+																)}
+															</TableCell>
+															<TableCell className="text-right py-3 font-semibold">
+																{item.quantity}
+															</TableCell>
+															<TableCell className="text-right py-3 font-bold text-gray-900">
+																{formatCurrency(item.totalSales)}
+															</TableCell>
+														</TableRow>
+													),
+												)
+											}
+										</TableBody>
+									</Table>
+								</section>
+
+								{/* Expenses Section */}
+								<section className="bg-white rounded-lg border shadow-sm overflow-hidden">
+									<div className="px-4 py-3 border-b bg-gray-50/50">
+										<h3 className="font-bold flex items-center gap-2">
+											<span className="w-2 h-4 bg-red-600 rounded-full"></span>
+											Expenses
+										</h3>
+									</div>
+									<Table>
+										<TableHeader>
+											<TableRow className="bg-gray-50/30">
+												<TableHead className="font-bold">Description</TableHead>
+												<TableHead className="text-right">Amount</TableHead>
+												<TableHead className="text-right">By</TableHead>
 											</TableRow>
-										)}
-									</TableBody>
-								</Table>
-							</section>
+										</TableHeader>
+										<TableBody>
+											{activeReport.expenses?.length === 0 ?
+												<TableRow>
+													<TableCell
+														colSpan={3}
+														className="text-center py-4 text-gray-500 italic"
+													>
+														No expenses recorded.
+													</TableCell>
+												</TableRow>
+											:	(activeReport.expenses || []).map(
+													(expense: any, idx: number) => (
+														<TableRow key={idx}>
+															<TableCell className="font-medium">
+																{expense.description}
+															</TableCell>
+															<TableCell className="text-right text-red-600 font-semibold">
+																{formatCurrency(expense.amount)}
+															</TableCell>
+															<TableCell className="text-right text-xs text-gray-500">
+																{expense.staff}
+															</TableCell>
+														</TableRow>
+													),
+												)
+											}
+											{activeReport.expenses?.length > 0 && (
+												<TableRow className="bg-gray-50/50 font-bold">
+													<TableCell>Total Expenses</TableCell>
+													<TableCell className="text-right text-red-600">
+														{formatCurrency(activeReport.totalExpenses)}
+													</TableCell>
+													<TableCell />
+												</TableRow>
+											)}
+										</TableBody>
+									</Table>
+								</section>
+							</div>
 						</div>
-					</div>
+					}
 				</div>
 
 				<DialogFooter className="px-6 py-4 border-t bg-gray-50 gap-3">
@@ -320,7 +512,7 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 						Close
 					</Button>
 					<Button
-						onClick={onDownload}
+						onClick={() => onDownload(activeReport)}
 						className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
 					>
 						<FileDown className="h-4 w-4" />
