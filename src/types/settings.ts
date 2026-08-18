@@ -20,6 +20,7 @@ export interface GeneralSettings {
 	businessBanner?: string;
 	defaultCurrency: string;
 	printReceipts: boolean;
+	businessDayCutoffHour?: number;
 }
 
 export interface POSSettings {

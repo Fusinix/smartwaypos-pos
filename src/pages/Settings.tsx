@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useKeyboard } from "@/context/KeyboardContext";
 import { cn, parseJSONString } from "@/lib/utils";
 import type { User as UserType } from "@/types";
 import {
@@ -113,6 +112,7 @@ export const Settings: React.FC = () => {
 			businessBanner: "",
 			defaultCurrency: "GHS",
 			printReceipts: false,
+			businessDayCutoffHour: 4,
 			...settings?.general,
 		});
 
@@ -267,7 +267,7 @@ export const Settings: React.FC = () => {
 		return new Date(dateString).toLocaleString();
 	};
 
-	const formatContext = (context: string | null) => {
+	const _formatContext = (context: string | null) => {
 		if (!context) return "-";
 		try {
 			const parsed = JSON.parse(context);
@@ -658,6 +658,39 @@ export const Settings: React.FC = () => {
 									>
 										<option value="GHS">GHS</option>
 									</select>
+								</div>
+
+								<div>
+									<Label className="block text-sm font-medium text-gray-700">
+										Business Day Cut-Off Hour
+									</Label>
+									<select
+										value={localGeneralSettings.businessDayCutoffHour ?? 4}
+										onChange={(e) =>
+											setLocalGeneralSettings({
+												...localGeneralSettings,
+												businessDayCutoffHour: parseInt(e.target.value, 10),
+											})
+										}
+										className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary/90 focus:ring-primary/90 sm:text-sm"
+									>
+										<option value={0}>12:00 AM (Midnight / Calendar Day)</option>
+										<option value={1}>1:00 AM</option>
+										<option value={2}>2:00 AM</option>
+										<option value={3}>3:00 AM</option>
+										<option value={4}>4:00 AM (Recommended for late-night venues)</option>
+										<option value={5}>5:00 AM</option>
+										<option value={6}>6:00 AM</option>
+										<option value={7}>7:00 AM</option>
+										<option value={8}>8:00 AM</option>
+										<option value={9}>9:00 AM</option>
+										<option value={10}>10:00 AM</option>
+										<option value={11}>11:00 AM</option>
+										<option value={12}>12:00 PM (Noon)</option>
+									</select>
+									<p className="text-xs text-gray-400 mt-1">
+										Sales occurring past midnight before this hour will be attributed to the previous business day.
+									</p>
 								</div>
 								<div className="flex items-center hidden">
 									<Input

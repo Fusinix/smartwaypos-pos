@@ -245,6 +245,24 @@ export const Orders: React.FC = () => {
 		return new Date(str);
 	};
 
+	const parseLocalDateString = (dateStr: string, isEnd = false): Date => {
+		if (!dateStr) return new Date(NaN);
+		const parts = dateStr.trim().split("-");
+		if (parts.length === 3) {
+			const year = parseInt(parts[0], 10);
+			const month = parseInt(parts[1], 10) - 1;
+			const day = parseInt(parts[2], 10);
+			if (isEnd) {
+				return new Date(year, month, day, 23, 59, 59, 999);
+			}
+			return new Date(year, month, day, 0, 0, 0, 0);
+		}
+		const d = new Date(dateStr);
+		if (isEnd) d.setHours(23, 59, 59, 999);
+		else d.setHours(0, 0, 0, 0);
+		return d;
+	};
+
 	const filteredOrders = useMemo(() => {
 		return uniqueOrders.filter((order) => {
 			// Tab filter
@@ -277,17 +295,16 @@ export const Orders: React.FC = () => {
 					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 					if (orderDate < monthStart) return false;
 				} else if (dateFilter === "custom_date" && customSingleDate) {
-					const singleStart = new Date(customSingleDate);
-					singleStart.setHours(0, 0, 0, 0);
-					const singleEnd = new Date(customSingleDate);
-					singleEnd.setHours(23, 59, 59, 999);
+					const singleStart = parseLocalDateString(customSingleDate);
+					const singleEnd = parseLocalDateString(customSingleDate, true);
 					if (orderDate < singleStart || orderDate > singleEnd) return false;
 				} else if (dateFilter === "custom") {
-					if (customDateStart && orderDate < new Date(customDateStart))
-						return false;
+					if (customDateStart) {
+						const startDate = parseLocalDateString(customDateStart);
+						if (orderDate < startDate) return false;
+					}
 					if (customDateEnd) {
-						const endDate = new Date(customDateEnd);
-						endDate.setHours(23, 59, 59, 999);
+						const endDate = parseLocalDateString(customDateEnd, true);
 						if (orderDate > endDate) return false;
 					}
 				}
@@ -351,17 +368,16 @@ export const Orders: React.FC = () => {
 					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 					if (orderDate < monthStart) return;
 				} else if (dateFilter === "custom_date" && customSingleDate) {
-					const singleStart = new Date(customSingleDate);
-					singleStart.setHours(0, 0, 0, 0);
-					const singleEnd = new Date(customSingleDate);
-					singleEnd.setHours(23, 59, 59, 999);
+					const singleStart = parseLocalDateString(customSingleDate);
+					const singleEnd = parseLocalDateString(customSingleDate, true);
 					if (orderDate < singleStart || orderDate > singleEnd) return;
 				} else if (dateFilter === "custom") {
-					if (customDateStart && orderDate < new Date(customDateStart))
-						return;
+					if (customDateStart) {
+						const startDate = parseLocalDateString(customDateStart);
+						if (orderDate < startDate) return;
+					}
 					if (customDateEnd) {
-						const endDate = new Date(customDateEnd);
-						endDate.setHours(23, 59, 59, 999);
+						const endDate = parseLocalDateString(customDateEnd, true);
 						if (orderDate > endDate) return;
 					}
 				}
@@ -392,7 +408,13 @@ export const Orders: React.FC = () => {
 			totalCancelledAmount,
 			cancelledCount,
 		};
-	}, [uniqueOrders, dateFilter, customSingleDate, customDateStart, customDateEnd]);
+	}, [
+		uniqueOrders,
+		dateFilter,
+		customSingleDate,
+		customDateStart,
+		customDateEnd,
+	]);
 
 	const groupedOrders = useMemo(() => {
 		const groups: { [key: string]: Order[] } = {};
@@ -573,7 +595,8 @@ export const Orders: React.FC = () => {
 	};
 
 	const handleDownloadPDF = (targetData?: any) => {
-		const activeReportData = targetData && targetData.inventory ? targetData : reportData;
+		const activeReportData =
+			targetData && targetData.inventory ? targetData : reportData;
 		if (!activeReportData) return;
 
 		try {
@@ -595,25 +618,32 @@ export const Orders: React.FC = () => {
 				28,
 				{ align: "center" },
 			);
-			doc.text(`Staff: ${activeReportData.accountName || user?.username || "Admin"}`, pageWidth / 2, 35, {
-				align: "center",
-			});
+			doc.text(
+				`Staff: ${activeReportData.accountName || user?.username || "Admin"}`,
+				pageWidth / 2,
+				35,
+				{
+					align: "center",
+				},
+			);
 
 			// 2. Inventory Table (Drinks)
 			doc.setFontSize(16);
 			doc.setTextColor(0, 0, 0);
 			doc.text("Drinks Inventory Reconciliation", 14, 50);
 
-			const inventoryBody = (activeReportData.inventory || []).map((item: any) => [
-				item.name,
-				item.openingStock,
-				item.added,
-				item.sold,
-				item.damaged,
-				item.adjusted,
-				formatCurrency(item.totalSales),
-				item.stockLeft,
-			]);
+			const inventoryBody = (activeReportData.inventory || []).map(
+				(item: any) => [
+					item.name,
+					item.openingStock,
+					item.added,
+					item.sold,
+					item.damaged,
+					item.adjusted,
+					formatCurrency(item.totalSales),
+					item.stockLeft,
+				],
+			);
 
 			autoTable(doc, {
 				startY: 55,
@@ -676,7 +706,8 @@ export const Orders: React.FC = () => {
 			});
 
 			// 5. Final Summary
-			const closedSalesTotal = (activeReportData.cashTotal || 0) + (activeReportData.momoTotal || 0);
+			const closedSalesTotal =
+				(activeReportData.cashTotal || 0) + (activeReportData.momoTotal || 0);
 			const drinksTotal = (activeReportData.inventory || []).reduce(
 				(sum: number, item: any) => sum + item.totalSales,
 				0,
@@ -685,7 +716,8 @@ export const Orders: React.FC = () => {
 				(sum: number, item: any) => sum + item.totalSales,
 				0,
 			);
-			const grandTotal = closedSalesTotal > 0 ? closedSalesTotal : (drinksTotal + foodTotal);
+			const grandTotal =
+				closedSalesTotal > 0 ? closedSalesTotal : drinksTotal + foodTotal;
 			const netRevenue = grandTotal - (activeReportData.totalExpenses || 0);
 
 			doc.setFontSize(12);
@@ -731,7 +763,8 @@ export const Orders: React.FC = () => {
 			);
 
 			// Save the PDF
-			const accountNameStr = activeReportData.accountName ? `_${activeReportData.accountName}` : "";
+			const accountNameStr =
+				activeReportData.accountName ? `_${activeReportData.accountName}` : "";
 			const fileName = `DailyReport_${activeReportData.date}${accountNameStr}.pdf`;
 			doc.save(fileName);
 			toast.success("Report downloaded successfully");
@@ -935,53 +968,59 @@ export const Orders: React.FC = () => {
 					</div>
 
 					{/* Period Stats Summary Bar - Admin Only */}
-					{user?.role === "admin" && (
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-b">
-							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
-								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-									Total Sales
-								</span>
-								<span className="text-xl font-bold text-emerald-600 mt-1">
-									{formatCurrency(periodStats.totalSales)}
-								</span>
-								<span className="text-[11px] text-gray-500 mt-0.5">
-									{periodStats.closedCount} closed order{periodStats.closedCount !== 1 ? "s" : ""}
-								</span>
-							</div>
-
-							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
-								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-									Total Cash
-								</span>
-								<span className="text-xl font-bold text-blue-600 mt-1">
-									{formatCurrency(periodStats.totalCash)}
-								</span>
-								<span className="text-[11px] text-gray-500 mt-0.5">Cash payments</span>
-							</div>
-
-							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
-								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-									Total MoMo
-								</span>
-								<span className="text-xl font-bold text-purple-600 mt-1">
-									{formatCurrency(periodStats.totalMomo)}
-								</span>
-								<span className="text-[11px] text-gray-500 mt-0.5">Mobile Money</span>
-							</div>
-
-							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
-								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-									Cancelled Orders
-								</span>
-								<span className="text-xl font-bold text-rose-600 mt-1">
-									{formatCurrency(periodStats.totalCancelledAmount)}
-								</span>
-								<span className="text-[11px] text-gray-500 mt-0.5">
-									{periodStats.cancelledCount} cancelled order{periodStats.cancelledCount !== 1 ? "s" : ""}
-								</span>
-							</div>
+					{/* {user?.role === "admin" && ( */}
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-b">
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+								Total Sales
+							</span>
+							<span className="text-xl font-bold text-emerald-600 mt-1">
+								{formatCurrency(periodStats.totalSales)}
+							</span>
+							<span className="text-[11px] text-gray-500 mt-0.5">
+								{periodStats.closedCount} closed order
+								{periodStats.closedCount !== 1 ? "s" : ""}
+							</span>
 						</div>
-					)}
+
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+								Total Cash
+							</span>
+							<span className="text-xl font-bold text-blue-600 mt-1">
+								{formatCurrency(periodStats.totalCash)}
+							</span>
+							<span className="text-[11px] text-gray-500 mt-0.5">
+								Cash payments
+							</span>
+						</div>
+
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+								Total MoMo
+							</span>
+							<span className="text-xl font-bold text-purple-600 mt-1">
+								{formatCurrency(periodStats.totalMomo)}
+							</span>
+							<span className="text-[11px] text-gray-500 mt-0.5">
+								Mobile Money
+							</span>
+						</div>
+
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+								Cancelled Orders
+							</span>
+							<span className="text-xl font-bold text-rose-600 mt-1">
+								{formatCurrency(periodStats.totalCancelledAmount)}
+							</span>
+							<span className="text-[11px] text-gray-500 mt-0.5">
+								{periodStats.cancelledCount} cancelled order
+								{periodStats.cancelledCount !== 1 ? "s" : ""}
+							</span>
+						</div>
+					</div>
+					{/* )} */}
 
 					{/* Order List - Responsive Grid */}
 					<div

@@ -2088,9 +2088,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 					 WHERE oi.product_id = ? 
 					 AND oi.item_type = 'drink'
 					 AND o.status IN ('open', 'closed')
-					 AND (date(o.created_at, 'localtime') = date(?) OR date(o.updated_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                    (targetAdminId ? ` AND o.admin_id = ?` : ``), targetAdminId ?
-                    [product.id, reportDate, reportDate, reportDate, targetAdminId]
+					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
+                    (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``), targetAdminId ?
+                    [product.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
                     : [product.id, reportDate, reportDate, reportDate]);
                 const closedSalesData = await db.get(`SELECT SUM(oi.quantity) as sold_closed_qty
 					 FROM order_items oi
@@ -2099,8 +2099,8 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 					 AND oi.item_type = 'drink'
 					 AND o.status = 'closed'
 					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                    (targetAdminId ? ` AND o.admin_id = ?` : ``), targetAdminId ?
-                    [product.id, reportDate, reportDate, reportDate, targetAdminId]
+                    (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``), targetAdminId ?
+                    [product.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
                     : [product.id, reportDate, reportDate, reportDate]);
                 const sold = salesData?.sold_qty || 0;
                 const soldClosed = closedSalesData?.sold_closed_qty || 0;
@@ -2157,9 +2157,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 				 WHERE oi.item_type = 'food'
 				 AND o.status = 'closed'
 				 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                (targetAdminId ? ` AND o.admin_id = ?` : ``) +
+                (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``) +
                 ` GROUP BY fi.id, fi.name, fi.price`, targetAdminId ?
-                [reportDate, reportDate, reportDate, targetAdminId]
+                [reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
                 : [reportDate, reportDate, reportDate]);
             const foodSalesEnriched = await Promise.all(foodSalesRaw.map(async (f) => {
                 const extrasRaw = await db.all(`SELECT fe.id, fe.name, fe.price, SUM(COALESCE(oie.quantity, 1) * COALESCE(oi.quantity, 1)) as quantity
@@ -2171,9 +2171,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 						 AND oi.item_type = 'food'
 						 AND o.status = 'closed'
 						 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                    (targetAdminId ? ` AND o.admin_id = ?` : ``) +
+                    (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``) +
                     ` GROUP BY fe.id, fe.name, fe.price`, targetAdminId ?
-                    [f.id, reportDate, reportDate, reportDate, targetAdminId]
+                    [f.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
                     : [f.id, reportDate, reportDate, reportDate]);
                 const baseSales = f.quantity * f.price;
                 const extrasSales = extrasRaw.reduce((sum, e) => sum + (e.quantity || 1) * Number(e.price || 0), 0);
@@ -2198,10 +2198,10 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
             const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
 				 FROM orders 
 				 WHERE status = 'open' 
-				 AND (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
-                (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
-                [reportDate, reportDate, targetAdminId]
-                : [reportDate, reportDate]);
+				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+                (targetAdminId ? ` AND (admin_id = ? OR edited_by = ?)` : ``), targetAdminId ?
+                [reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
+                : [reportDate, reportDate, reportDate]);
             const expenses = await db.all(`SELECT * FROM expenses WHERE (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
                 (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
                 [reportDate, reportDate, targetAdminId]
@@ -2210,17 +2210,23 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 				 FROM orders
 				 WHERE status = 'closed'
 				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
-                (targetAdminId ? ` AND admin_id = ?` : ``) +
+                (targetAdminId ? ` AND (admin_id = ? OR edited_by = ?)` : ``) +
                 ` GROUP BY LOWER(payment_mode)`, targetAdminId ?
-                [reportDate, reportDate, reportDate, targetAdminId]
+                [reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
                 : [reportDate, reportDate, reportDate]);
             let cashTotal = 0;
             let momoTotal = 0;
             paymentBreakdown.forEach((p) => {
-                if (p.method === "cash") {
+                const method = String(p.method || "").toLowerCase().trim();
+                if (method === "cash" || method.includes("cash")) {
                     cashTotal += p.total || 0;
                 }
-                else if (p.method === "momo") {
+                else if (method === "momo" ||
+                    method.includes("momo") ||
+                    method.includes("mobile") ||
+                    method.includes("mtn") ||
+                    method.includes("telecel") ||
+                    method.includes("vodafone")) {
                     momoTotal += p.total || 0;
                 }
             });
@@ -2251,8 +2257,16 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 						SELECT o.admin_id, u.username, u.role 
 						FROM orders o 
 						LEFT JOIN users u ON o.admin_id = u.id 
-						WHERE (date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
+						WHERE (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
 						AND o.admin_id IS NOT NULL
+
+						UNION
+
+						SELECT o.edited_by as admin_id, u.username, u.role 
+						FROM orders o 
+						LEFT JOIN users u ON o.edited_by = u.id 
+						WHERE (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
+						AND o.edited_by IS NOT NULL
 
 						UNION
 
@@ -2269,7 +2283,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 						LEFT JOIN users u ON i.admin_id = u.id 
 						WHERE (date(i.created_at, 'localtime') = date(?) OR date(i.created_at) = date(?)) 
 						AND i.admin_id IS NOT NULL
-					)`, [reportDate, reportDate, reportDate, reportDate, reportDate, reportDate]);
+					)`, [reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate]);
             for (const acc of activeAccounts) {
                 if (acc.admin_id) {
                     const subReport = await buildReportForAdmin(acc.admin_id);

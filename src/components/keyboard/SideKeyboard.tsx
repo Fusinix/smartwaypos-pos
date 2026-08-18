@@ -6,55 +6,53 @@ import { Button } from "@/components/ui/button";
 import {
 	X,
 	Delete,
-	Type,
-	Hash,
 	ChevronRight,
 	CornerDownLeft,
 	Space,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSettings } from "@/hooks/useSettings";
 
 export const SideKeyboard: React.FC = () => {
 	const { isOpen, mode, currentInput, closeKeyboard, setCurrentInput } =
 		useKeyboard();
-	const { settings } = useSettings();
 
 	const [layout, setLayout] = useState<"lowercase" | "uppercase" | "symbols">(
 		"lowercase",
 	);
 
 	const handleKeyPress = (key: string) => {
+		let activeInput = currentInput;
+
 		// Magnet Connection: Always try to find the tagged active input first
 		const taggedInput = document.querySelector(
 			'[data-keyboard-active="true"]',
 		) as HTMLInputElement | HTMLTextAreaElement;
-		if (taggedInput && taggedInput !== currentInput) {
-			(currentInput as any) = taggedInput;
+		if (taggedInput && taggedInput !== activeInput) {
+			activeInput = taggedInput;
 			setCurrentInput(taggedInput);
 		}
 
-		if (!currentInput) return;
+		if (!activeInput) return;
 
 		// Self-healing: if the input was replaced in the DOM during a re-render
-		if (!document.body.contains(currentInput)) {
+		if (!document.body.contains(activeInput)) {
 			let replacement: HTMLInputElement | HTMLTextAreaElement | null = null;
 
 			// Try finding by ID
-			if (currentInput.id) {
-				replacement = document.getElementById(currentInput.id) as any;
+			if (activeInput.id) {
+				replacement = document.getElementById(activeInput.id) as any;
 			}
 
 			// Try finding by name if no ID or ID not found
-			if (!replacement && currentInput.name) {
+			if (!replacement && activeInput.name) {
 				replacement = document.querySelector(
-					`input[name="${currentInput.name}"], textarea[name="${currentInput.name}"]`,
+					`input[name="${activeInput.name}"], textarea[name="${activeInput.name}"]`,
 				) as any;
 			}
 
 			// Try finding by placeholder as a last resort
-			if (!replacement && currentInput.placeholder) {
-				const escapedPlaceholder = currentInput.placeholder.replace(
+			if (!replacement && activeInput.placeholder) {
+				const escapedPlaceholder = activeInput.placeholder.replace(
 					/"/g,
 					'\\"',
 				);
@@ -63,9 +61,9 @@ export const SideKeyboard: React.FC = () => {
 				) as any;
 			}
 
-			if (replacement && replacement !== currentInput) {
+			if (replacement && replacement !== activeInput) {
 				// Update both local and global state
-				(currentInput as any) = replacement;
+				activeInput = replacement;
 				setCurrentInput(replacement);
 
 				// Ensure the new one is tagged
@@ -76,8 +74,8 @@ export const SideKeyboard: React.FC = () => {
 		}
 
 		// Force focus if we lost it (e.g. due to clicking a label or Radix focus trap)
-		if (document.activeElement !== currentInput) {
-			currentInput.focus();
+		if (document.activeElement !== activeInput) {
+			activeInput.focus();
 		}
 
 		let start = 0;
@@ -85,40 +83,40 @@ export const SideKeyboard: React.FC = () => {
 
 		try {
 			// Some input types like 'number' don't support selectionStart
-			start = currentInput.selectionStart ?? currentInput.value.length;
-			end = currentInput.selectionEnd ?? currentInput.value.length;
+			start = activeInput.selectionStart ?? activeInput.value.length;
+			end = activeInput.selectionEnd ?? activeInput.value.length;
 		} catch (e) {
 			// Fallback for number inputs
-			start = currentInput.value.length;
-			end = currentInput.value.length;
+			start = activeInput.value.length;
+			end = activeInput.value.length;
 		}
-		const value = currentInput.value;
+		const value = activeInput.value;
 		let newPos = start;
 
 		const updateInputValue = (newValue: string) => {
-			if (!currentInput) return;
+			if (!activeInput) return;
 
 			// The "magic" setter that triggers React's internal state update
 			const prototype =
-				currentInput instanceof HTMLTextAreaElement ?
+				activeInput instanceof HTMLTextAreaElement ?
 					window.HTMLTextAreaElement.prototype
 				:	window.HTMLInputElement.prototype;
 
 			const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
 
 			if (descriptor && descriptor.set) {
-				descriptor.set.call(currentInput, newValue);
+				descriptor.set.call(activeInput, newValue);
 			} else {
-				currentInput.value = newValue;
+				activeInput.value = newValue;
 			}
 
 			// Dispatch the input event
 			const event = new Event("input", { bubbles: true });
-			currentInput.dispatchEvent(event);
+			activeInput.dispatchEvent(event);
 		};
 
 		// Ensure focus before we do anything
-		currentInput.focus();
+		activeInput.focus();
 
 		if (key === "BACKSPACE") {
 			if (start === end && start > 0) {
@@ -136,7 +134,7 @@ export const SideKeyboard: React.FC = () => {
 				code: "Enter",
 				bubbles: true,
 			});
-			currentInput.dispatchEvent(event);
+			activeInput.dispatchEvent(event);
 			closeKeyboard();
 			return;
 		} else {
@@ -162,10 +160,10 @@ export const SideKeyboard: React.FC = () => {
 
 		// Re-focus and restore selection after React has had a chance to re-render
 		requestAnimationFrame(() => {
-			if (!currentInput || !document.body.contains(currentInput)) return;
-			currentInput.focus();
+			if (!activeInput || !document.body.contains(activeInput)) return;
+			activeInput.focus();
 			try {
-				currentInput.setSelectionRange(newPos, newPos);
+				activeInput.setSelectionRange(newPos, newPos);
 			} catch (e) {}
 		});
 	};
@@ -196,7 +194,6 @@ export const SideKeyboard: React.FC = () => {
 		</Button>
 	);
 
-	const numericKeys = [1, 2, 3, 4, 5, 6, 7, 8, 9, ".", 0, "BACKSPACE"];
 	const alphabet = [
 		["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
 		["a", "s", "d", "f", "g", "h", "j", "k", "l"],
