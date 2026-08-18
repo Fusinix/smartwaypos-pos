@@ -51,7 +51,7 @@ export default function AddEditProduct({
 	const [imagePreview, setImagePreview] = useState<string | null>(
 		product?.image || null,
 	);
-	const [reason, setReason] = useState<string>("adjustment");
+	const [reason, setReason] = useState<string>("restock");
 	const [adjustmentValue, setAdjustmentValue] = useState<number>(0);
 	const navigate = useNavigate();
 
