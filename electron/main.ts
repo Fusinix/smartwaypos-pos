@@ -2748,9 +2748,7 @@ ipcMain.handle(
 				paymentBreakdown.forEach((p: any) => {
 					const method = String(p.method || "").toLowerCase().trim();
 					const amt = Number(p.total) || 0;
-					if (method === "cash" || method.includes("cash")) {
-						cashTotal += amt;
-					} else if (
+					if (
 						method === "momo" ||
 						method.includes("momo") ||
 						method.includes("mobile") ||
@@ -2768,7 +2766,7 @@ ipcMain.handle(
 					) {
 						cardTotal += amt;
 					} else {
-						otherTotal += amt;
+						cashTotal += amt;
 					}
 				});
 

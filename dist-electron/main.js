@@ -2315,10 +2315,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
             paymentBreakdown.forEach((p) => {
                 const method = String(p.method || "").toLowerCase().trim();
                 const amt = Number(p.total) || 0;
-                if (method === "cash" || method.includes("cash")) {
-                    cashTotal += amt;
-                }
-                else if (method === "momo" ||
+                if (method === "momo" ||
                     method.includes("momo") ||
                     method.includes("mobile") ||
                     method.includes("mtn") ||
@@ -2334,7 +2331,7 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
                     cardTotal += amt;
                 }
                 else {
-                    otherTotal += amt;
+                    cashTotal += amt;
                 }
             });
             const totalClosedSales = cashTotal + momoTotal + cardTotal + otherTotal;
