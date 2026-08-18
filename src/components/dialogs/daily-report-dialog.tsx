@@ -122,14 +122,19 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 			) || currentData)
 		:	currentData;
 
+	const cashTotal = activeReport.cashTotal || 0;
+	const momoTotal = activeReport.momoTotal || 0;
+	const cardTotal = activeReport.cardTotal || 0;
+	const otherTotal = activeReport.otherTotal || 0;
+
 	const closedSalesTotal =
-		(activeReport.cashTotal || 0) + (activeReport.momoTotal || 0);
+		activeReport.totalClosedSales ?? (cashTotal + momoTotal + cardTotal + otherTotal);
 	const drinksTotal = (activeReport.inventory || []).reduce(
-		(sum: number, item: any) => sum + item.totalSales,
+		(sum: number, item: any) => sum + (item.totalSales || 0),
 		0,
 	);
 	const foodTotal = (activeReport.foodSales || []).reduce(
-		(sum: number, item: any) => sum + item.totalSales,
+		(sum: number, item: any) => sum + (item.totalSales || 0),
 		0,
 	);
 	const grandTotal =
@@ -288,7 +293,7 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 										Total Cash
 									</p>
 									<p className="text-xl font-bold text-emerald-600">
-										{formatCurrency(activeReport.cashTotal || 0)}
+										{formatCurrency(cashTotal)}
 									</p>
 								</div>
 								<div className="bg-white p-4 rounded-lg border shadow-sm">
@@ -296,9 +301,29 @@ export const DailyReportDialog: React.FC<DailyReportDialogProps> = ({
 										Total MoMo
 									</p>
 									<p className="text-xl font-bold text-purple-600">
-										{formatCurrency(activeReport.momoTotal || 0)}
+										{formatCurrency(momoTotal)}
 									</p>
 								</div>
+								{cardTotal > 0 && (
+									<div className="bg-white p-4 rounded-lg border shadow-sm">
+										<p className="text-xs text-gray-500 uppercase font-semibold">
+											Total Card
+										</p>
+										<p className="text-xl font-bold text-blue-600">
+											{formatCurrency(cardTotal)}
+										</p>
+									</div>
+								)}
+								{otherTotal > 0 && (
+									<div className="bg-white p-4 rounded-lg border shadow-sm">
+										<p className="text-xs text-gray-500 uppercase font-semibold">
+											Total Other
+										</p>
+										<p className="text-xl font-bold text-amber-600">
+											{formatCurrency(otherTotal)}
+										</p>
+									</div>
+								)}
 								<div className="bg-white p-4 rounded-lg border shadow-sm">
 									<p className="text-xs text-gray-500 uppercase font-semibold">
 										Total Expenses

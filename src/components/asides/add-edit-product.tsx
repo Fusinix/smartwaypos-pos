@@ -12,17 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
 import { getCategoryId, getCategoryName } from "@/lib/utils";
 import type { Category } from "@/types/category";
 import type { NewProduct, Product } from "@/types/product";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const STOCK_REASONS = [
-	{ value: "adjustment", label: "Correction (Fixing Count)" },
-	{ value: "restock", label: "Restock (Added New Inventory)" },
-	{ value: "wastage", label: "Damage / Spoilage" },
-];
 
 interface AddEditProductProps {
 	product?: Product;
@@ -49,6 +44,9 @@ export default function AddEditProduct({
 		status: "active",
 		image: "",
 	};
+
+	const { user } = useAuth();
+
 	const [formData, setFormData] = useState<NewProduct>(defaultProd);
 	const [imagePreview, setImagePreview] = useState<string | null>(
 		product?.image || null,
@@ -91,6 +89,14 @@ export default function AddEditProduct({
 			setImagePreview(null);
 		}
 	}, [product, categories]);
+
+	const STOCK_REASONS = [
+		...(user?.role === "admin" ?
+			[{ value: "adjustment", label: "Correction (Fixing Count)" }]
+		:	[]),
+		{ value: "restock", label: "Restock (Added New Inventory)" },
+		{ value: "wastage", label: "Damage / Spoilage" },
+	];
 
 	const handleReasonChange = (newReason: string) => {
 		setReason(newReason);

@@ -420,6 +420,99 @@ function startSyncLoop() {
         performSync();
     }, 300000);
 }
+/**
+ * Helper to fetch configured businessDayCutoffHour from settings.
+ * Default is 4 (4:00 AM reset).
+ */
+async function getBusinessDayCutoffHour(db) {
+    try {
+        const database = db || (await (0, database_1.getDatabase)());
+        const row = await database.get("SELECT general FROM settings ORDER BY id DESC LIMIT 1");
+        if (row?.general) {
+            const general = JSON.parse(row.general);
+            if (typeof general.businessDayCutoffHour === "number" &&
+                !isNaN(general.businessDayCutoffHour)) {
+                return general.businessDayCutoffHour;
+            }
+        }
+    }
+    catch (err) {
+        console.error("Error reading businessDayCutoffHour from settings:", err);
+    }
+    return 4;
+}
+/**
+ * Returns SQL expression to calculate Business Date ('YYYY-MM-DD') from a datetime column.
+ */
+function getBusinessDateExpr(column = "COALESCE(updated_at, created_at)", cutoffHour = 4) {
+    if (cutoffHour <= 0) {
+        return `strftime('%Y-%m-%d', ${column})`;
+    }
+    return `strftime('%Y-%m-%d', datetime(${column}, '-${cutoffHour} hours'))`;
+}
+/**
+ * Computes logical Business Date string (YYYY-MM-DD) for a given JavaScript Date.
+ */
+function toBusinessDateStr(date, cutoffHour) {
+    const shifted = new Date(date.getTime() - cutoffHour * 60 * 60 * 1000);
+    const year = shifted.getFullYear();
+    const month = String(shifted.getMonth() + 1).padStart(2, "0");
+    const day = String(shifted.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+/**
+ * Calculates start and end Business Date strings (YYYY-MM-DD) for filtering queries.
+ */
+function getBusinessDateRange(filters, cutoffHour) {
+    const { timePeriod = "day", startDate, endDate } = filters;
+    const now = new Date();
+    // Calculate current business day string (YYYY-MM-DD)
+    const currentBizDateStr = toBusinessDateStr(now, cutoffHour);
+    const [bYear, bMonth, bDay] = currentBizDateStr.split("-").map(Number);
+    const currentBizDate = new Date(bYear, bMonth - 1, bDay);
+    let start;
+    let end;
+    switch (timePeriod) {
+        case "day":
+            start = currentBizDate;
+            end = new Date(bYear, bMonth - 1, bDay + 1);
+            break;
+        case "yesterday":
+            start = new Date(bYear, bMonth - 1, bDay - 1);
+            end = currentBizDate;
+            break;
+        case "week":
+            const dayOfWeek = currentBizDate.getDay();
+            const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            start = new Date(bYear, bMonth - 1, bDay - daysToSubtract);
+            end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+            break;
+        case "month":
+            start = new Date(bYear, bMonth - 1, 1);
+            end = new Date(bYear, bMonth, 1);
+            break;
+        case "custom":
+            start = startDate ? new Date(startDate) : currentBizDate;
+            end = endDate ? new Date(endDate) : currentBizDate;
+            end = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+            break;
+        default:
+            start = currentBizDate;
+            end = new Date(bYear, bMonth - 1, bDay + 1);
+    }
+    const formatDate = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+    return {
+        startDateStr: formatDate(start),
+        endDateStr: formatDate(end),
+        start,
+        end,
+    };
+}
 // Register protocol before app is ready
 electron_1.protocol.registerSchemesAsPrivileged([
     {
@@ -2030,23 +2123,23 @@ electron_1.ipcMain.handle("update-product-stock", async (_, productId, newStock,
 electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, author) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const getLocalDateString = (offsetDays = 0) => {
-            const now = new Date();
-            now.setDate(now.getDate() + offsetDays);
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, "0");
-            const day = String(now.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        let reportDate = getLocalDateString(0);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
+        const expenseDateExpr = getBusinessDateExpr("e.created_at", cutoffHour);
+        const inventoryLogDateExpr = getBusinessDateExpr("i.created_at", cutoffHour);
+        const now = new Date();
+        let reportDate = toBusinessDateStr(now, cutoffHour);
         let period = "today";
         if (typeof dateArg === "string") {
             if (dateArg === "today") {
-                reportDate = getLocalDateString(0);
+                reportDate = toBusinessDateStr(now, cutoffHour);
                 period = "today";
             }
             else if (dateArg === "yesterday") {
-                reportDate = getLocalDateString(-1);
+                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                reportDate = toBusinessDateStr(yesterday, cutoffHour);
                 period = "yesterday";
             }
             else if (dateArg.trim()) {
@@ -2056,11 +2149,12 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
         }
         else if (dateArg && typeof dateArg === "object") {
             if (dateArg.period === "yesterday") {
-                reportDate = getLocalDateString(-1);
+                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                reportDate = toBusinessDateStr(yesterday, cutoffHour);
                 period = "yesterday";
             }
             else if (dateArg.period === "today") {
-                reportDate = getLocalDateString(0);
+                reportDate = toBusinessDateStr(now, cutoffHour);
                 period = "today";
             }
             else if (dateArg.date) {
@@ -2078,30 +2172,30 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
             for (const product of products) {
                 const logs = await db.all(`SELECT * FROM inventory_logs 
 					 WHERE product_id = ? 
-					 AND (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+					 AND ${createdDateExpr} = ?` +
                     (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
-                    [product.id, reportDate, reportDate, targetAdminId]
-                    : [product.id, reportDate, reportDate]);
+                    [product.id, reportDate, targetAdminId]
+                    : [product.id, reportDate]);
                 const salesData = await db.get(`SELECT SUM(oi.quantity) as sold_qty
 					 FROM order_items oi
 					 JOIN orders o ON oi.order_id = o.id
 					 WHERE oi.product_id = ? 
 					 AND oi.item_type = 'drink'
 					 AND o.status IN ('open', 'closed')
-					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                    (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``), targetAdminId ?
-                    [product.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-                    : [product.id, reportDate, reportDate, reportDate]);
+					 AND ${orderDateExpr} = ?` +
+                    (targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``), targetAdminId ?
+                    [product.id, reportDate, targetAdminId]
+                    : [product.id, reportDate]);
                 const closedSalesData = await db.get(`SELECT SUM(oi.quantity) as sold_closed_qty
 					 FROM order_items oi
 					 JOIN orders o ON oi.order_id = o.id
 					 WHERE oi.product_id = ? 
 					 AND oi.item_type = 'drink'
 					 AND o.status = 'closed'
-					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                    (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``), targetAdminId ?
-                    [product.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-                    : [product.id, reportDate, reportDate, reportDate]);
+					 AND ${orderDateExpr} = ?` +
+                    (targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``), targetAdminId ?
+                    [product.id, reportDate, targetAdminId]
+                    : [product.id, reportDate]);
                 const sold = salesData?.sold_qty || 0;
                 const soldClosed = closedSalesData?.sold_closed_qty || 0;
                 let added = 0;
@@ -2156,11 +2250,11 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 				 JOIN orders o ON oi.order_id = o.id
 				 WHERE oi.item_type = 'food'
 				 AND o.status = 'closed'
-				 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``) +
+				 AND ${orderDateExpr} = ?` +
+                (targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``) +
                 ` GROUP BY fi.id, fi.name, fi.price`, targetAdminId ?
-                [reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-                : [reportDate, reportDate, reportDate]);
+                [reportDate, targetAdminId]
+                : [reportDate]);
             const foodSalesEnriched = await Promise.all(foodSalesRaw.map(async (f) => {
                 const extrasRaw = await db.all(`SELECT fe.id, fe.name, fe.price, SUM(COALESCE(oie.quantity, 1) * COALESCE(oi.quantity, 1)) as quantity
 						 FROM order_item_extras oie
@@ -2170,11 +2264,11 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 						 WHERE oi.food_item_id = ?
 						 AND oi.item_type = 'food'
 						 AND o.status = 'closed'
-						 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-                    (targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``) +
+						 AND ${orderDateExpr} = ?` +
+                    (targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``) +
                     ` GROUP BY fe.id, fe.name, fe.price`, targetAdminId ?
-                    [f.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-                    : [f.id, reportDate, reportDate, reportDate]);
+                    [f.id, reportDate, targetAdminId]
+                    : [f.id, reportDate]);
                 const baseSales = f.quantity * f.price;
                 const extrasSales = extrasRaw.reduce((sum, e) => sum + (e.quantity || 1) * Number(e.price || 0), 0);
                 const totalSales = baseSales + extrasSales;
@@ -2198,28 +2292,31 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
             const pendingOrders = await db.get(`SELECT COUNT(id) as count, SUM(amount) as total
 				 FROM orders 
 				 WHERE status = 'open' 
-				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
-                (targetAdminId ? ` AND (admin_id = ? OR edited_by = ?)` : ``), targetAdminId ?
-                [reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-                : [reportDate, reportDate, reportDate]);
-            const expenses = await db.all(`SELECT * FROM expenses WHERE (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+				 AND ${dateExpr} = ?` +
+                (targetAdminId ? ` AND COALESCE(edited_by, admin_id) = ?` : ``), targetAdminId ?
+                [reportDate, targetAdminId]
+                : [reportDate]);
+            const expenses = await db.all(`SELECT * FROM expenses WHERE ${createdDateExpr} = ?` +
                 (targetAdminId ? ` AND admin_id = ?` : ``), targetAdminId ?
-                [reportDate, reportDate, targetAdminId]
-                : [reportDate, reportDate]);
+                [reportDate, targetAdminId]
+                : [reportDate]);
             const paymentBreakdown = await db.all(`SELECT LOWER(payment_mode) as method, SUM(amount) as total
 				 FROM orders
 				 WHERE status = 'closed'
-				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
-                (targetAdminId ? ` AND (admin_id = ? OR edited_by = ?)` : ``) +
+				 AND ${dateExpr} = ?` +
+                (targetAdminId ? ` AND COALESCE(edited_by, admin_id) = ?` : ``) +
                 ` GROUP BY LOWER(payment_mode)`, targetAdminId ?
-                [reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-                : [reportDate, reportDate, reportDate]);
+                [reportDate, targetAdminId]
+                : [reportDate]);
             let cashTotal = 0;
             let momoTotal = 0;
+            let cardTotal = 0;
+            let otherTotal = 0;
             paymentBreakdown.forEach((p) => {
                 const method = String(p.method || "").toLowerCase().trim();
+                const amt = Number(p.total) || 0;
                 if (method === "cash" || method.includes("cash")) {
-                    cashTotal += p.total || 0;
+                    cashTotal += amt;
                 }
                 else if (method === "momo" ||
                     method.includes("momo") ||
@@ -2227,9 +2324,20 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
                     method.includes("mtn") ||
                     method.includes("telecel") ||
                     method.includes("vodafone")) {
-                    momoTotal += p.total || 0;
+                    momoTotal += amt;
+                }
+                else if (method === "card" ||
+                    method.includes("card") ||
+                    method.includes("pos") ||
+                    method.includes("visa") ||
+                    method.includes("master")) {
+                    cardTotal += amt;
+                }
+                else {
+                    otherTotal += amt;
                 }
             });
+            const totalClosedSales = cashTotal + momoTotal + cardTotal + otherTotal;
             return {
                 date: reportDate,
                 inventory: report,
@@ -2246,6 +2354,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
                 totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
                 cashTotal,
                 momoTotal,
+                cardTotal,
+                otherTotal,
+                totalClosedSales,
             };
         };
         // Build overall report
@@ -2254,26 +2365,18 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
         const accountReports = [];
         if (isAdmin) {
             const activeAccounts = await db.all(`SELECT DISTINCT admin_id, username, role FROM (
-						SELECT o.admin_id, u.username, u.role 
+						SELECT COALESCE(o.edited_by, o.admin_id) as admin_id, u.username, u.role 
 						FROM orders o 
-						LEFT JOIN users u ON o.admin_id = u.id 
-						WHERE (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
-						AND o.admin_id IS NOT NULL
-
-						UNION
-
-						SELECT o.edited_by as admin_id, u.username, u.role 
-						FROM orders o 
-						LEFT JOIN users u ON o.edited_by = u.id 
-						WHERE (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
-						AND o.edited_by IS NOT NULL
+						LEFT JOIN users u ON COALESCE(o.edited_by, o.admin_id) = u.id 
+						WHERE ${orderDateExpr} = ? 
+						AND COALESCE(o.edited_by, o.admin_id) IS NOT NULL
 
 						UNION
 
 						SELECT e.admin_id, COALESCE(u.username, e.admin_name) as username, COALESCE(u.role, 'staff') as role 
 						FROM expenses e 
 						LEFT JOIN users u ON e.admin_id = u.id 
-						WHERE (date(e.created_at, 'localtime') = date(?) OR date(e.created_at) = date(?)) 
+						WHERE ${expenseDateExpr} = ? 
 						AND e.admin_id IS NOT NULL
 
 						UNION
@@ -2281,9 +2384,9 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
 						SELECT i.admin_id, COALESCE(u.username, i.admin_name) as username, COALESCE(u.role, 'staff') as role 
 						FROM inventory_logs i 
 						LEFT JOIN users u ON i.admin_id = u.id 
-						WHERE (date(i.created_at, 'localtime') = date(?) OR date(i.created_at) = date(?)) 
+						WHERE ${inventoryLogDateExpr} = ? 
 						AND i.admin_id IS NOT NULL
-					)`, [reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate]);
+					)`, [reportDate, reportDate, reportDate]);
             for (const acc of activeAccounts) {
                 if (acc.admin_id) {
                     const subReport = await buildReportForAdmin(acc.admin_id);
@@ -3674,122 +3777,44 @@ electron_1.ipcMain.handle("get-food-stats", async () => {
 electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range based on time period
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const { startDateStr, endDateStr, start, end } = getBusinessDateRange(filters, cutoffHour);
+        const closedOrders = await db.all(`
+      SELECT * FROM orders 
+      WHERE status = 'closed' 
+      AND ${dateExpr} >= ?
+      AND ${dateExpr} < ?
+    `, [startDateStr, endDateStr]);
+        // Get all orders in date range (for total count) - includes both open and closed
+        const allOrders = await db.all(`
+      SELECT COUNT(*) as count FROM orders 
+      WHERE ${createdDateExpr} >= ? AND ${createdDateExpr} < ?
+    `, [startDateStr, endDateStr]);
+        // Calculate previous period for comparison
+        const periodDuration = end.getTime() - start.getTime();
+        const prevStart = new Date(start.getTime() - periodDuration);
+        const prevEnd = new Date(start.getTime());
         const formatDate = (d) => {
             const year = d.getFullYear();
             const month = String(d.getMonth() + 1).padStart(2, "0");
             const day = String(d.getDate()).padStart(2, "0");
             return `${year}-${month}-${day}`;
         };
-        let startDateStr = formatDate(start);
-        let endDateStr = formatDate(end);
-        // Debug: First, get ALL closed orders to see what we have
-        const allClosedOrders = await db.all(`
-      SELECT 
-        id,
-        status,
-        amount,
-        created_at,
-        updated_at,
-        strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) as date_extracted
-      FROM orders 
-      WHERE status = 'closed'
-      ORDER BY COALESCE(updated_at, created_at) DESC
-      LIMIT 20
-    `);
-        // Use strftime to extract date part and compare - SQLite date() function works with ISO strings
-        // But we need to handle the format SQLite stores dates in ('YYYY-MM-DD HH:MM:SS')
-        // Test the query with a simpler version first to debug
-        const testQuery = await db.all(`
-      SELECT 
-        id,
-        status,
-        amount,
-        created_at,
-        updated_at,
-        strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) as date_extracted,
-        CASE 
-          WHEN strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ? THEN 'YES' 
-          ELSE 'NO' 
-        END as matches_start,
-        CASE 
-          WHEN strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ? THEN 'YES' 
-          ELSE 'NO' 
-        END as matches_end
-      FROM orders 
-      WHERE status = 'closed'
-      ORDER BY COALESCE(updated_at, created_at) DESC
-      LIMIT 10
-    `, [startDateStr, endDateStr]);
-        const closedOrders = await db.all(`
-      SELECT * FROM orders 
-      WHERE status = 'closed' 
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
-    `, [startDateStr, endDateStr]);
-        // Debug: Log what we found
-        // Get all orders in date range (for total count) - includes both open and closed
-        const allOrders = await db.all(`
-      SELECT COUNT(*) as count FROM orders 
-      WHERE strftime('%Y-%m-%d', created_at) >= ? AND strftime('%Y-%m-%d', created_at) < ?
-    `, [startDateStr, endDateStr]);
-        // Debug: Also get individual orders to see what's being counted
-        const allOrdersDetailed = await db.all(`
-      SELECT id, status, created_at, updated_at, strftime('%Y-%m-%d', created_at) as date_created
-      FROM orders 
-      WHERE strftime('%Y-%m-%d', created_at) >= ? AND strftime('%Y-%m-%d', created_at) < ?
-      ORDER BY created_at DESC
-    `, [startDateStr, endDateStr]);
-        // Calculate previous period for comparison
-        const periodDuration = end.getTime() - start.getTime();
-        const prevStart = new Date(start.getTime() - periodDuration);
-        const prevEnd = new Date(start.getTime());
-        // Get previous period closed orders
-        const prevStartDateStr = prevStart.toISOString().split("T")[0];
-        const prevEndDateStr = prevEnd.toISOString().split("T")[0];
+        const prevStartDateStr = formatDate(prevStart);
+        const prevEndDateStr = formatDate(prevEnd);
         const prevClosedOrders = await db.all(`
       SELECT * FROM orders 
       WHERE status = 'closed' 
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
+      AND ${dateExpr} >= ?
+      AND ${dateExpr} < ?
     `, [prevStartDateStr, prevEndDateStr]);
         // Get previous period all orders count
         const prevAllOrders = await db.all(`
       SELECT COUNT(*) as count FROM orders 
-      WHERE strftime('%Y-%m-%d', created_at) >= ? AND strftime('%Y-%m-%d', created_at) < ?
+      WHERE ${createdDateExpr} >= ? AND ${createdDateExpr} < ?
     `, [prevStartDateStr, prevEndDateStr]);
         // Calculate current period stats (only from closed orders)
         const currentRevenue = closedOrders.reduce((sum, order) => {
@@ -3824,8 +3849,8 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
 			FROM order_items oi
 			INNER JOIN orders o ON oi.order_id = o.id 
 				AND o.status = 'closed'
-				AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-				AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+				AND ${orderDateExpr} >= ?
+				AND ${orderDateExpr} < ?
 			LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
 			LEFT JOIN food_items fi ON oi.food_item_id = fi.id AND oi.item_type = 'food'
 			GROUP BY oi.item_type
@@ -3879,55 +3904,20 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
     try {
         const db = await (0, database_1.getDatabase)();
         let data;
-        const { timePeriod = "day", startDate, endDate } = filters;
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         if (type === "dashboard") {
             // Gather dashboard analytics for export
             // 1. Revenue & Orders by Date (only closed orders)
             const salesData = await db.all(`
-        SELECT DATE(created_at) as date, SUM(amount) as revenue, COUNT(*) as orders
+        SELECT ${dateExpr} as date, SUM(amount) as revenue, COUNT(*) as orders
         FROM orders
         WHERE status = 'closed'
-        AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ? 
-        AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
-        GROUP BY DATE(created_at)
+        AND ${dateExpr} >= ? 
+        AND ${dateExpr} < ?
+        GROUP BY ${dateExpr}
         ORDER BY date
       `, [startDateStr, endDateStr]);
             // 2. Top Products (only closed orders)
@@ -3944,8 +3934,8 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
         LEFT JOIN categories c_drink ON p.category = c_drink.id
         LEFT JOIN food_categories c_food ON f.category_id = c_food.id
         WHERE o.status = 'closed'
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+        AND ${orderDateExpr} >= ?
+        AND ${orderDateExpr} < ?
         GROUP BY oi.item_type, COALESCE(p.id, f.id), COALESCE(p.name, f.name), COALESCE(c_drink.name, c_food.name)
         ORDER BY revenue DESC
         LIMIT 10
@@ -3965,8 +3955,8 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
           LEFT JOIN products p ON c.id = p.category
           LEFT JOIN order_items oi ON p.id = oi.product_id AND oi.item_type = 'drink'
           LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
-            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+            AND ${orderDateExpr} >= ?
+            AND ${orderDateExpr} < ?
           GROUP BY c.id, c.name
 
           UNION ALL
@@ -3979,8 +3969,8 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
           LEFT JOIN food_items fi ON fc.id = fi.category_id
           LEFT JOIN order_items oi ON fi.id = oi.food_item_id AND oi.item_type = 'food'
           LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
-            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-            AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+            AND ${orderDateExpr} >= ?
+            AND ${orderDateExpr} < ?
           GROUP BY fc.id, fc.name
         )
         GROUP BY category
@@ -3988,17 +3978,13 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
       `, [startDateStr, endDateStr, startDateStr, endDateStr]);
             // 4. Peak Hours (only closed orders)
             const peakHours = await db.all(`
-        SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as orders, SUM(amount) as revenue
+        SELECT CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER) as hour, COUNT(*) as orders, SUM(amount) as revenue
         FROM orders
         WHERE status = 'closed'
-        AND created_at >= ? AND created_at < ?
-        GROUP BY CAST(strftime('%H', created_at) AS INTEGER)
+        AND ${dateExpr} >= ? AND ${dateExpr} < ?
+        GROUP BY CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER)
         ORDER BY hour
-      `, [
-                filters.startDate ||
-                    new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-                filters.endDate || new Date().toISOString(),
-            ]);
+      `, [startDateStr, endDateStr]);
             // 5. Payment Methods
             const paymentMethods = await db.all(`
         SELECT payment_mode as method, COUNT(*) as count, SUM(amount) as revenue
@@ -4184,58 +4170,19 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
 electron_1.ipcMain.handle("get-sales-analytics", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range based on time period
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const { startDateStr, endDateStr, start, end } = getBusinessDateRange(filters, cutoffHour);
         const salesData = await db.all(`
       SELECT 
-        strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) as date,
+        ${dateExpr} as date,
         COALESCE(SUM(amount), 0) as revenue,
         COUNT(*) as orders
       FROM orders 
       WHERE status = 'closed'
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
-      GROUP BY strftime('%Y-%m-%d', COALESCE(updated_at, created_at))
+      AND ${dateExpr} >= ?
+      AND ${dateExpr} < ?
+      GROUP BY ${dateExpr}
       ORDER BY date
     `, [startDateStr, endDateStr]);
         // Ensure all dates in the range are represented (fill gaps with 0)
@@ -4277,48 +4224,9 @@ electron_1.ipcMain.handle("get-sales-analytics", async (_event, filters = {}) =>
 electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range (same logic as above)
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const topProducts = await db.all(`
       SELECT 
         COALESCE(p.id, f.id) as id,
@@ -4329,8 +4237,8 @@ electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
       FROM order_items oi
       INNER JOIN orders o ON oi.order_id = o.id 
         AND o.status = 'closed'
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-        AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+        AND ${orderDateExpr} >= ?
+        AND ${orderDateExpr} < ?
       LEFT JOIN products p ON oi.product_id = p.id AND oi.item_type = 'drink'
       LEFT JOIN food_items f ON oi.food_item_id = f.id AND oi.item_type = 'food'
       LEFT JOIN categories c_drink ON p.category = c_drink.id
@@ -4349,48 +4257,9 @@ electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
 electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range (same logic as above)
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const categoryData = await db.all(`
       SELECT 
         category,
@@ -4405,8 +4274,8 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
         LEFT JOIN products p ON c.id = p.category
         LEFT JOIN order_items oi ON p.id = oi.product_id AND oi.item_type = 'drink'
         LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
-          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+          AND ${orderDateExpr} >= ?
+          AND ${orderDateExpr} < ?
         GROUP BY c.id, c.name
 
         UNION ALL
@@ -4419,8 +4288,8 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
         LEFT JOIN food_items fi ON fc.id = fi.category_id
         LEFT JOIN order_items oi ON fi.id = oi.food_item_id AND oi.item_type = 'food'
         LEFT JOIN orders o ON oi.order_id = o.id AND o.status = 'closed'
-          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) >= ?
-          AND strftime('%Y-%m-%d', COALESCE(o.updated_at, o.created_at)) < ?
+          AND ${orderDateExpr} >= ?
+          AND ${orderDateExpr} < ?
         GROUP BY fc.id, fc.name
       )
       GROUP BY category
@@ -4441,48 +4310,9 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
 electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range (same logic as above)
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const peakHours = await db.all(`
       SELECT 
         CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER) as hour,
@@ -4490,8 +4320,8 @@ electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
         SUM(amount) as revenue
       FROM orders 
       WHERE status = 'closed'
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
+      AND ${dateExpr} >= ?
+      AND ${dateExpr} < ?
       GROUP BY CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER)
       ORDER BY hour
     `, [startDateStr, endDateStr]);
@@ -4505,55 +4335,16 @@ electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
 electron_1.ipcMain.handle("get-order-status", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range (same logic as above)
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const orderStatus = await db.all(`
       SELECT 
         status,
         COUNT(*) as count
       FROM orders 
-      WHERE strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
+      WHERE ${dateExpr} >= ?
+      AND ${dateExpr} < ?
       GROUP BY status
     `, [startDateStr, endDateStr]);
         // Calculate percentages
@@ -4571,48 +4362,9 @@ electron_1.ipcMain.handle("get-order-status", async (_event, filters = {}) => {
 electron_1.ipcMain.handle("get-payment-methods", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
-        const { timePeriod = "day", startDate, endDate } = filters;
-        // Calculate date range (same logic as above)
-        let start, end;
-        const now = new Date();
-        switch (timePeriod) {
-            case "day":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-                break;
-            case "yesterday":
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-            case "week":
-                const dayOfWeek = now.getDay();
-                const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
-                end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                break;
-            case "custom":
-                start = startDate ? new Date(startDate) : new Date();
-                end = endDate ? new Date(endDate) : new Date();
-                // Ensure end date includes the full day
-                end.setHours(23, 59, 59, 999);
-                break;
-            default:
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        }
-        // Calculate date strings for SQLite comparison (YYYY-MM-DD)
-        const formatDate = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        };
-        const startDateStr = formatDate(start);
-        const endDateStr = formatDate(end);
+        const cutoffHour = await getBusinessDayCutoffHour(db);
+        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const paymentMethods = await db.all(`
       SELECT 
         payment_mode as method,
@@ -4620,8 +4372,8 @@ electron_1.ipcMain.handle("get-payment-methods", async (_event, filters = {}) =>
         SUM(amount) as revenue
       FROM orders 
       WHERE status = 'closed'
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) >= ?
-      AND strftime('%Y-%m-%d', COALESCE(updated_at, created_at)) < ?
+      AND ${dateExpr} >= ?
+      AND ${dateExpr} < ?
       GROUP BY payment_mode
     `, [startDateStr, endDateStr]);
         // Calculate percentages

@@ -36,6 +36,13 @@ import type { Order } from "@/types";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
+	Calendar as CalendarIcon,
 	CheckSquare,
 	Clipboard,
 	Clock,
@@ -918,31 +925,121 @@ export const Orders: React.FC = () => {
 								</SelectContent>
 							</Select>
 							{dateFilter === "custom_date" && (
-								<Input
-									type="date"
-									className="h-9 w-40 text-base"
-									placeholder="Select Date"
-									value={customSingleDate}
-									onChange={(e) => setCustomSingleDate(e.target.value)}
-								/>
+								<Popover>
+									<PopoverTrigger asChild>
+										<Button
+											variant="outline"
+											className={cn(
+												"w-44 h-10 text-sm bg-white border-gray-200 justify-start text-left font-normal",
+												!customSingleDate && "text-muted-foreground",
+											)}
+										>
+											<CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
+											{customSingleDate ? (
+												new Date(customSingleDate + "T00:00:00").toLocaleDateString(undefined, {
+													month: "short",
+													day: "numeric",
+													year: "numeric",
+												})
+											) : (
+												<span>Select Date</span>
+											)}
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent className="w-auto p-0 z-50 bg-white" align="start">
+										<Calendar
+											mode="single"
+											selected={customSingleDate ? new Date(customSingleDate + "T00:00:00") : undefined}
+											onSelect={(date) => {
+												if (date) {
+													const year = date.getFullYear();
+													const month = String(date.getMonth() + 1).padStart(2, "0");
+													const day = String(date.getDate()).padStart(2, "0");
+													setCustomSingleDate(`${year}-${month}-${day}`);
+												}
+											}}
+										/>
+									</PopoverContent>
+								</Popover>
 							)}
 							{dateFilter === "custom" && (
-								<>
-									<Input
-										type="date"
-										className="h-9 w-40 text-base"
-										placeholder="Start Date"
-										value={customDateStart}
-										onChange={(e) => setCustomDateStart(e.target.value)}
-									/>
-									<Input
-										type="date"
-										className="h-9 w-40 text-base"
-										placeholder="End Date"
-										value={customDateEnd}
-										onChange={(e) => setCustomDateEnd(e.target.value)}
-									/>
-								</>
+								<div className="flex items-center space-x-2">
+									<Popover>
+										<PopoverTrigger asChild>
+											<Button
+												variant="outline"
+												className={cn(
+													"w-44 h-10 text-sm bg-white border-gray-200 justify-start text-left font-normal",
+													!customDateStart && "text-muted-foreground",
+												)}
+											>
+												<CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
+												{customDateStart ? (
+													new Date(customDateStart + "T00:00:00").toLocaleDateString(undefined, {
+														month: "short",
+														day: "numeric",
+														year: "numeric",
+													})
+												) : (
+													<span>Start Date</span>
+												)}
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent className="w-auto p-0 z-50 bg-white" align="start">
+											<Calendar
+												mode="single"
+												selected={customDateStart ? new Date(customDateStart + "T00:00:00") : undefined}
+												onSelect={(date) => {
+													if (date) {
+														const year = date.getFullYear();
+														const month = String(date.getMonth() + 1).padStart(2, "0");
+														const day = String(date.getDate()).padStart(2, "0");
+														setCustomDateStart(`${year}-${month}-${day}`);
+													}
+												}}
+											/>
+										</PopoverContent>
+									</Popover>
+
+									<span className="text-gray-400 text-sm">to</span>
+
+									<Popover>
+										<PopoverTrigger asChild>
+											<Button
+												variant="outline"
+												className={cn(
+													"w-44 h-10 text-sm bg-white border-gray-200 justify-start text-left font-normal",
+													!customDateEnd && "text-muted-foreground",
+												)}
+											>
+												<CalendarIcon className="mr-2 h-4 w-4 text-primary shrink-0" />
+												{customDateEnd ? (
+													new Date(customDateEnd + "T00:00:00").toLocaleDateString(undefined, {
+														month: "short",
+														day: "numeric",
+														year: "numeric",
+													})
+												) : (
+													<span>End Date</span>
+												)}
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent className="w-auto p-0 z-50 bg-white" align="start">
+											<Calendar
+												mode="single"
+												selected={customDateEnd ? new Date(customDateEnd + "T00:00:00") : undefined}
+												onSelect={(date) => {
+													if (date) {
+														const year = date.getFullYear();
+														const month = String(date.getMonth() + 1).padStart(2, "0");
+														const day = String(date.getDate()).padStart(2, "0");
+														setCustomDateEnd(`${year}-${month}-${day}`);
+													}
+												}}
+											/>
+										</PopoverContent>
+									</Popover>
+								</div>
 							)}
 							{user?.role === "admin" && groupedOrders?.length > 0 && (
 								<Button

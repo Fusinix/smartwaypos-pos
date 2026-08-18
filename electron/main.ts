@@ -2508,24 +2508,24 @@ ipcMain.handle(
 	async (_, dateArg?: any, author?: any) => {
 		try {
 			const db = await getDatabase();
-			const getLocalDateString = (offsetDays = 0) => {
-				const now = new Date();
-				now.setDate(now.getDate() + offsetDays);
-				const year = now.getFullYear();
-				const month = String(now.getMonth() + 1).padStart(2, "0");
-				const day = String(now.getDate()).padStart(2, "0");
-				return `${year}-${month}-${day}`;
-			};
+			const cutoffHour = await getBusinessDayCutoffHour(db);
+			const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+			const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+			const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
+			const expenseDateExpr = getBusinessDateExpr("e.created_at", cutoffHour);
+			const inventoryLogDateExpr = getBusinessDateExpr("i.created_at", cutoffHour);
 
-			let reportDate = getLocalDateString(0);
+			const now = new Date();
+			let reportDate = toBusinessDateStr(now, cutoffHour);
 			let period = "today";
 
 			if (typeof dateArg === "string") {
 				if (dateArg === "today") {
-					reportDate = getLocalDateString(0);
+					reportDate = toBusinessDateStr(now, cutoffHour);
 					period = "today";
 				} else if (dateArg === "yesterday") {
-					reportDate = getLocalDateString(-1);
+					const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+					reportDate = toBusinessDateStr(yesterday, cutoffHour);
 					period = "yesterday";
 				} else if (dateArg.trim()) {
 					reportDate = dateArg.trim();
@@ -2533,10 +2533,11 @@ ipcMain.handle(
 				}
 			} else if (dateArg && typeof dateArg === "object") {
 				if (dateArg.period === "yesterday") {
-					reportDate = getLocalDateString(-1);
+					const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+					reportDate = toBusinessDateStr(yesterday, cutoffHour);
 					period = "yesterday";
 				} else if (dateArg.period === "today") {
-					reportDate = getLocalDateString(0);
+					reportDate = toBusinessDateStr(now, cutoffHour);
 					period = "today";
 				} else if (dateArg.date) {
 					reportDate = dateArg.date;
@@ -2560,11 +2561,11 @@ ipcMain.handle(
 					const logs = await db.all(
 						`SELECT * FROM inventory_logs 
 					 WHERE product_id = ? 
-					 AND (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+					 AND ${createdDateExpr} = ?` +
 							(targetAdminId ? ` AND admin_id = ?` : ``),
 						targetAdminId ?
-							[product.id, reportDate, reportDate, targetAdminId]
-						:	[product.id, reportDate, reportDate],
+							[product.id, reportDate, targetAdminId]
+						:	[product.id, reportDate],
 					);
 
 					const salesData = await db.get(
@@ -2574,11 +2575,11 @@ ipcMain.handle(
 					 WHERE oi.product_id = ? 
 					 AND oi.item_type = 'drink'
 					 AND o.status IN ('open', 'closed')
-					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-							(targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``),
+					 AND ${orderDateExpr} = ?` +
+							(targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``),
 						targetAdminId ?
-							[product.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-						:	[product.id, reportDate, reportDate, reportDate],
+							[product.id, reportDate, targetAdminId]
+						:	[product.id, reportDate],
 					);
 
 					const closedSalesData = await db.get(
@@ -2588,11 +2589,11 @@ ipcMain.handle(
 					 WHERE oi.product_id = ? 
 					 AND oi.item_type = 'drink'
 					 AND o.status = 'closed'
-					 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-							(targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``),
+					 AND ${orderDateExpr} = ?` +
+							(targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``),
 						targetAdminId ?
-							[product.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-						:	[product.id, reportDate, reportDate, reportDate],
+							[product.id, reportDate, targetAdminId]
+						:	[product.id, reportDate],
 					);
 
 					const sold = salesData?.sold_qty || 0;
@@ -2654,12 +2655,12 @@ ipcMain.handle(
 				 JOIN orders o ON oi.order_id = o.id
 				 WHERE oi.item_type = 'food'
 				 AND o.status = 'closed'
-				 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-						(targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``) +
+				 AND ${orderDateExpr} = ?` +
+						(targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``) +
 						` GROUP BY fi.id, fi.name, fi.price`,
 					targetAdminId ?
-						[reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-					:	[reportDate, reportDate, reportDate],
+						[reportDate, targetAdminId]
+					:	[reportDate],
 				);
 
 				const foodSalesEnriched = await Promise.all(
@@ -2673,12 +2674,12 @@ ipcMain.handle(
 						 WHERE oi.food_item_id = ?
 						 AND oi.item_type = 'food'
 						 AND o.status = 'closed'
-						 AND (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?))` +
-								(targetAdminId ? ` AND (o.admin_id = ? OR o.edited_by = ?)` : ``) +
+						 AND ${orderDateExpr} = ?` +
+								(targetAdminId ? ` AND COALESCE(o.edited_by, o.admin_id) = ?` : ``) +
 								` GROUP BY fe.id, fe.name, fe.price`,
 							targetAdminId ?
-								[f.id, reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-							:	[f.id, reportDate, reportDate, reportDate],
+								[f.id, reportDate, targetAdminId]
+							:	[f.id, reportDate],
 						);
 
 						const baseSales = f.quantity * f.price;
@@ -2712,40 +2713,43 @@ ipcMain.handle(
 					`SELECT COUNT(id) as count, SUM(amount) as total
 				 FROM orders 
 				 WHERE status = 'open' 
-				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
-						(targetAdminId ? ` AND (admin_id = ? OR edited_by = ?)` : ``),
+				 AND ${dateExpr} = ?` +
+						(targetAdminId ? ` AND COALESCE(edited_by, admin_id) = ?` : ``),
 					targetAdminId ?
-						[reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-					:	[reportDate, reportDate, reportDate],
+						[reportDate, targetAdminId]
+					:	[reportDate],
 				);
 
 				const expenses = await db.all(
-					`SELECT * FROM expenses WHERE (date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
+					`SELECT * FROM expenses WHERE ${createdDateExpr} = ?` +
 						(targetAdminId ? ` AND admin_id = ?` : ``),
 					targetAdminId ?
-						[reportDate, reportDate, targetAdminId]
-					:	[reportDate, reportDate],
+						[reportDate, targetAdminId]
+					:	[reportDate],
 				);
 
 				const paymentBreakdown = await db.all(
 					`SELECT LOWER(payment_mode) as method, SUM(amount) as total
 				 FROM orders
 				 WHERE status = 'closed'
-				 AND (date(updated_at, 'localtime') = date(?) OR date(created_at, 'localtime') = date(?) OR date(created_at) = date(?))` +
-						(targetAdminId ? ` AND (admin_id = ? OR edited_by = ?)` : ``) +
+				 AND ${dateExpr} = ?` +
+						(targetAdminId ? ` AND COALESCE(edited_by, admin_id) = ?` : ``) +
 						` GROUP BY LOWER(payment_mode)`,
 					targetAdminId ?
-						[reportDate, reportDate, reportDate, targetAdminId, targetAdminId]
-					:	[reportDate, reportDate, reportDate],
+						[reportDate, targetAdminId]
+					:	[reportDate],
 				);
 
 				let cashTotal = 0;
 				let momoTotal = 0;
+				let cardTotal = 0;
+				let otherTotal = 0;
 
 				paymentBreakdown.forEach((p: any) => {
 					const method = String(p.method || "").toLowerCase().trim();
+					const amt = Number(p.total) || 0;
 					if (method === "cash" || method.includes("cash")) {
-						cashTotal += p.total || 0;
+						cashTotal += amt;
 					} else if (
 						method === "momo" ||
 						method.includes("momo") ||
@@ -2754,9 +2758,21 @@ ipcMain.handle(
 						method.includes("telecel") ||
 						method.includes("vodafone")
 					) {
-						momoTotal += p.total || 0;
+						momoTotal += amt;
+					} else if (
+						method === "card" ||
+						method.includes("card") ||
+						method.includes("pos") ||
+						method.includes("visa") ||
+						method.includes("master")
+					) {
+						cardTotal += amt;
+					} else {
+						otherTotal += amt;
 					}
 				});
+
+				const totalClosedSales = cashTotal + momoTotal + cardTotal + otherTotal;
 
 				return {
 					date: reportDate,
@@ -2777,6 +2793,9 @@ ipcMain.handle(
 					),
 					cashTotal,
 					momoTotal,
+					cardTotal,
+					otherTotal,
+					totalClosedSales,
 				};
 			};
 
@@ -2788,26 +2807,18 @@ ipcMain.handle(
 			if (isAdmin) {
 				const activeAccounts = await db.all(
 					`SELECT DISTINCT admin_id, username, role FROM (
-						SELECT o.admin_id, u.username, u.role 
+						SELECT COALESCE(o.edited_by, o.admin_id) as admin_id, u.username, u.role 
 						FROM orders o 
-						LEFT JOIN users u ON o.admin_id = u.id 
-						WHERE (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
-						AND o.admin_id IS NOT NULL
-
-						UNION
-
-						SELECT o.edited_by as admin_id, u.username, u.role 
-						FROM orders o 
-						LEFT JOIN users u ON o.edited_by = u.id 
-						WHERE (date(o.updated_at, 'localtime') = date(?) OR date(o.created_at, 'localtime') = date(?) OR date(o.created_at) = date(?)) 
-						AND o.edited_by IS NOT NULL
+						LEFT JOIN users u ON COALESCE(o.edited_by, o.admin_id) = u.id 
+						WHERE ${orderDateExpr} = ? 
+						AND COALESCE(o.edited_by, o.admin_id) IS NOT NULL
 
 						UNION
 
 						SELECT e.admin_id, COALESCE(u.username, e.admin_name) as username, COALESCE(u.role, 'staff') as role 
 						FROM expenses e 
 						LEFT JOIN users u ON e.admin_id = u.id 
-						WHERE (date(e.created_at, 'localtime') = date(?) OR date(e.created_at) = date(?)) 
+						WHERE ${expenseDateExpr} = ? 
 						AND e.admin_id IS NOT NULL
 
 						UNION
@@ -2815,10 +2826,10 @@ ipcMain.handle(
 						SELECT i.admin_id, COALESCE(u.username, i.admin_name) as username, COALESCE(u.role, 'staff') as role 
 						FROM inventory_logs i 
 						LEFT JOIN users u ON i.admin_id = u.id 
-						WHERE (date(i.created_at, 'localtime') = date(?) OR date(i.created_at) = date(?)) 
+						WHERE ${inventoryLogDateExpr} = ? 
 						AND i.admin_id IS NOT NULL
 					)`,
-					[reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate, reportDate],
+					[reportDate, reportDate, reportDate],
 				);
 
 				for (const acc of activeAccounts) {
