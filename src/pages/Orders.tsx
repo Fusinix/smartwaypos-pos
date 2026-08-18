@@ -252,6 +252,25 @@ export const Orders: React.FC = () => {
 		return new Date(str);
 	};
 
+	const getOrderBusinessDateStr = (dateStr: string, cutoffHour: number): string => {
+		const d = parseOrderDate(dateStr);
+		if (isNaN(d.getTime())) return "";
+		const adjusted = new Date(d.getTime() - cutoffHour * 60 * 60 * 1000);
+		const year = adjusted.getFullYear();
+		const month = String(adjusted.getMonth() + 1).padStart(2, "0");
+		const day = String(adjusted.getDate()).padStart(2, "0");
+		return `${year}-${month}-${day}`;
+	};
+
+	const getTodayBusinessDateStr = (cutoffHour: number): string => {
+		const now = new Date();
+		const adjusted = new Date(now.getTime() - cutoffHour * 60 * 60 * 1000);
+		const year = adjusted.getFullYear();
+		const month = String(adjusted.getMonth() + 1).padStart(2, "0");
+		const day = String(adjusted.getDate()).padStart(2, "0");
+		return `${year}-${month}-${day}`;
+	};
+
 	const parseLocalDateString = (dateStr: string, isEnd = false): Date => {
 		if (!dateStr) return new Date(NaN);
 		const parts = dateStr.trim().split("-");
@@ -271,6 +290,10 @@ export const Orders: React.FC = () => {
 	};
 
 	const filteredOrders = useMemo(() => {
+		const generalSettings = parseJSONString(settings?.general as any) || {};
+		const cutoffHour = Number(generalSettings.businessDayCutoffHour ?? 4);
+		const todayBusinessStr = getTodayBusinessDateStr(cutoffHour);
+
 		return uniqueOrders.filter((order) => {
 			// Tab filter
 			if (activeTab === "active" && order.status !== "open") return false;
@@ -279,41 +302,30 @@ export const Orders: React.FC = () => {
 				return false;
 
 			// Date filter
-			if (dateFilter !== "all" && order.created_at) {
-				const orderDate = parseOrderDate(order.created_at);
-				const now = new Date();
+			const targetDateStr =
+				order.status === "closed" ?
+					order.updated_at || order.created_at
+				:	order.created_at;
+
+			if (dateFilter !== "all" && targetDateStr) {
+				const orderBusinessDate = getOrderBusinessDateStr(targetDateStr, cutoffHour);
 
 				if (dateFilter === "today") {
-					const todayStart = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate(),
-					);
-					const todayEnd = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate() + 1,
-					);
-					if (orderDate < todayStart || orderDate >= todayEnd) return false;
+					if (orderBusinessDate !== todayBusinessStr) return false;
 				} else if (dateFilter === "week") {
-					const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+					const orderDate = parseOrderDate(targetDateStr);
+					const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 					if (orderDate < weekAgo) return false;
 				} else if (dateFilter === "month") {
+					const orderDate = parseOrderDate(targetDateStr);
+					const now = new Date();
 					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 					if (orderDate < monthStart) return false;
 				} else if (dateFilter === "custom_date" && customSingleDate) {
-					const singleStart = parseLocalDateString(customSingleDate);
-					const singleEnd = parseLocalDateString(customSingleDate, true);
-					if (orderDate < singleStart || orderDate > singleEnd) return false;
+					if (orderBusinessDate !== customSingleDate) return false;
 				} else if (dateFilter === "custom") {
-					if (customDateStart) {
-						const startDate = parseLocalDateString(customDateStart);
-						if (orderDate < startDate) return false;
-					}
-					if (customDateEnd) {
-						const endDate = parseLocalDateString(customDateEnd, true);
-						if (orderDate > endDate) return false;
-					}
+					if (customDateStart && orderBusinessDate < customDateStart) return false;
+					if (customDateEnd && orderBusinessDate > customDateEnd) return false;
 				}
 			}
 
@@ -341,52 +353,48 @@ export const Orders: React.FC = () => {
 		customSingleDate,
 		customDateStart,
 		customDateEnd,
+		settings,
 	]);
 
 	const periodStats = useMemo(() => {
 		let totalSales = 0;
 		let totalCash = 0;
 		let totalMomo = 0;
+		let totalCard = 0;
+		let totalOther = 0;
 		let closedCount = 0;
 		let totalCancelledAmount = 0;
 		let cancelledCount = 0;
 
+		const generalSettings = parseJSONString(settings?.general as any) || {};
+		const cutoffHour = Number(generalSettings.businessDayCutoffHour ?? 4);
+		const todayBusinessStr = getTodayBusinessDateStr(cutoffHour);
+
 		uniqueOrders.forEach((order) => {
-			if (dateFilter !== "all" && order.created_at) {
-				const orderDate = parseOrderDate(order.created_at);
-				const now = new Date();
+			const targetDateStr =
+				order.status === "closed" ?
+					order.updated_at || order.created_at
+				:	order.created_at;
+
+			if (dateFilter !== "all" && targetDateStr) {
+				const orderBusinessDate = getOrderBusinessDateStr(targetDateStr, cutoffHour);
 
 				if (dateFilter === "today") {
-					const todayStart = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate(),
-					);
-					const todayEnd = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate() + 1,
-					);
-					if (orderDate < todayStart || orderDate >= todayEnd) return;
+					if (orderBusinessDate !== todayBusinessStr) return;
 				} else if (dateFilter === "week") {
-					const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+					const orderDate = parseOrderDate(targetDateStr);
+					const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 					if (orderDate < weekAgo) return;
 				} else if (dateFilter === "month") {
+					const orderDate = parseOrderDate(targetDateStr);
+					const now = new Date();
 					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 					if (orderDate < monthStart) return;
 				} else if (dateFilter === "custom_date" && customSingleDate) {
-					const singleStart = parseLocalDateString(customSingleDate);
-					const singleEnd = parseLocalDateString(customSingleDate, true);
-					if (orderDate < singleStart || orderDate > singleEnd) return;
+					if (orderBusinessDate !== customSingleDate) return;
 				} else if (dateFilter === "custom") {
-					if (customDateStart) {
-						const startDate = parseLocalDateString(customDateStart);
-						if (orderDate < startDate) return;
-					}
-					if (customDateEnd) {
-						const endDate = parseLocalDateString(customDateEnd, true);
-						if (orderDate > endDate) return;
-					}
+					if (customDateStart && orderBusinessDate < customDateStart) return;
+					if (customDateEnd && orderBusinessDate > customDateEnd) return;
 				}
 			}
 
@@ -395,11 +403,30 @@ export const Orders: React.FC = () => {
 			if (order.status === "closed") {
 				closedCount++;
 				totalSales += amount;
-				const pm = (order.payment_mode || "").toLowerCase();
-				if (pm === "cash") {
+				const pm = (order.payment_mode || "").toLowerCase().trim();
+				if (pm === "cash" || pm.includes("cash")) {
 					totalCash += amount;
-				} else if (pm === "momo" || pm === "mobile money") {
+				} else if (
+					pm === "momo" ||
+					pm.includes("momo") ||
+					pm.includes("mobile") ||
+					pm.includes("mtn") ||
+					pm.includes("telecel") ||
+					pm.includes("vodafone")
+				) {
 					totalMomo += amount;
+				} else if (
+					pm === "card" ||
+					pm.includes("card") ||
+					pm.includes("pos") ||
+					pm.includes("visa") ||
+					pm.includes("master") ||
+					pm.includes("bank") ||
+					pm.includes("transfer")
+				) {
+					totalCard += amount;
+				} else {
+					totalOther += amount;
 				}
 			} else if (order.status === "cancelled") {
 				cancelledCount++;
@@ -411,6 +438,8 @@ export const Orders: React.FC = () => {
 			totalSales,
 			totalCash,
 			totalMomo,
+			totalCard,
+			totalOther,
 			closedCount,
 			totalCancelledAmount,
 			cancelledCount,
@@ -421,6 +450,7 @@ export const Orders: React.FC = () => {
 		customSingleDate,
 		customDateStart,
 		customDateEnd,
+		settings,
 	]);
 
 	const groupedOrders = useMemo(() => {
@@ -1066,8 +1096,8 @@ export const Orders: React.FC = () => {
 
 					{/* Period Stats Summary Bar - Admin Only */}
 					{/* {user?.role === "admin" && ( */}
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-b">
-						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+					<div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-gray-50 border-b">
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center min-w-[130px] flex-1">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Total Sales
 							</span>
@@ -1080,7 +1110,7 @@ export const Orders: React.FC = () => {
 							</span>
 						</div>
 
-						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center min-w-[120px] flex-1">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Total Cash
 							</span>
@@ -1092,7 +1122,7 @@ export const Orders: React.FC = () => {
 							</span>
 						</div>
 
-						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center min-w-[120px] flex-1">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Total MoMo
 							</span>
@@ -1104,7 +1134,35 @@ export const Orders: React.FC = () => {
 							</span>
 						</div>
 
-						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+						{periodStats.totalCard > 0 && (
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center min-w-[120px] flex-1">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Total Card
+								</span>
+								<span className="text-xl font-bold text-indigo-600 mt-1">
+									{formatCurrency(periodStats.totalCard)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">
+									Card / POS
+								</span>
+							</div>
+						)}
+
+						{periodStats.totalOther > 0 && (
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center min-w-[120px] flex-1">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Total Other
+								</span>
+								<span className="text-xl font-bold text-amber-600 mt-1">
+									{formatCurrency(periodStats.totalOther)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">
+									Other payments
+								</span>
+							</div>
+						)}
+
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center min-w-[130px] flex-1">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Cancelled Orders
 							</span>

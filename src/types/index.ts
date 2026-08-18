@@ -43,6 +43,7 @@ export interface Order {
 	editor_name?: string;
 	amount_tendered?: number;
 	created_at?: string;
+	updated_at?: string;
 	notes?: string;
 	items?: OrderItemDetail[] | CreateOrderItem[];
 }
