@@ -444,7 +444,7 @@ async function getBusinessDayCutoffHour(db) {
 /**
  * Returns SQL expression to calculate Business Date ('YYYY-MM-DD') from a datetime column.
  */
-function getBusinessDateExpr(column = "COALESCE(updated_at, created_at)", cutoffHour = 4) {
+function getBusinessDateExpr(column = "COALESCE(closed_at, updated_at, created_at)", cutoffHour = 4) {
     if (cutoffHour <= 0) {
         return `strftime('%Y-%m-%d', ${column})`;
     }
@@ -635,6 +635,7 @@ async function createWindow() {
         edited_by INTEGER,
         amount_tendered REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        closed_at DATETIME DEFAULT NULL,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         notes TEXT
       );
@@ -945,12 +946,20 @@ async function createWindow() {
             }
             catch { }
         }
+        // Migration: add closed_at column to orders if it doesn't exist
+        try {
+            await db.run("ALTER TABLE orders ADD COLUMN closed_at DATETIME DEFAULT NULL");
+        }
+        catch (error) {
+            // Column might already exist, safe to ignore
+        }
         // Backfill business_date for historical records where business_date IS NULL
         try {
             await db.run("UPDATE orders SET business_date = DATE(created_at) WHERE business_date IS NULL");
             await db.run("UPDATE order_items SET business_date = DATE(created_at) WHERE business_date IS NULL");
             await db.run("UPDATE inventory_logs SET business_date = DATE(created_at) WHERE business_date IS NULL");
             await db.run("UPDATE expenses SET business_date = DATE(created_at) WHERE business_date IS NULL");
+            await db.run("UPDATE orders SET closed_at = COALESCE(updated_at, created_at) WHERE status = 'closed' AND closed_at IS NULL");
         }
         catch { }
         // Create default admin user if not exists
@@ -2124,8 +2133,8 @@ electron_1.ipcMain.handle("get-daily-inventory-report", async (_, dateArg, autho
     try {
         const db = await (0, database_1.getDatabase)();
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
-        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
         const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
         const expenseDateExpr = getBusinessDateExpr("e.created_at", cutoffHour);
         const inventoryLogDateExpr = getBusinessDateExpr("i.created_at", cutoffHour);
@@ -2964,7 +2973,8 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
         // Insert order with calculated amounts, order number, venue timezone, and business date
         const nowUtcIso = new Date().toISOString();
         const bDate = getLocalDateString();
-        const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes, timezone, business_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        const closedAt = orderData.status === "closed" ? nowUtcIso : null;
+        const result = await db.run("INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, closed_at, admin_id, notes, timezone, business_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
             orderNumber,
             orderData.sale_id || null,
             orderData.order_type,
@@ -2975,6 +2985,7 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             amount,
             amount_bt,
             orderData.status || "open",
+            closedAt,
             orderData.admin_id || null,
             orderData.notes || null,
             DEFAULT_VENUE_TIMEZONE,
@@ -3269,8 +3280,8 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
     try {
         const result = await withRetry(async () => {
             const db = await (0, database_1.getDatabase)();
-            // Fetch the existing order to detect status transitions (e.g., cancellation)
-            const existingOrder = await db.get("SELECT status FROM orders WHERE id = ?", [order.id]);
+            // Fetch the existing order to detect status transitions and closed_at
+            const existingOrder = await db.get("SELECT status, closed_at FROM orders WHERE id = ?", [order.id]);
             // If order is being cancelled, restore drink stock and log the change
             const author = order.author || {};
             if (existingOrder &&
@@ -3325,6 +3336,15 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 amount = amount_bt + (amount_bt * taxRate) / 100;
             }
             const editorId = author.id || null;
+            let closedAt = existingOrder?.closed_at || null;
+            if (order.status === "closed") {
+                if (!closedAt) {
+                    closedAt = new Date().toISOString();
+                }
+            }
+            else {
+                closedAt = null;
+            }
             await db.run(`
         UPDATE orders
         SET sale_id = ?,
@@ -3336,6 +3356,7 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
             amount = ?,
             amount_bt = ?,
             status = ?,
+            closed_at = ?,
             admin_id = ?,
             edited_by = ?,
             amount_tendered = ?,
@@ -3353,6 +3374,7 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 amount,
                 amount_bt,
                 order.status,
+                closedAt,
                 order.admin_id,
                 editorId,
                 order.amount_tendered || 0,
@@ -3388,9 +3410,18 @@ electron_1.ipcMain.handle("bulk-update-orders", async (_, { ids, status, author 
             const editorId = author?.id || null;
             for (const id of ids) {
                 // Fetch existing order to check for cancellation or deletion stock restore
-                const existingOrder = await db.get("SELECT status FROM orders WHERE id = ?", [id]);
+                const existingOrder = await db.get("SELECT status, closed_at FROM orders WHERE id = ?", [id]);
                 if (!existingOrder)
                     continue;
+                let closedAt = existingOrder.closed_at || null;
+                if (status === "closed") {
+                    if (!closedAt) {
+                        closedAt = new Date().toISOString();
+                    }
+                }
+                else {
+                    closedAt = null;
+                }
                 // If order is being cancelled or deleted, restore drink stock and log change
                 if (existingOrder.status !== "cancelled" &&
                     existingOrder.status !== "deleted" &&
@@ -3421,11 +3452,12 @@ electron_1.ipcMain.handle("bulk-update-orders", async (_, { ids, status, author 
                 await db.run(`
 					UPDATE orders
 					SET status = ?,
+						closed_at = ?,
 						edited_by = ?,
 						synced_at = NULL,
 						updated_at = CURRENT_TIMESTAMP
 					WHERE id = ?
-					`, [status, editorId, id]);
+					`, [status, closedAt, editorId, id]);
                 // Mark order items as unsynced
                 await db.run("UPDATE order_items SET synced_at = NULL WHERE order_id = ?", [id]);
                 // Log action
@@ -3902,8 +3934,8 @@ electron_1.ipcMain.handle("export-data", async (_event, { type, format, filters 
         const db = await (0, database_1.getDatabase)();
         let data;
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
-        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
         const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         if (type === "dashboard") {
             // Gather dashboard analytics for export
@@ -4222,7 +4254,7 @@ electron_1.ipcMain.handle("get-top-products", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
         const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const topProducts = await db.all(`
       SELECT 
@@ -4312,14 +4344,14 @@ electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
         const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const peakHours = await db.all(`
       SELECT 
-        CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER) as hour,
+        CAST(strftime('%H', COALESCE(closed_at, updated_at, created_at)) AS INTEGER) as hour,
         COUNT(*) as orders,
         SUM(amount) as revenue
       FROM orders 
       WHERE status = 'closed'
       AND ${dateExpr} >= ?
       AND ${dateExpr} < ?
-      GROUP BY CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER)
+      GROUP BY CAST(strftime('%H', COALESCE(closed_at, updated_at, created_at)) AS INTEGER)
       ORDER BY hour
     `, [startDateStr, endDateStr]);
         return peakHours;

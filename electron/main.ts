@@ -568,7 +568,7 @@ async function getBusinessDayCutoffHour(db?: any): Promise<number> {
  * Returns SQL expression to calculate Business Date ('YYYY-MM-DD') from a datetime column.
  */
 function getBusinessDateExpr(
-	column: string = "COALESCE(updated_at, created_at)",
+	column: string = "COALESCE(closed_at, updated_at, created_at)",
 	cutoffHour: number = 4,
 ): string {
 	if (cutoffHour <= 0) {
@@ -777,6 +777,7 @@ async function createWindow() {
         edited_by INTEGER,
         amount_tendered REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        closed_at DATETIME DEFAULT NULL,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         notes TEXT
       );
@@ -1118,12 +1119,20 @@ async function createWindow() {
 			} catch {}
 		}
 
+		// Migration: add closed_at column to orders if it doesn't exist
+		try {
+			await db.run("ALTER TABLE orders ADD COLUMN closed_at DATETIME DEFAULT NULL");
+		} catch (error: any) {
+			// Column might already exist, safe to ignore
+		}
+
 		// Backfill business_date for historical records where business_date IS NULL
 		try {
 			await db.run("UPDATE orders SET business_date = DATE(created_at) WHERE business_date IS NULL");
 			await db.run("UPDATE order_items SET business_date = DATE(created_at) WHERE business_date IS NULL");
 			await db.run("UPDATE inventory_logs SET business_date = DATE(created_at) WHERE business_date IS NULL");
 			await db.run("UPDATE expenses SET business_date = DATE(created_at) WHERE business_date IS NULL");
+			await db.run("UPDATE orders SET closed_at = COALESCE(updated_at, created_at) WHERE status = 'closed' AND closed_at IS NULL");
 		} catch {}
 
 		// Create default admin user if not exists
@@ -2509,8 +2518,8 @@ ipcMain.handle(
 		try {
 			const db = await getDatabase();
 			const cutoffHour = await getBusinessDayCutoffHour(db);
-			const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
-			const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+			const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+			const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
 			const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
 			const expenseDateExpr = getBusinessDateExpr("e.created_at", cutoffHour);
 			const inventoryLogDateExpr = getBusinessDateExpr("i.created_at", cutoffHour);
@@ -3595,8 +3604,9 @@ ipcMain.handle("create-order", async (_event, order) => {
 		// Insert order with calculated amounts, order number, venue timezone, and business date
 		const nowUtcIso = new Date().toISOString();
 		const bDate = getLocalDateString();
+		const closedAt = orderData.status === "closed" ? nowUtcIso : null;
 		const result = await db.run(
-			"INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, admin_id, notes, timezone, business_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO orders (order_number, sale_id, order_type, table_number, customer_name, payment_mode, tax, amount, amount_bt, status, closed_at, admin_id, notes, timezone, business_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			[
 				orderNumber,
 				orderData.sale_id || null,
@@ -3608,6 +3618,7 @@ ipcMain.handle("create-order", async (_event, order) => {
 				amount,
 				amount_bt,
 				orderData.status || "open",
+				closedAt,
 				orderData.admin_id || null,
 				orderData.notes || null,
 				DEFAULT_VENUE_TIMEZONE,
@@ -3965,9 +3976,9 @@ ipcMain.handle("update-order", async (_, order) => {
 		const result = await withRetry(async () => {
 			const db = await getDatabase();
 
-			// Fetch the existing order to detect status transitions (e.g., cancellation)
+			// Fetch the existing order to detect status transitions and closed_at
 			const existingOrder = await db.get(
-				"SELECT status FROM orders WHERE id = ?",
+				"SELECT status, closed_at FROM orders WHERE id = ?",
 				[order.id],
 			);
 
@@ -4050,6 +4061,14 @@ ipcMain.handle("update-order", async (_, order) => {
 			}
 
 			const editorId = author.id || null;
+			let closedAt = existingOrder?.closed_at || null;
+			if (order.status === "closed") {
+				if (!closedAt) {
+					closedAt = new Date().toISOString();
+				}
+			} else {
+				closedAt = null;
+			}
 
 			await db.run(
 				`
@@ -4063,6 +4082,7 @@ ipcMain.handle("update-order", async (_, order) => {
             amount = ?,
             amount_bt = ?,
             status = ?,
+            closed_at = ?,
             admin_id = ?,
             edited_by = ?,
             amount_tendered = ?,
@@ -4081,6 +4101,7 @@ ipcMain.handle("update-order", async (_, order) => {
 					amount,
 					amount_bt,
 					order.status,
+					closedAt,
 					order.admin_id,
 					editorId,
 					order.amount_tendered || 0,
@@ -4126,11 +4147,20 @@ ipcMain.handle("bulk-update-orders", async (_, { ids, status, author }) => {
 			for (const id of ids) {
 				// Fetch existing order to check for cancellation or deletion stock restore
 				const existingOrder = await db.get(
-					"SELECT status FROM orders WHERE id = ?",
+					"SELECT status, closed_at FROM orders WHERE id = ?",
 					[id]
 				);
 
 				if (!existingOrder) continue;
+
+				let closedAt = existingOrder.closed_at || null;
+				if (status === "closed") {
+					if (!closedAt) {
+						closedAt = new Date().toISOString();
+					}
+				} else {
+					closedAt = null;
+				}
 
 				// If order is being cancelled or deleted, restore drink stock and log change
 				if (
@@ -4174,12 +4204,13 @@ ipcMain.handle("bulk-update-orders", async (_, { ids, status, author }) => {
 					`
 					UPDATE orders
 					SET status = ?,
+						closed_at = ?,
 						edited_by = ?,
 						synced_at = NULL,
 						updated_at = CURRENT_TIMESTAMP
 					WHERE id = ?
 					`,
-					[status, editorId, id]
+					[status, closedAt, editorId, id]
 				);
 
 				// Mark order items as unsynced
@@ -4792,8 +4823,8 @@ ipcMain.handle(
 			let data;
 
 			const cutoffHour = await getBusinessDayCutoffHour(db);
-			const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
-			const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+			const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+			const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
 			const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
 
 			if (type === "dashboard") {
@@ -5166,7 +5197,7 @@ ipcMain.handle("get-top-products", async (_event, filters = {}) => {
 	try {
 		const db = await getDatabase();
 		const cutoffHour = await getBusinessDayCutoffHour(db);
-		const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+		const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
 		const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
 
 		const topProducts = await db.all(
@@ -5271,14 +5302,14 @@ ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
 		const peakHours = await db.all(
 			`
       SELECT 
-        CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER) as hour,
+        CAST(strftime('%H', COALESCE(closed_at, updated_at, created_at)) AS INTEGER) as hour,
         COUNT(*) as orders,
         SUM(amount) as revenue
       FROM orders 
       WHERE status = 'closed'
       AND ${dateExpr} >= ?
       AND ${dateExpr} < ?
-      GROUP BY CAST(strftime('%H', COALESCE(updated_at, created_at)) AS INTEGER)
+      GROUP BY CAST(strftime('%H', COALESCE(closed_at, updated_at, created_at)) AS INTEGER)
       ORDER BY hour
     `,
 			[startDateStr, endDateStr],

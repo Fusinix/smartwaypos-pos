@@ -279,8 +279,13 @@ export const Orders: React.FC = () => {
 				return false;
 
 			// Date filter
-			if (dateFilter !== "all" && order.created_at) {
-				const orderDate = parseOrderDate(order.created_at);
+			const orderDateStr =
+				order.status === "closed" ?
+					order.closed_at || order.updated_at || order.created_at
+				:	order.created_at;
+
+			if (dateFilter !== "all" && orderDateStr) {
+				const orderDate = parseOrderDate(orderDateStr);
 				const now = new Date();
 
 				if (dateFilter === "today") {
@@ -352,8 +357,13 @@ export const Orders: React.FC = () => {
 		let cancelledCount = 0;
 
 		uniqueOrders.forEach((order) => {
-			if (dateFilter !== "all" && order.created_at) {
-				const orderDate = parseOrderDate(order.created_at);
+			const orderDateStr =
+				order.status === "closed" ?
+					order.closed_at || order.updated_at || order.created_at
+				:	order.created_at;
+
+			if (dateFilter !== "all" && orderDateStr) {
+				const orderDate = parseOrderDate(orderDateStr);
 				const now = new Date();
 
 				if (dateFilter === "today") {
