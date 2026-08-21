@@ -55,11 +55,7 @@ export const ReceiptShareDialog: React.FC<ReceiptShareDialogProps> = ({
 		if (order.customer_name) {
 			receiptText += `Name: ${order.customer_name}\n`;
 		}
-		const orderDateVal =
-			order.status === "closed" ?
-				order.closed_at || order.updated_at || order.created_at
-			:	order.created_at;
-		receiptText += `Date: ${new Date(orderDateVal || new Date()).toLocaleString()}\n`;
+		receiptText += `Date: ${new Date(order.created_at || new Date()).toLocaleString()}\n`;
 		const orderTypeLabel = order.order_type === "table" ? "Table Order" : order.order_type === "takeout" ? "Take-Out Order" : "Customer Order";
 		receiptText += `Type: ${orderTypeLabel}\n`;
 		if (order.order_type === "table" && order.table_number) {

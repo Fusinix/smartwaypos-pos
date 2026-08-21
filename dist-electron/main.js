@@ -3807,9 +3807,9 @@ electron_1.ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) =>
     try {
         const db = await (0, database_1.getDatabase)();
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
         const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
-        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
         const { startDateStr, endDateStr, start, end } = getBusinessDateRange(filters, cutoffHour);
         const closedOrders = await db.all(`
       SELECT * FROM orders 
@@ -4200,7 +4200,7 @@ electron_1.ipcMain.handle("get-sales-analytics", async (_event, filters = {}) =>
     try {
         const db = await (0, database_1.getDatabase)();
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
         const { startDateStr, endDateStr, start, end } = getBusinessDateRange(filters, cutoffHour);
         const salesData = await db.all(`
       SELECT 
@@ -4287,7 +4287,7 @@ electron_1.ipcMain.handle("get-category-performance", async (_event, filters = {
     try {
         const db = await (0, database_1.getDatabase)();
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
+        const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
         const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const categoryData = await db.all(`
       SELECT 
@@ -4340,7 +4340,7 @@ electron_1.ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
     try {
         const db = await (0, database_1.getDatabase)();
         const cutoffHour = await getBusinessDayCutoffHour(db);
-        const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
+        const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
         const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
         const peakHours = await db.all(`
       SELECT 

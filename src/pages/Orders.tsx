@@ -481,17 +481,20 @@ export const Orders: React.FC = () => {
 		customDateEnd,
 	]);
 
+	const getEffectiveOrderDateStr = (order: Order) => {
+		return order.status === "closed" ?
+			order.closed_at || order.updated_at || order.created_at
+		:	order.created_at;
+	};
+
 	const groupedOrders = useMemo(() => {
 		const groups: { [key: string]: Order[] } = {};
 
 		filteredOrders.forEach((order) => {
-			const orderDateStr =
-				order.status === "closed" ?
-					order.closed_at || order.updated_at || order.created_at
-				:	order.created_at;
-			if (!orderDateStr) return;
+			const dateStr = getEffectiveOrderDateStr(order);
+			if (!dateStr) return;
 
-			const date = parseOrderDate(orderDateStr);
+			const date = parseOrderDate(dateStr);
 			const dateString = date.toLocaleDateString(undefined, {
 				weekday: "long",
 				month: "long",
@@ -507,16 +510,11 @@ export const Orders: React.FC = () => {
 
 		// Return entries sorted by date (newest date first)
 		return Object.entries(groups).sort((a, b) => {
-			const getOrderTime = (o: Order) => {
-				const val =
-					o.status === "closed" ?
-						o.closed_at || o.updated_at || o.created_at
-					:	o.created_at;
-				return val ? parseOrderDate(val).getTime() : 0;
-			};
-			const dateA = getOrderTime(a[1][0]);
-			const dateB = getOrderTime(b[1][0]);
-			return dateB - dateA;
+			const dateAStr = getEffectiveOrderDateStr(a[1][0]);
+			const dateBStr = getEffectiveOrderDateStr(b[1][0]);
+			const dateA = dateAStr ? parseOrderDate(dateAStr) : new Date(0);
+			const dateB = dateBStr ? parseOrderDate(dateBStr) : new Date(0);
+			return dateB.getTime() - dateA.getTime();
 		});
 	}, [filteredOrders]);
 
@@ -1389,15 +1387,11 @@ export const Orders: React.FC = () => {
 
 															<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
 																<Clock className="size-4 text-muted-foreground/60" />
-																{(() => {
-																	const orderDateVal =
-																		order.status === "closed" ?
-																			order.closed_at || order.updated_at || order.created_at
-																		:	order.created_at;
-																	return orderDateVal ?
-																			new Date(orderDateVal).toLocaleString()
-																		:	"N/A";
-																})()}
+																{getEffectiveOrderDateStr(order) ?
+																	parseOrderDate(
+																		getEffectiveOrderDateStr(order)!,
+																	).toLocaleString()
+																:	"N/A"}
 															</div>
 														</div>
 													</div>
