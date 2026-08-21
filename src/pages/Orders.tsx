@@ -54,7 +54,7 @@ import {
 	User,
 	X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -130,30 +130,16 @@ export const Orders: React.FC = () => {
 	const [reportData, setReportData] = useState<any>(null);
 	const [expenses, setExpenses] = useState<any[]>([]);
 
-	const fetchExpenses = useCallback(async () => {
+	const fetchExpensesData = async () => {
 		try {
-			let filters: any = { timePeriod: dateFilter };
-			if (dateFilter === "custom_date" && customSingleDate) {
-				filters.timePeriod = "custom";
-				filters.startDate = customSingleDate;
-				filters.endDate = customSingleDate;
-			} else if (dateFilter === "custom") {
-				filters.timePeriod = "custom";
-				filters.startDate = customDateStart;
-				filters.endDate = customDateEnd;
-			}
-			const data = await window.electron.invoke("get-expenses", filters);
-			if (Array.isArray(data)) {
-				setExpenses(data);
-			}
-		} catch (error) {
-			console.error("Failed to fetch expenses for orders page:", error);
+			const data = await window.electron.invoke("get-expenses", {
+				timePeriod: "all",
+			});
+			setExpenses(data || []);
+		} catch (err) {
+			console.error("Failed to fetch expenses for orders stats:", err);
 		}
-	}, [dateFilter, customSingleDate, customDateStart, customDateEnd]);
-
-	useEffect(() => {
-		fetchExpenses();
-	}, [fetchExpenses, expensesDialogOpen]);
+	};
 
 	const [isBulkMode, setIsBulkMode] = useState(false);
 	const [selectedOrderIds, setSelectedOrderIds] = useState<Set<number>>(
@@ -227,6 +213,7 @@ export const Orders: React.FC = () => {
 		const init = async () => {
 			await fetchOrders();
 			fetchCategories();
+			fetchExpensesData();
 			if (selectedOrder?.id) {
 				try {
 					const orderWithItems = await getOrderById(selectedOrder.id);
@@ -270,12 +257,52 @@ export const Orders: React.FC = () => {
 		});
 	}, [orders]);
 
+	const cutoffHour = useMemo(() => {
+		if (settings?.general) {
+			const gen =
+				typeof settings.general === "string" ?
+					parseJSONString(settings.general)
+				:	settings.general;
+			if (
+				typeof gen?.businessDayCutoffHour === "number" &&
+				!isNaN(gen.businessDayCutoffHour)
+			) {
+				return gen.businessDayCutoffHour;
+			}
+		}
+		return 4;
+	}, [settings?.general]);
+
 	const parseOrderDate = (val: string) => {
 		let str = String(val).trim();
 		if (str.includes(" ") && !str.includes("T")) {
 			str = str.replace(" ", "T");
 		}
 		return new Date(str);
+	};
+
+	const toBusinessDateStr = (
+		dateInput: Date | string,
+		cutoff: number = 4,
+	): string => {
+		if (!dateInput) return "";
+		let d: Date;
+		if (typeof dateInput === "string") {
+			let str = dateInput.trim();
+			if (str.includes(" ") && !str.includes("T")) {
+				str = str.replace(" ", "T");
+			}
+			d = new Date(str);
+		} else {
+			d = dateInput;
+		}
+		if (isNaN(d.getTime())) return "";
+
+		const busDate = new Date(d.getTime() - cutoff * 60 * 60 * 1000);
+		const year = busDate.getFullYear();
+		const month = String(busDate.getMonth() + 1).padStart(2, "0");
+		const day = String(busDate.getDate()).padStart(2, "0");
+		return `${year}-${month}-${day}`;
 	};
 
 	const parseLocalDateString = (dateStr: string, isEnd = false): Date => {
@@ -296,6 +323,31 @@ export const Orders: React.FC = () => {
 		return d;
 	};
 
+	const matchesDateFilter = (dateVal: string | Date | undefined): boolean => {
+		if (!dateVal || dateFilter === "all") return true;
+		const busDate = toBusinessDateStr(dateVal, cutoffHour);
+		const now = new Date();
+
+		if (dateFilter === "today") {
+			return busDate === toBusinessDateStr(now, cutoffHour);
+		} else if (dateFilter === "week") {
+			const d = parseOrderDate(String(dateVal));
+			const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+			return d >= weekAgo;
+		} else if (dateFilter === "month") {
+			const d = parseOrderDate(String(dateVal));
+			const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+			return d >= monthStart;
+		} else if (dateFilter === "custom_date" && customSingleDate) {
+			return busDate === customSingleDate;
+		} else if (dateFilter === "custom") {
+			if (customDateStart && busDate < customDateStart) return false;
+			if (customDateEnd && busDate > customDateEnd) return false;
+			return true;
+		}
+		return true;
+	};
+
 	const filteredOrders = useMemo(() => {
 		return uniqueOrders.filter((order) => {
 			// Tab filter
@@ -310,43 +362,7 @@ export const Orders: React.FC = () => {
 					order.closed_at || order.updated_at || order.created_at
 				:	order.created_at;
 
-			if (dateFilter !== "all" && orderDateStr) {
-				const orderDate = parseOrderDate(orderDateStr);
-				const now = new Date();
-
-				if (dateFilter === "today") {
-					const todayStart = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate(),
-					);
-					const todayEnd = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate() + 1,
-					);
-					if (orderDate < todayStart || orderDate >= todayEnd) return false;
-				} else if (dateFilter === "week") {
-					const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-					if (orderDate < weekAgo) return false;
-				} else if (dateFilter === "month") {
-					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-					if (orderDate < monthStart) return false;
-				} else if (dateFilter === "custom_date" && customSingleDate) {
-					const singleStart = parseLocalDateString(customSingleDate);
-					const singleEnd = parseLocalDateString(customSingleDate, true);
-					if (orderDate < singleStart || orderDate > singleEnd) return false;
-				} else if (dateFilter === "custom") {
-					if (customDateStart) {
-						const startDate = parseLocalDateString(customDateStart);
-						if (orderDate < startDate) return false;
-					}
-					if (customDateEnd) {
-						const endDate = parseLocalDateString(customDateEnd, true);
-						if (orderDate > endDate) return false;
-					}
-				}
-			}
+			if (!matchesDateFilter(orderDateStr)) return false;
 
 			// Search filter
 			const searchLower = search.toLowerCase();
@@ -372,12 +388,14 @@ export const Orders: React.FC = () => {
 		customSingleDate,
 		customDateStart,
 		customDateEnd,
+		cutoffHour,
 	]);
 
 	const periodStats = useMemo(() => {
 		let totalSales = 0;
 		let totalCash = 0;
 		let totalMomo = 0;
+		let totalCard = 0;
 		let closedCount = 0;
 		let totalCancelledAmount = 0;
 		let cancelledCount = 0;
@@ -388,43 +406,7 @@ export const Orders: React.FC = () => {
 					order.closed_at || order.updated_at || order.created_at
 				:	order.created_at;
 
-			if (dateFilter !== "all" && orderDateStr) {
-				const orderDate = parseOrderDate(orderDateStr);
-				const now = new Date();
-
-				if (dateFilter === "today") {
-					const todayStart = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate(),
-					);
-					const todayEnd = new Date(
-						now.getFullYear(),
-						now.getMonth(),
-						now.getDate() + 1,
-					);
-					if (orderDate < todayStart || orderDate >= todayEnd) return;
-				} else if (dateFilter === "week") {
-					const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-					if (orderDate < weekAgo) return;
-				} else if (dateFilter === "month") {
-					const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-					if (orderDate < monthStart) return;
-				} else if (dateFilter === "custom_date" && customSingleDate) {
-					const singleStart = parseLocalDateString(customSingleDate);
-					const singleEnd = parseLocalDateString(customSingleDate, true);
-					if (orderDate < singleStart || orderDate > singleEnd) return;
-				} else if (dateFilter === "custom") {
-					if (customDateStart) {
-						const startDate = parseLocalDateString(customDateStart);
-						if (orderDate < startDate) return;
-					}
-					if (customDateEnd) {
-						const endDate = parseLocalDateString(customDateEnd, true);
-						if (orderDate > endDate) return;
-					}
-				}
-			}
+			if (!matchesDateFilter(orderDateStr)) return;
 
 			const amount = Number(order.amount || 0);
 
@@ -448,7 +430,7 @@ export const Orders: React.FC = () => {
 					pm.includes("visa") ||
 					pm.includes("master")
 				) {
-					// Card payments are accounted in totalSales
+					totalCard += amount;
 				} else {
 					totalCash += amount;
 				}
@@ -458,19 +440,22 @@ export const Orders: React.FC = () => {
 			}
 		});
 
-		const totalExpenses = expenses.reduce(
-			(sum: number, e: any) => sum + Number(e.amount || 0),
-			0,
-		);
+		let totalExpenses = 0;
+		expenses.forEach((exp) => {
+			if (matchesDateFilter(exp.created_at)) {
+				totalExpenses += Number(exp.amount || 0);
+			}
+		});
 
 		return {
 			totalSales,
 			totalCash,
 			totalMomo,
-			totalExpenses,
+			totalCard,
 			closedCount,
 			totalCancelledAmount,
 			cancelledCount,
+			totalExpenses,
 		};
 	}, [
 		uniqueOrders,
@@ -479,22 +464,16 @@ export const Orders: React.FC = () => {
 		customSingleDate,
 		customDateStart,
 		customDateEnd,
+		cutoffHour,
 	]);
-
-	const getEffectiveOrderDateStr = (order: Order) => {
-		return order.status === "closed" ?
-			order.closed_at || order.updated_at || order.created_at
-		:	order.created_at;
-	};
 
 	const groupedOrders = useMemo(() => {
 		const groups: { [key: string]: Order[] } = {};
 
 		filteredOrders.forEach((order) => {
-			const dateStr = getEffectiveOrderDateStr(order);
-			if (!dateStr) return;
+			if (!order.created_at) return;
 
-			const date = parseOrderDate(dateStr);
+			const date = new Date(order.created_at);
 			const dateString = date.toLocaleDateString(undefined, {
 				weekday: "long",
 				month: "long",
@@ -510,10 +489,8 @@ export const Orders: React.FC = () => {
 
 		// Return entries sorted by date (newest date first)
 		return Object.entries(groups).sort((a, b) => {
-			const dateAStr = getEffectiveOrderDateStr(a[1][0]);
-			const dateBStr = getEffectiveOrderDateStr(b[1][0]);
-			const dateA = dateAStr ? parseOrderDate(dateAStr) : new Date(0);
-			const dateB = dateBStr ? parseOrderDate(dateBStr) : new Date(0);
+			const dateA = new Date(a[1][0].created_at!);
+			const dateB = new Date(b[1][0].created_at!);
 			return dateB.getTime() - dateA.getTime();
 		});
 	}, [filteredOrders]);
@@ -653,9 +630,13 @@ export const Orders: React.FC = () => {
 	const handleGenerateReport = async () => {
 		setIsGeneratingReport(true);
 		try {
+			let reportArg: any = dateFilter;
+			if (dateFilter === "custom_date") {
+				reportArg = customSingleDate;
+			}
 			const data = await window.electron.invoke(
 				"get-daily-inventory-report",
-				undefined,
+				reportArg,
 				user,
 			);
 			setReportData(data);
@@ -1133,7 +1114,14 @@ export const Orders: React.FC = () => {
 
 					{/* Period Stats Summary Bar - Admin Only */}
 					{/* {user?.role === "admin" && ( */}
-					<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-4 py-3 bg-gray-50 border-b">
+					<div
+						className={cn(
+							"grid gap-3 px-4 py-3 bg-gray-50 border-b",
+							periodStats.totalCard > 0 ?
+								"grid-cols-2 md:grid-cols-6"
+							:	"grid-cols-2 md:grid-cols-5",
+						)}
+					>
 						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Total Sales
@@ -1171,16 +1159,29 @@ export const Orders: React.FC = () => {
 							</span>
 						</div>
 
+						{periodStats.totalCard > 0 && (
+							<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+								<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+									Total Card
+								</span>
+								<span className="text-xl font-bold text-cyan-600 mt-1">
+									{formatCurrency(periodStats.totalCard)}
+								</span>
+								<span className="text-[11px] text-gray-500 mt-0.5">
+									Card payments
+								</span>
+							</div>
+						)}
+
 						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Total Expenses
 							</span>
-							<span className="text-xl font-bold text-amber-600 mt-1">
+							<span className="text-xl font-bold text-red-600 mt-1">
 								{formatCurrency(periodStats.totalExpenses)}
 							</span>
 							<span className="text-[11px] text-gray-500 mt-0.5">
-								{expenses.length} expense log
-								{expenses.length !== 1 ? "s" : ""}
+								Expenses incurred
 							</span>
 						</div>
 
@@ -1387,10 +1388,8 @@ export const Orders: React.FC = () => {
 
 															<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
 																<Clock className="size-4 text-muted-foreground/60" />
-																{getEffectiveOrderDateStr(order) ?
-																	parseOrderDate(
-																		getEffectiveOrderDateStr(order)!,
-																	).toLocaleString()
+																{order.created_at ?
+																	new Date(order.created_at).toLocaleString()
 																:	"N/A"}
 															</div>
 														</div>
@@ -2001,7 +2000,10 @@ export const Orders: React.FC = () => {
 			/>
 			<ExpensesDialog
 				open={expensesDialogOpen}
-				onClose={() => setExpensesDialogOpen(false)}
+				onClose={() => {
+					setExpensesDialogOpen(false);
+					fetchExpensesData();
+				}}
 				user={user}
 			/>
 			<AlertWithActions

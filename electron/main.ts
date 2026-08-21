@@ -2898,6 +2898,8 @@ ipcMain.handle("get-expenses", async (_, filters: any = {}) => {
 				start = new Date(now.getFullYear(), now.getMonth(), 1);
 				end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 				break;
+			case "all":
+				return await db.all("SELECT * FROM expenses ORDER BY created_at DESC");
 			case "custom":
 				start = startDate ? new Date(startDate) : new Date();
 				end = endDate ? new Date(endDate) : new Date();
@@ -4063,7 +4065,7 @@ ipcMain.handle("update-order", async (_, order) => {
 			const editorId = author.id || null;
 			let closedAt = existingOrder?.closed_at || null;
 			if (order.status === "closed") {
-				if (!closedAt || existingOrder?.status !== "closed") {
+				if (!closedAt) {
 					closedAt = new Date().toISOString();
 				}
 			} else {
@@ -4155,7 +4157,7 @@ ipcMain.handle("bulk-update-orders", async (_, { ids, status, author }) => {
 
 				let closedAt = existingOrder.closed_at || null;
 				if (status === "closed") {
-					if (!closedAt || existingOrder.status !== "closed") {
+					if (!closedAt) {
 						closedAt = new Date().toISOString();
 					}
 				} else {
@@ -4656,9 +4658,9 @@ ipcMain.handle("get-dashboard-stats", async (_event, filters = {}) => {
 	try {
 		const db = await getDatabase();
 		const cutoffHour = await getBusinessDayCutoffHour(db);
-		const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+		const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
 		const createdDateExpr = getBusinessDateExpr("created_at", cutoffHour);
-		const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
+		const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
 
 		const { startDateStr, endDateStr, start, end } = getBusinessDateRange(filters, cutoffHour);
 
@@ -5137,7 +5139,7 @@ ipcMain.handle("get-sales-analytics", async (_event, filters = {}) => {
 	try {
 		const db = await getDatabase();
 		const cutoffHour = await getBusinessDayCutoffHour(db);
-		const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+		const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
 		const { startDateStr, endDateStr, start, end } = getBusinessDateRange(filters, cutoffHour);
 
 		const salesData = await db.all(
@@ -5235,7 +5237,7 @@ ipcMain.handle("get-category-performance", async (_event, filters = {}) => {
 	try {
 		const db = await getDatabase();
 		const cutoffHour = await getBusinessDayCutoffHour(db);
-		const orderDateExpr = getBusinessDateExpr("COALESCE(o.closed_at, o.updated_at, o.created_at)", cutoffHour);
+		const orderDateExpr = getBusinessDateExpr("COALESCE(o.updated_at, o.created_at)", cutoffHour);
 		const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
 
 		const categoryData = await db.all(
@@ -5296,7 +5298,7 @@ ipcMain.handle("get-peak-hours", async (_event, filters = {}) => {
 	try {
 		const db = await getDatabase();
 		const cutoffHour = await getBusinessDayCutoffHour(db);
-		const dateExpr = getBusinessDateExpr("COALESCE(closed_at, updated_at, created_at)", cutoffHour);
+		const dateExpr = getBusinessDateExpr("COALESCE(updated_at, created_at)", cutoffHour);
 		const { startDateStr, endDateStr } = getBusinessDateRange(filters, cutoffHour);
 
 		const peakHours = await db.all(
