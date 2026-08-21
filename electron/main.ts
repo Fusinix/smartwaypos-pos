@@ -4063,7 +4063,7 @@ ipcMain.handle("update-order", async (_, order) => {
 			const editorId = author.id || null;
 			let closedAt = existingOrder?.closed_at || null;
 			if (order.status === "closed") {
-				if (!closedAt) {
+				if (!closedAt || existingOrder?.status !== "closed") {
 					closedAt = new Date().toISOString();
 				}
 			} else {
@@ -4155,7 +4155,7 @@ ipcMain.handle("bulk-update-orders", async (_, { ids, status, author }) => {
 
 				let closedAt = existingOrder.closed_at || null;
 				if (status === "closed") {
-					if (!closedAt) {
+					if (!closedAt || existingOrder.status !== "closed") {
 						closedAt = new Date().toISOString();
 					}
 				} else {

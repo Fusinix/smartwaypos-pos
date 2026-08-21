@@ -54,7 +54,7 @@ import {
 	User,
 	X,
 } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -128,6 +128,32 @@ export const Orders: React.FC = () => {
 	const [reportDialogOpen, setReportDialogOpen] = useState(false);
 	const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
 	const [reportData, setReportData] = useState<any>(null);
+	const [expenses, setExpenses] = useState<any[]>([]);
+
+	const fetchExpenses = useCallback(async () => {
+		try {
+			let filters: any = { timePeriod: dateFilter };
+			if (dateFilter === "custom_date" && customSingleDate) {
+				filters.timePeriod = "custom";
+				filters.startDate = customSingleDate;
+				filters.endDate = customSingleDate;
+			} else if (dateFilter === "custom") {
+				filters.timePeriod = "custom";
+				filters.startDate = customDateStart;
+				filters.endDate = customDateEnd;
+			}
+			const data = await window.electron.invoke("get-expenses", filters);
+			if (Array.isArray(data)) {
+				setExpenses(data);
+			}
+		} catch (error) {
+			console.error("Failed to fetch expenses for orders page:", error);
+		}
+	}, [dateFilter, customSingleDate, customDateStart, customDateEnd]);
+
+	useEffect(() => {
+		fetchExpenses();
+	}, [fetchExpenses, expensesDialogOpen]);
 
 	const [isBulkMode, setIsBulkMode] = useState(false);
 	const [selectedOrderIds, setSelectedOrderIds] = useState<Set<number>>(
@@ -415,6 +441,14 @@ export const Orders: React.FC = () => {
 					pm.includes("vodafone")
 				) {
 					totalMomo += amount;
+				} else if (
+					pm === "card" ||
+					pm.includes("card") ||
+					pm.includes("pos") ||
+					pm.includes("visa") ||
+					pm.includes("master")
+				) {
+					// Card payments are accounted in totalSales
 				} else {
 					totalCash += amount;
 				}
@@ -424,16 +458,23 @@ export const Orders: React.FC = () => {
 			}
 		});
 
+		const totalExpenses = expenses.reduce(
+			(sum: number, e: any) => sum + Number(e.amount || 0),
+			0,
+		);
+
 		return {
 			totalSales,
 			totalCash,
 			totalMomo,
+			totalExpenses,
 			closedCount,
 			totalCancelledAmount,
 			cancelledCount,
 		};
 	}, [
 		uniqueOrders,
+		expenses,
 		dateFilter,
 		customSingleDate,
 		customDateStart,
@@ -444,9 +485,13 @@ export const Orders: React.FC = () => {
 		const groups: { [key: string]: Order[] } = {};
 
 		filteredOrders.forEach((order) => {
-			if (!order.created_at) return;
+			const orderDateStr =
+				order.status === "closed" ?
+					order.closed_at || order.updated_at || order.created_at
+				:	order.created_at;
+			if (!orderDateStr) return;
 
-			const date = new Date(order.created_at);
+			const date = parseOrderDate(orderDateStr);
 			const dateString = date.toLocaleDateString(undefined, {
 				weekday: "long",
 				month: "long",
@@ -462,9 +507,16 @@ export const Orders: React.FC = () => {
 
 		// Return entries sorted by date (newest date first)
 		return Object.entries(groups).sort((a, b) => {
-			const dateA = new Date(a[1][0].created_at!);
-			const dateB = new Date(b[1][0].created_at!);
-			return dateB.getTime() - dateA.getTime();
+			const getOrderTime = (o: Order) => {
+				const val =
+					o.status === "closed" ?
+						o.closed_at || o.updated_at || o.created_at
+					:	o.created_at;
+				return val ? parseOrderDate(val).getTime() : 0;
+			};
+			const dateA = getOrderTime(a[1][0]);
+			const dateB = getOrderTime(b[1][0]);
+			return dateB - dateA;
 		});
 	}, [filteredOrders]);
 
@@ -1083,7 +1135,7 @@ export const Orders: React.FC = () => {
 
 					{/* Period Stats Summary Bar - Admin Only */}
 					{/* {user?.role === "admin" && ( */}
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-b">
+					<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-4 py-3 bg-gray-50 border-b">
 						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
 							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
 								Total Sales
@@ -1118,6 +1170,19 @@ export const Orders: React.FC = () => {
 							</span>
 							<span className="text-[11px] text-gray-500 mt-0.5">
 								Mobile Money
+							</span>
+						</div>
+
+						<div className="bg-white p-3 rounded-lg border shadow-sm flex flex-col justify-center">
+							<span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+								Total Expenses
+							</span>
+							<span className="text-xl font-bold text-amber-600 mt-1">
+								{formatCurrency(periodStats.totalExpenses)}
+							</span>
+							<span className="text-[11px] text-gray-500 mt-0.5">
+								{expenses.length} expense log
+								{expenses.length !== 1 ? "s" : ""}
 							</span>
 						</div>
 
@@ -1324,9 +1389,15 @@ export const Orders: React.FC = () => {
 
 															<div className="text-xs pt-1 text-gray-500 flex items-center gap-2">
 																<Clock className="size-4 text-muted-foreground/60" />
-																{order.created_at ?
-																	new Date(order.created_at).toLocaleString()
-																:	"N/A"}
+																{(() => {
+																	const orderDateVal =
+																		order.status === "closed" ?
+																			order.closed_at || order.updated_at || order.created_at
+																		:	order.created_at;
+																	return orderDateVal ?
+																			new Date(orderDateVal).toLocaleString()
+																		:	"N/A";
+																})()}
 															</div>
 														</div>
 													</div>

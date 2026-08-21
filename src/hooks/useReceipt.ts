@@ -33,8 +33,6 @@ export const useReceipt = () => {
 		let businessName = "SmartWay Pos";
 		let receiptCurrency = "GHS";
 		const currentSettings = await window.electron.invoke("get-settings");
-		let pName = "";
-
 		let businessLogo = "";
 		if (currentSettings?.general) {
 			const gen =
@@ -44,14 +42,6 @@ export const useReceipt = () => {
 			businessName = gen.businessName || businessName;
 			receiptCurrency = gen.defaultCurrency || receiptCurrency;
 			businessLogo = gen.businessLogo || "";
-		}
-
-		if (currentSettings?.pos) {
-			const pos =
-				typeof currentSettings.pos === "string" ?
-					JSON.parse(currentSettings.pos)
-				:	currentSettings.pos;
-			pName = pos.receiptPrinter || "";
 		}
 
 		// Safe formatting helper
@@ -261,6 +251,7 @@ export const useReceipt = () => {
 		// Get order details
 		const orderNum = order.order_number ?? order.id;
 		const tableNum = order.table_number || "";
+		const dateStr = new Date().toLocaleDateString();
 		const time = new Date().toLocaleTimeString([], {
 			hour: "2-digit",
 			minute: "2-digit",
@@ -338,7 +329,7 @@ export const useReceipt = () => {
                         <h1>KITCHEN TICKET</h1>
                         <div style="font-size: 12pt; font-weight: 900; margin-top: 4px;">ORDER #${orderNum} ${tableNum ? `- TABLE ${tableNum}` : ""}</div>
                         ${order.customer_name ? `<div style="font-size: 12pt; font-weight: 900; margin-top: 4px; margin-bottom: 4px;">NAME: ${order.customer_name.toUpperCase()}</div>` : ""}
-                        <div style="font-size: 8pt;">${time}</div>
+                        <div style="font-size: 8pt;">${dateStr} ${time}</div>
                     </div>
     
                     <div class="items">
