@@ -471,9 +471,13 @@ export const Orders: React.FC = () => {
 		const groups: { [key: string]: Order[] } = {};
 
 		filteredOrders.forEach((order) => {
-			if (!order.created_at) return;
+			const orderDateVal =
+				order.status === "closed" ?
+					order.closed_at || order.updated_at || order.created_at
+				:	order.created_at;
+			if (!orderDateVal) return;
 
-			const date = new Date(order.created_at);
+			const date = parseOrderDate(orderDateVal);
 			const dateString = date.toLocaleDateString(undefined, {
 				weekday: "long",
 				month: "long",
@@ -489,9 +493,14 @@ export const Orders: React.FC = () => {
 
 		// Return entries sorted by date (newest date first)
 		return Object.entries(groups).sort((a, b) => {
-			const dateA = new Date(a[1][0].created_at!);
-			const dateB = new Date(b[1][0].created_at!);
-			return dateB.getTime() - dateA.getTime();
+			const getOrderTime = (o: Order) => {
+				const dStr =
+					o.status === "closed" ?
+						o.closed_at || o.updated_at || o.created_at
+					:	o.created_at;
+				return dStr ? parseOrderDate(dStr).getTime() : 0;
+			};
+			return getOrderTime(b[1][0]) - getOrderTime(a[1][0]);
 		});
 	}, [filteredOrders]);
 
