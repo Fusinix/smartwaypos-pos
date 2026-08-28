@@ -46,6 +46,7 @@ export default function AddEditProduct({
 	};
 
 	const { user } = useAuth();
+	const isAdmin = user?.role === "admin";
 
 	const [formData, setFormData] = useState<NewProduct>(defaultProd);
 	const [imagePreview, setImagePreview] = useState<string | null>(
@@ -188,6 +189,7 @@ export default function AddEditProduct({
 										name: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
@@ -203,6 +205,7 @@ export default function AddEditProduct({
 										description: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 							/>
 						</div>
 
@@ -257,6 +260,7 @@ export default function AddEditProduct({
 										price: parseFloat(e.target.value),
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
@@ -275,6 +279,7 @@ export default function AddEditProduct({
 										cost_price: parseFloat(e.target.value),
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>

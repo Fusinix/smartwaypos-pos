@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
 import { getCategoryId, getCategoryName } from "@/lib/utils";
 import type { NewProduct, Product } from "@/types/product";
 import { useEffect, useState } from "react";
@@ -46,6 +47,9 @@ export default function AddEditProductDialog({
 	categories,
 	onSave,
 }: AddEditProductDialogProps) {
+	const { user } = useAuth();
+	const isAdmin = user?.role === "admin";
+
 	const defaultProd: NewProduct = {
 		name: "",
 		description: "",
@@ -179,6 +183,7 @@ export default function AddEditProductDialog({
 										name: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
@@ -194,6 +199,7 @@ export default function AddEditProductDialog({
 										description: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 							/>
 						</div>
 
@@ -241,6 +247,7 @@ export default function AddEditProductDialog({
 										price: parseFloat(e.target.value),
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
@@ -259,6 +266,7 @@ export default function AddEditProductDialog({
 										cost_price: parseFloat(e.target.value),
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>

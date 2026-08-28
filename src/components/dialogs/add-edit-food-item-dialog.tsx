@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { NewFoodItem, FoodItem, FoodExtra } from "@/types/food";
 import { useState, useEffect } from "react";
@@ -43,6 +44,8 @@ export default function AddEditFoodItemDialog({
 	onClose,
 	onSave,
 }: AddEditFoodItemDialogProps) {
+	const { user } = useAuth();
+	const isAdmin = user?.role === "admin";
 	const { format: formatCurrency } = useCurrency();
 	const defaultItem: NewFoodItem = {
 		name: "",
@@ -164,6 +167,7 @@ export default function AddEditFoodItemDialog({
 										name: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
@@ -179,6 +183,7 @@ export default function AddEditFoodItemDialog({
 										description: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 							/>
 						</div>
 
@@ -225,6 +230,7 @@ export default function AddEditFoodItemDialog({
 										price: parseFloat(e.target.value),
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>

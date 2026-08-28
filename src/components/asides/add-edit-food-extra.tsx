@@ -1,7 +1,6 @@
-/** @format */
-
 import type { FoodExtra, NewFoodExtra } from "@/types/food";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
@@ -18,6 +17,9 @@ export function AddEditFoodExtra({
 	onSave,
 	onCancel,
 }: AddEditFoodExtraProps) {
+	const { user } = useAuth();
+	const isAdmin = user?.role === "admin";
+
 	const [formData, setFormData] = useState<NewFoodExtra>({
 		name: extra?.name || "",
 		price: extra?.price || 0,
@@ -60,6 +62,7 @@ export function AddEditFoodExtra({
 							onChange={(e) =>
 								setFormData((p) => ({ ...p, name: e.target.value }))
 							}
+							disabled={!isAdmin}
 							required
 						/>
 					</div>
@@ -77,6 +80,7 @@ export function AddEditFoodExtra({
 									price: parseFloat(e.target.value),
 								}))
 							}
+							disabled={!isAdmin}
 							required
 						/>
 					</div>

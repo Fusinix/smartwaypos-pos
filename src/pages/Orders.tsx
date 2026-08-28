@@ -443,7 +443,14 @@ export const Orders: React.FC = () => {
 		let totalExpenses = 0;
 		expenses.forEach((exp) => {
 			if (matchesDateFilter(exp.created_at)) {
-				totalExpenses += Number(exp.amount || 0);
+				if (
+					user?.id ?
+						Number(exp.admin_id) === Number(user.id) ||
+						(user?.username && exp.admin_name === user.username)
+					:	true
+				) {
+					totalExpenses += Number(exp.amount || 0);
+				}
 			}
 		});
 
@@ -465,6 +472,8 @@ export const Orders: React.FC = () => {
 		customDateStart,
 		customDateEnd,
 		cutoffHour,
+		user?.id,
+		user?.username,
 	]);
 
 	const groupedOrders = useMemo(() => {

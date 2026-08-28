@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Category } from "@/types/category";
 import type {
@@ -39,6 +40,8 @@ export default function AddEditFoodItem({
 	onClose,
 	onSave,
 }: AddEditFoodItemProps) {
+	const { user } = useAuth();
+	const isAdmin = user?.role === "admin";
 	const { format: formatCurrency } = useCurrency();
 	const defaultItem: NewFoodItem = {
 		name: "",
@@ -157,6 +160,7 @@ export default function AddEditFoodItem({
 										name: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
@@ -172,6 +176,7 @@ export default function AddEditFoodItem({
 										description: e.target.value,
 									}))
 								}
+								disabled={!isAdmin}
 							/>
 						</div>
 
@@ -218,6 +223,7 @@ export default function AddEditFoodItem({
 										price: parseFloat(e.target.value),
 									}))
 								}
+								disabled={!isAdmin}
 								required
 							/>
 						</div>
