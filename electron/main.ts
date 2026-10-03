@@ -393,9 +393,9 @@ async function performSyncInternal(): Promise<SyncResult> {
 		return { status: "skipped", reason: "Database not initialised yet." };
 	}
 
-	// Fetch unsynced records from SQLite where synced_at IS NULL
+	// Fetch unsynced records from SQLite where synced_at IS NULL (newest first)
 	const unsyncedOrders = await databaseInstance.all(
-		"SELECT * FROM orders WHERE synced_at IS NULL",
+		"SELECT * FROM orders WHERE synced_at IS NULL ORDER BY created_at DESC",
 	);
 	const unsyncedOrderItems = await databaseInstance.all(`
 		SELECT 
@@ -418,6 +418,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 		LEFT JOIN products p ON oi.product_id = p.id
 		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
 		WHERE oi.synced_at IS NULL
+		ORDER BY oi.id DESC
 	`);
 	// Exclude order placement stock logs ('sale') and sync explicit stock changes only
 	const unsyncedInventoryLogs = await databaseInstance.all(`
@@ -427,9 +428,10 @@ async function performSyncInternal(): Promise<SyncResult> {
 		FROM inventory_logs il
 		LEFT JOIN products p ON il.product_id = p.id
 		WHERE il.synced_at IS NULL AND (il.reason IS NULL OR il.reason != 'sale')
+		ORDER BY il.id DESC
 	`);
 	const unsyncedExpenses = await databaseInstance.all(
-		"SELECT * FROM expenses WHERE synced_at IS NULL",
+		"SELECT * FROM expenses WHERE synced_at IS NULL ORDER BY created_at DESC",
 	);
 
 	if (
