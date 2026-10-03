@@ -292,7 +292,16 @@ export const Orders: React.FC = () => {
 			if (str.includes(" ") && !str.includes("T")) {
 				str = str.replace(" ", "T");
 			}
-			d = new Date(str);
+			if (!str.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(str)) {
+				const parsedAsUtc = new Date(str + "Z");
+				if (!isNaN(parsedAsUtc.getTime())) {
+					d = parsedAsUtc;
+				} else {
+					d = new Date(str);
+				}
+			} else {
+				d = new Date(str);
+			}
 		} else {
 			d = dateInput;
 		}
@@ -443,14 +452,7 @@ export const Orders: React.FC = () => {
 		let totalExpenses = 0;
 		expenses.forEach((exp) => {
 			if (matchesDateFilter(exp.created_at)) {
-				if (
-					user?.id ?
-						Number(exp.admin_id) === Number(user.id) ||
-						(user?.username && exp.admin_name === user.username)
-					:	true
-				) {
-					totalExpenses += Number(exp.amount || 0);
-				}
+				totalExpenses += Number(exp.amount || 0);
 			}
 		});
 

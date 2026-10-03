@@ -364,6 +364,7 @@ type SyncResult =
 			orders: number;
 			orderItems: number;
 			inventoryLogs: number;
+			expenses?: number;
 	  }
 	| { status: "error"; message: string };
 
@@ -392,8 +393,10 @@ async function performSyncInternal(): Promise<SyncResult> {
 		return { status: "skipped", reason: "Database not initialised yet." };
 	}
 
-	// Fetch all records from SQLite to ensure Supabase is 1:1 with local machine
-	const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders");
+	// Fetch unsynced records from SQLite where synced_at IS NULL
+	const unsyncedOrders = await databaseInstance.all(
+		"SELECT * FROM orders WHERE synced_at IS NULL",
+	);
 	const unsyncedOrderItems = await databaseInstance.all(`
 		SELECT 
 			oi.*,
@@ -414,114 +417,154 @@ async function performSyncInternal(): Promise<SyncResult> {
 		FROM order_items oi
 		LEFT JOIN products p ON oi.product_id = p.id
 		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
+		WHERE oi.synced_at IS NULL
 	`);
+	// Exclude order placement stock logs ('sale') and sync explicit stock changes only
 	const unsyncedInventoryLogs = await databaseInstance.all(`
 		SELECT 
 			il.*,
 			COALESCE(p.name, 'Unknown Product') as product_name
 		FROM inventory_logs il
 		LEFT JOIN products p ON il.product_id = p.id
+		WHERE il.synced_at IS NULL AND (il.reason IS NULL OR il.reason != 'sale')
 	`);
+	const unsyncedExpenses = await databaseInstance.all(
+		"SELECT * FROM expenses WHERE synced_at IS NULL",
+	);
 
 	if (
 		unsyncedOrders.length === 0 &&
 		unsyncedOrderItems.length === 0 &&
-		unsyncedInventoryLogs.length === 0
+		unsyncedInventoryLogs.length === 0 &&
+		unsyncedExpenses.length === 0
 	) {
-		console.log("[Sync] Local database is empty. No records to sync.");
-		return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0 };
+		console.log("[Sync] All records up to date. No pending records to sync.");
+		return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0, expenses: 0 };
 	}
 
 	console.log(
-		`[Sync] Uploading database records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs to Supabase...`,
+		`[Sync] Found pending unsynced records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs, ${unsyncedExpenses.length} expenses. Batching payload...`,
 	);
 
-	// Post payload to Next.js portals api gateway
 	const baseUrl = await getBaseUrl();
+	const BATCH_SIZE = 500;
+	let totalSyncedOrders = 0;
+	let totalSyncedItems = 0;
+	let totalSyncedLogs = 0;
+	let totalSyncedExpenses = 0;
 
-	let response: Response;
-	try {
-		response = await fetch(`${baseUrl}/api/pos/sync`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				licenseKey: licenseInfo.licenseKey,
-				orders: unsyncedOrders,
-				orderItems: unsyncedOrderItems,
-				inventoryLogs: unsyncedInventoryLogs,
-			}),
-		});
-	} catch (fetchError: any) {
-		const msg = `Network error reaching sync server: ${fetchError.message}`;
-		console.error("[Sync]", msg);
-		return { status: "error", message: msg };
-	}
+	// Loop through load in batches of up to 500 items per chunk
+	while (
+		unsyncedOrders.length > 0 ||
+		unsyncedOrderItems.length > 0 ||
+		unsyncedInventoryLogs.length > 0 ||
+		unsyncedExpenses.length > 0
+	) {
+		const orderBatch = unsyncedOrders.splice(0, BATCH_SIZE);
+		const itemBatch = unsyncedOrderItems.splice(0, BATCH_SIZE);
+		const logBatch = unsyncedInventoryLogs.splice(0, BATCH_SIZE);
+		const expenseBatch = unsyncedExpenses.splice(0, BATCH_SIZE);
 
-	if (!response.ok) {
-		let errorText = response.statusText;
+		console.log(
+			`[Sync] Uploading batch: ${orderBatch.length} orders, ${itemBatch.length} items, ${logBatch.length} logs, ${expenseBatch.length} expenses...`,
+		);
+
+		let response: Response;
 		try {
-			errorText = await response.text();
-		} catch {}
-		const msg = `Sync server returned ${response.status}: ${errorText}`;
-		console.error("[Sync]", msg);
-		return { status: "error", message: msg };
+			response = await fetch(`${baseUrl}/api/pos/sync`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					licenseKey: licenseInfo.licenseKey,
+					orders: orderBatch,
+					orderItems: itemBatch,
+					inventoryLogs: logBatch,
+					expenses: expenseBatch,
+				}),
+			});
+		} catch (fetchError: any) {
+			const msg = `Network error reaching sync server: ${fetchError.message}`;
+			console.error("[Sync]", msg);
+			return { status: "error", message: msg };
+		}
+
+		if (!response.ok) {
+			let errorText = response.statusText;
+			try {
+				errorText = await response.text();
+			} catch {}
+			const msg = `Sync server returned ${response.status}: ${errorText}`;
+			console.error("[Sync]", msg);
+			return { status: "error", message: msg };
+		}
+
+		let result: any;
+		try {
+			result = await response.json();
+		} catch (jsonError: any) {
+			const msg = `Invalid JSON from sync server: ${jsonError.message}`;
+			console.error("[Sync]", msg);
+			return { status: "error", message: msg };
+		}
+
+		if (!result.success) {
+			const msg = result.message || "Sync rejected by server.";
+			console.error("[Sync] Sync rejected by server:", msg);
+			return { status: "error", message: msg };
+		}
+
+		const timestamp = new Date().toISOString();
+
+		// Update orders synced_at
+		if (result.syncedOrders && result.syncedOrders.length > 0) {
+			const placeholders = result.syncedOrders.map(() => "?").join(",");
+			await databaseInstance.run(
+				`UPDATE orders SET synced_at = ? WHERE id IN (${placeholders})`,
+				[timestamp, ...result.syncedOrders],
+			);
+			totalSyncedOrders += result.syncedOrders.length;
+		}
+
+		// Update order_items synced_at
+		if (result.syncedOrderItems && result.syncedOrderItems.length > 0) {
+			const placeholders = result.syncedOrderItems.map(() => "?").join(",");
+			await databaseInstance.run(
+				`UPDATE order_items SET synced_at = ? WHERE id IN (${placeholders})`,
+				[timestamp, ...result.syncedOrderItems],
+			);
+			totalSyncedItems += result.syncedOrderItems.length;
+		}
+
+		// Update inventory_logs synced_at
+		if (result.syncedInventoryLogs && result.syncedInventoryLogs.length > 0) {
+			const placeholders = result.syncedInventoryLogs.map(() => "?").join(",");
+			await databaseInstance.run(
+				`UPDATE inventory_logs SET synced_at = ? WHERE id IN (${placeholders})`,
+				[timestamp, ...result.syncedInventoryLogs],
+			);
+			totalSyncedLogs += result.syncedInventoryLogs.length;
+		}
+
+		// Update expenses synced_at
+		if (result.syncedExpenses && result.syncedExpenses.length > 0) {
+			const placeholders = result.syncedExpenses.map(() => "?").join(",");
+			await databaseInstance.run(
+				`UPDATE expenses SET synced_at = ? WHERE id IN (${placeholders})`,
+				[timestamp, ...result.syncedExpenses],
+			);
+			totalSyncedExpenses += result.syncedExpenses.length;
+		}
 	}
 
-	let result: any;
-	try {
-		result = await response.json();
-	} catch (jsonError: any) {
-		const msg = `Invalid JSON from sync server: ${jsonError.message}`;
-		console.error("[Sync]", msg);
-		return { status: "error", message: msg };
-	}
-
-	if (!result.success) {
-		const msg = result.message || "Sync rejected by server.";
-		console.error("[Sync] Sync rejected by server:", msg);
-		return { status: "error", message: msg };
-	}
-
-	const timestamp = new Date().toISOString();
-
-	// Update orders synced_at
-	if (result.syncedOrders && result.syncedOrders.length > 0) {
-		const placeholders = result.syncedOrders.map(() => "?").join(",");
-		await databaseInstance.run(
-			`UPDATE orders SET synced_at = ? WHERE id IN (${placeholders})`,
-			[timestamp, ...result.syncedOrders],
-		);
-	}
-
-	// Update order_items synced_at
-	if (result.syncedOrderItems && result.syncedOrderItems.length > 0) {
-		const placeholders = result.syncedOrderItems.map(() => "?").join(",");
-		await databaseInstance.run(
-			`UPDATE order_items SET synced_at = ? WHERE id IN (${placeholders})`,
-			[timestamp, ...result.syncedOrderItems],
-		);
-	}
-
-	// Update inventory_logs synced_at
-	if (result.syncedInventoryLogs && result.syncedInventoryLogs.length > 0) {
-		const placeholders = result.syncedInventoryLogs.map(() => "?").join(",");
-		await databaseInstance.run(
-			`UPDATE inventory_logs SET synced_at = ? WHERE id IN (${placeholders})`,
-			[timestamp, ...result.syncedInventoryLogs],
-		);
-	}
-
-	const syncedOrderCount = result.syncedOrders?.length ?? 0;
-	const syncedItemCount = result.syncedOrderItems?.length ?? 0;
-	const syncedLogCount = result.syncedInventoryLogs?.length ?? 0;
 	console.log(
-		`[Sync] Successful sync cycle. Orders: ${syncedOrderCount}, Items: ${syncedItemCount}, Logs: ${syncedLogCount}.`,
+		`[Sync] Successful sync cycle. Total Synced -> Orders: ${totalSyncedOrders}, Items: ${totalSyncedItems}, Logs: ${totalSyncedLogs}, Expenses: ${totalSyncedExpenses}.`,
 	);
 	return {
 		status: "synced",
-		orders: syncedOrderCount,
-		orderItems: syncedItemCount,
-		inventoryLogs: syncedLogCount,
+		orders: totalSyncedOrders,
+		orderItems: totalSyncedItems,
+		inventoryLogs: totalSyncedLogs,
+		expenses: totalSyncedExpenses,
 	};
 }
 
@@ -1086,7 +1129,7 @@ async function createWindow() {
 			// Column might already exist, safe to ignore
 		}
 
-		// Sync Migrations: Add synced_at columns to orders, order_items, and inventory_logs if not exist
+		// Sync Migrations: Add synced_at columns to orders, order_items, inventory_logs, and expenses if not exist
 		try {
 			await db.run(
 				"ALTER TABLE orders ADD COLUMN synced_at DATETIME DEFAULT NULL",
@@ -1104,6 +1147,13 @@ async function createWindow() {
 		try {
 			await db.run(
 				"ALTER TABLE inventory_logs ADD COLUMN synced_at DATETIME DEFAULT NULL",
+			);
+		} catch (error: any) {
+			// Column might already exist, ignore error
+		}
+		try {
+			await db.run(
+				"ALTER TABLE expenses ADD COLUMN synced_at DATETIME DEFAULT NULL",
 			);
 		} catch (error: any) {
 			// Column might already exist, ignore error
@@ -2953,13 +3003,18 @@ ipcMain.handle(
 	) => {
 		try {
 			const db = await getDatabase();
+			const nowUtcIso = new Date().toISOString();
+			const bDate = getLocalDateString();
 			const result = await db.run(
-				"INSERT INTO expenses (description, amount, admin_name, admin_id) VALUES (?, ?, ?, ?)",
+				"INSERT INTO expenses (description, amount, admin_name, admin_id, created_at, timezone, business_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
 				[
 					expense.description,
 					expense.amount,
 					expense.admin_name,
 					expense.admin_id || null,
+					nowUtcIso,
+					"Africa/Accra",
+					bDate,
 				],
 			);
 
