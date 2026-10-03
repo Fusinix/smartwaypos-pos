@@ -455,6 +455,26 @@ async function performSyncInternal(): Promise<SyncResult> {
 	let totalSyncedLogs = 0;
 	let totalSyncedExpenses = 0;
 
+	const totalPendingRecords =
+		unsyncedOrders.length +
+		unsyncedOrderItems.length +
+		unsyncedInventoryLogs.length +
+		unsyncedExpenses.length;
+
+	const totalBatches = Math.max(
+		1,
+		Math.ceil(
+			Math.max(
+				unsyncedOrders.length,
+				unsyncedOrderItems.length,
+				unsyncedInventoryLogs.length,
+				unsyncedExpenses.length,
+			) / BATCH_SIZE,
+		),
+	);
+
+	let currentBatch = 0;
+
 	// Loop through load in batches of up to 500 items per chunk
 	while (
 		unsyncedOrders.length > 0 ||
@@ -462,13 +482,14 @@ async function performSyncInternal(): Promise<SyncResult> {
 		unsyncedInventoryLogs.length > 0 ||
 		unsyncedExpenses.length > 0
 	) {
+		currentBatch++;
 		const orderBatch = unsyncedOrders.splice(0, BATCH_SIZE);
 		const itemBatch = unsyncedOrderItems.splice(0, BATCH_SIZE);
 		const logBatch = unsyncedInventoryLogs.splice(0, BATCH_SIZE);
 		const expenseBatch = unsyncedExpenses.splice(0, BATCH_SIZE);
 
 		console.log(
-			`[Sync] Uploading batch: ${orderBatch.length} orders, ${itemBatch.length} items, ${logBatch.length} logs, ${expenseBatch.length} expenses...`,
+			`[Sync] Uploading batch ${currentBatch}/${totalBatches}: ${orderBatch.length} orders, ${itemBatch.length} items, ${logBatch.length} logs, ${expenseBatch.length} expenses...`,
 		);
 
 		let response: Response;
@@ -487,6 +508,10 @@ async function performSyncInternal(): Promise<SyncResult> {
 		} catch (fetchError: any) {
 			const msg = `Network error reaching sync server: ${fetchError.message}`;
 			console.error("[Sync]", msg);
+			mainWindow?.webContents.send("sync-progress", {
+				status: "error",
+				message: msg,
+			});
 			return { status: "error", message: msg };
 		}
 
@@ -497,6 +522,10 @@ async function performSyncInternal(): Promise<SyncResult> {
 			} catch {}
 			const msg = `Sync server returned ${response.status}: ${errorText}`;
 			console.error("[Sync]", msg);
+			mainWindow?.webContents.send("sync-progress", {
+				status: "error",
+				message: msg,
+			});
 			return { status: "error", message: msg };
 		}
 
@@ -506,12 +535,20 @@ async function performSyncInternal(): Promise<SyncResult> {
 		} catch (jsonError: any) {
 			const msg = `Invalid JSON from sync server: ${jsonError.message}`;
 			console.error("[Sync]", msg);
+			mainWindow?.webContents.send("sync-progress", {
+				status: "error",
+				message: msg,
+			});
 			return { status: "error", message: msg };
 		}
 
 		if (!result.success) {
 			const msg = result.message || "Sync rejected by server.";
 			console.error("[Sync] Sync rejected by server:", msg);
+			mainWindow?.webContents.send("sync-progress", {
+				status: "error",
+				message: msg,
+			});
 			return { status: "error", message: msg };
 		}
 
@@ -556,7 +593,37 @@ async function performSyncInternal(): Promise<SyncResult> {
 			);
 			totalSyncedExpenses += result.syncedExpenses.length;
 		}
+
+		const processed =
+			totalSyncedOrders +
+			totalSyncedItems +
+			totalSyncedLogs +
+			totalSyncedExpenses;
+		const pct = Math.min(
+			100,
+			Math.round((processed / totalPendingRecords) * 100),
+		);
+
+		mainWindow?.webContents.send("sync-progress", {
+			status: "uploading",
+			currentBatch,
+			totalBatches,
+			processedRecords: processed,
+			totalRecords: totalPendingRecords,
+			percentage: pct,
+			message: `Batch ${currentBatch} of ${totalBatches} complete (${processed}/${totalPendingRecords} records synced)`,
+		});
 	}
+
+	mainWindow?.webContents.send("sync-progress", {
+		status: "completed",
+		currentBatch: totalBatches,
+		totalBatches,
+		processedRecords: totalPendingRecords,
+		totalRecords: totalPendingRecords,
+		percentage: 100,
+		message: "Cloud sync completed successfully!",
+	});
 
 	console.log(
 		`[Sync] Successful sync cycle. Total Synced -> Orders: ${totalSyncedOrders}, Items: ${totalSyncedItems}, Logs: ${totalSyncedLogs}, Expenses: ${totalSyncedExpenses}.`,
@@ -572,16 +639,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 
 function startSyncLoop() {
 	if (syncInterval) clearInterval(syncInterval);
-
-	// Perform initial sync after 5 seconds to allow full startup
-	setTimeout(() => {
-		performSync();
-	}, 5000);
-
-	// Scheduled interval sync every 5 minutes
-	syncInterval = setInterval(() => {
-		performSync();
-	}, 300000);
+	// Auto sync loop disabled — sync is triggered manually via Cloud Sync button on Settings/Profile page.
 }
 
 /**
@@ -5689,6 +5747,9 @@ ipcMain.handle("get-sync-status", async () => {
 		const logsCount = await databaseInstance.get(
 			"SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL",
 		);
+		const expensesCount = await databaseInstance.get(
+			"SELECT COUNT(*) as count FROM expenses WHERE synced_at IS NULL",
+		);
 
 		const latestOrderSync = await databaseInstance.get(
 			"SELECT MAX(synced_at) as last_sync FROM orders WHERE synced_at IS NOT NULL",
@@ -5699,11 +5760,15 @@ ipcMain.handle("get-sync-status", async () => {
 		const latestLogSync = await databaseInstance.get(
 			"SELECT MAX(synced_at) as last_sync FROM inventory_logs WHERE synced_at IS NOT NULL",
 		);
+		const latestExpenseSync = await databaseInstance.get(
+			"SELECT MAX(synced_at) as last_sync FROM expenses WHERE synced_at IS NOT NULL",
+		);
 
 		const lastSyncDates = [
 			latestOrderSync?.last_sync,
 			latestItemSync?.last_sync,
 			latestLogSync?.last_sync,
+			latestExpenseSync?.last_sync,
 		]
 			.filter(Boolean)
 			.map((dateStr) => new Date(dateStr).getTime());
@@ -5718,6 +5783,7 @@ ipcMain.handle("get-sync-status", async () => {
 			unsyncedOrders: Number(ordersCount?.count ?? 0),
 			unsyncedOrderItems: Number(itemsCount?.count ?? 0),
 			unsyncedInventoryLogs: Number(logsCount?.count ?? 0),
+			unsyncedExpenses: Number(expensesCount?.count ?? 0),
 			lastSyncedAt,
 		};
 	} catch (error: any) {

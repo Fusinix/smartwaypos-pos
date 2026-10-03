@@ -111,5 +111,12 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             electron_1.ipcRenderer.removeListener('sync-status-changed', listener);
         };
     },
+    onSyncProgress: (callback) => {
+        const listener = (_, data) => callback(data);
+        electron_1.ipcRenderer.on('sync-progress', listener);
+        return () => {
+            electron_1.ipcRenderer.removeListener('sync-progress', listener);
+        };
+    },
 });
 //# sourceMappingURL=preload.js.map

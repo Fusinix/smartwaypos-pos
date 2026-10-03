@@ -300,8 +300,8 @@ async function performSyncInternal() {
     if (!databaseInstance) {
         return { status: "skipped", reason: "Database not initialised yet." };
     }
-    // Fetch unsynced records from SQLite where synced_at IS NULL
-    const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders WHERE synced_at IS NULL");
+    // Fetch unsynced records from SQLite where synced_at IS NULL (newest first)
+    const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders WHERE synced_at IS NULL ORDER BY created_at DESC");
     const unsyncedOrderItems = await databaseInstance.all(`
 		SELECT 
 			oi.*,
@@ -323,6 +323,7 @@ async function performSyncInternal() {
 		LEFT JOIN products p ON oi.product_id = p.id
 		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
 		WHERE oi.synced_at IS NULL
+		ORDER BY oi.id DESC
 	`);
     // Exclude order placement stock logs ('sale') and sync explicit stock changes only
     const unsyncedInventoryLogs = await databaseInstance.all(`
@@ -332,8 +333,9 @@ async function performSyncInternal() {
 		FROM inventory_logs il
 		LEFT JOIN products p ON il.product_id = p.id
 		WHERE il.synced_at IS NULL AND (il.reason IS NULL OR il.reason != 'sale')
+		ORDER BY il.id DESC
 	`);
-    const unsyncedExpenses = await databaseInstance.all("SELECT * FROM expenses WHERE synced_at IS NULL");
+    const unsyncedExpenses = await databaseInstance.all("SELECT * FROM expenses WHERE synced_at IS NULL ORDER BY created_at DESC");
     if (unsyncedOrders.length === 0 &&
         unsyncedOrderItems.length === 0 &&
         unsyncedInventoryLogs.length === 0 &&
@@ -348,16 +350,23 @@ async function performSyncInternal() {
     let totalSyncedItems = 0;
     let totalSyncedLogs = 0;
     let totalSyncedExpenses = 0;
+    const totalPendingRecords = unsyncedOrders.length +
+        unsyncedOrderItems.length +
+        unsyncedInventoryLogs.length +
+        unsyncedExpenses.length;
+    const totalBatches = Math.max(1, Math.ceil(Math.max(unsyncedOrders.length, unsyncedOrderItems.length, unsyncedInventoryLogs.length, unsyncedExpenses.length) / BATCH_SIZE));
+    let currentBatch = 0;
     // Loop through load in batches of up to 500 items per chunk
     while (unsyncedOrders.length > 0 ||
         unsyncedOrderItems.length > 0 ||
         unsyncedInventoryLogs.length > 0 ||
         unsyncedExpenses.length > 0) {
+        currentBatch++;
         const orderBatch = unsyncedOrders.splice(0, BATCH_SIZE);
         const itemBatch = unsyncedOrderItems.splice(0, BATCH_SIZE);
         const logBatch = unsyncedInventoryLogs.splice(0, BATCH_SIZE);
         const expenseBatch = unsyncedExpenses.splice(0, BATCH_SIZE);
-        console.log(`[Sync] Uploading batch: ${orderBatch.length} orders, ${itemBatch.length} items, ${logBatch.length} logs, ${expenseBatch.length} expenses...`);
+        console.log(`[Sync] Uploading batch ${currentBatch}/${totalBatches}: ${orderBatch.length} orders, ${itemBatch.length} items, ${logBatch.length} logs, ${expenseBatch.length} expenses...`);
         let response;
         try {
             response = await fetch(`${baseUrl}/api/pos/sync`, {
@@ -375,6 +384,10 @@ async function performSyncInternal() {
         catch (fetchError) {
             const msg = `Network error reaching sync server: ${fetchError.message}`;
             console.error("[Sync]", msg);
+            mainWindow?.webContents.send("sync-progress", {
+                status: "error",
+                message: msg,
+            });
             return { status: "error", message: msg };
         }
         if (!response.ok) {
@@ -385,6 +398,10 @@ async function performSyncInternal() {
             catch { }
             const msg = `Sync server returned ${response.status}: ${errorText}`;
             console.error("[Sync]", msg);
+            mainWindow?.webContents.send("sync-progress", {
+                status: "error",
+                message: msg,
+            });
             return { status: "error", message: msg };
         }
         let result;
@@ -394,11 +411,19 @@ async function performSyncInternal() {
         catch (jsonError) {
             const msg = `Invalid JSON from sync server: ${jsonError.message}`;
             console.error("[Sync]", msg);
+            mainWindow?.webContents.send("sync-progress", {
+                status: "error",
+                message: msg,
+            });
             return { status: "error", message: msg };
         }
         if (!result.success) {
             const msg = result.message || "Sync rejected by server.";
             console.error("[Sync] Sync rejected by server:", msg);
+            mainWindow?.webContents.send("sync-progress", {
+                status: "error",
+                message: msg,
+            });
             return { status: "error", message: msg };
         }
         const timestamp = new Date().toISOString();
@@ -426,7 +451,30 @@ async function performSyncInternal() {
             await databaseInstance.run(`UPDATE expenses SET synced_at = ? WHERE id IN (${placeholders})`, [timestamp, ...result.syncedExpenses]);
             totalSyncedExpenses += result.syncedExpenses.length;
         }
+        const processed = totalSyncedOrders +
+            totalSyncedItems +
+            totalSyncedLogs +
+            totalSyncedExpenses;
+        const pct = Math.min(100, Math.round((processed / totalPendingRecords) * 100));
+        mainWindow?.webContents.send("sync-progress", {
+            status: "uploading",
+            currentBatch,
+            totalBatches,
+            processedRecords: processed,
+            totalRecords: totalPendingRecords,
+            percentage: pct,
+            message: `Batch ${currentBatch} of ${totalBatches} complete (${processed}/${totalPendingRecords} records synced)`,
+        });
     }
+    mainWindow?.webContents.send("sync-progress", {
+        status: "completed",
+        currentBatch: totalBatches,
+        totalBatches,
+        processedRecords: totalPendingRecords,
+        totalRecords: totalPendingRecords,
+        percentage: 100,
+        message: "Cloud sync completed successfully!",
+    });
     console.log(`[Sync] Successful sync cycle. Total Synced -> Orders: ${totalSyncedOrders}, Items: ${totalSyncedItems}, Logs: ${totalSyncedLogs}, Expenses: ${totalSyncedExpenses}.`);
     return {
         status: "synced",
@@ -439,14 +487,7 @@ async function performSyncInternal() {
 function startSyncLoop() {
     if (syncInterval)
         clearInterval(syncInterval);
-    // Perform initial sync after 5 seconds to allow full startup
-    setTimeout(() => {
-        performSync();
-    }, 5000);
-    // Scheduled interval sync every 5 minutes
-    syncInterval = setInterval(() => {
-        performSync();
-    }, 300000);
+    // Auto sync loop disabled — sync is triggered manually via Cloud Sync button on Settings/Profile page.
 }
 /**
  * Helper to fetch configured businessDayCutoffHour from settings.
@@ -4663,13 +4704,16 @@ electron_1.ipcMain.handle("get-sync-status", async () => {
         const ordersCount = await databaseInstance.get("SELECT COUNT(*) as count FROM orders WHERE synced_at IS NULL");
         const itemsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM order_items WHERE synced_at IS NULL");
         const logsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL");
+        const expensesCount = await databaseInstance.get("SELECT COUNT(*) as count FROM expenses WHERE synced_at IS NULL");
         const latestOrderSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM orders WHERE synced_at IS NOT NULL");
         const latestItemSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM order_items WHERE synced_at IS NOT NULL");
         const latestLogSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM inventory_logs WHERE synced_at IS NOT NULL");
+        const latestExpenseSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM expenses WHERE synced_at IS NOT NULL");
         const lastSyncDates = [
             latestOrderSync?.last_sync,
             latestItemSync?.last_sync,
             latestLogSync?.last_sync,
+            latestExpenseSync?.last_sync,
         ]
             .filter(Boolean)
             .map((dateStr) => new Date(dateStr).getTime());
@@ -4681,6 +4725,7 @@ electron_1.ipcMain.handle("get-sync-status", async () => {
             unsyncedOrders: Number(ordersCount?.count ?? 0),
             unsyncedOrderItems: Number(itemsCount?.count ?? 0),
             unsyncedInventoryLogs: Number(logsCount?.count ?? 0),
+            unsyncedExpenses: Number(expensesCount?.count ?? 0),
             lastSyncedAt,
         };
     }

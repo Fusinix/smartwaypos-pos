@@ -7,6 +7,7 @@ import { parseJSONString } from "@/lib/utils";
 import React, { useEffect, useState } from "react";
 import { SimpleAlert } from "../components/alerts/simple-alert";
 import { SectionCard } from "../components/settings/SectionCard";
+import { CloudSyncCard } from "@/components/settings/CloudSyncCard";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../hooks/useSettings";
 import type { GeneralSettings } from "../types/settings";
@@ -201,6 +202,10 @@ export const Profile: React.FC = () => {
 						</div>
 					}
 				</SectionCard>
+
+				<div className="mt-6">
+					<CloudSyncCard />
+				</div>
 			</div>
 		</div>
 	);

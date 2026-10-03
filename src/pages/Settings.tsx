@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { AlertWithActions } from "../components/alerts/alert-with-actions";
 import { SimpleAlert } from "../components/alerts/simple-alert";
 import { SectionCard } from "../components/settings/SectionCard";
+import { CloudSyncCard } from "@/components/settings/CloudSyncCard";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../hooks/useSettings";
 import { useTables } from "../hooks/useTables";
@@ -457,16 +458,14 @@ export const Settings: React.FC = () => {
 						Users
 					</Button>
 				)}
-				{isAdmin && (
-					<Button
-						onClick={() => setActiveTab("backup")}
-						variant={activeTab === "backup" ? "default" : "outline"}
-						className={cn("", ClassStyles.tabButton)}
-					>
-						<UploadCloud />
-						Backup & Restore
-					</Button>
-				)}
+				<Button
+					onClick={() => setActiveTab("backup")}
+					variant={activeTab === "backup" ? "default" : "outline"}
+					className={cn("", ClassStyles.tabButton)}
+				>
+					<UploadCloud />
+					Backup & Sync
+				</Button>
 				{isAdmin && (
 					<Button
 						onClick={() => setActiveTab("logs")}
@@ -1594,73 +1593,79 @@ export const Settings: React.FC = () => {
 				)}
 
 				{activeTab === "backup" && (
-					<SectionCard title="Backup & Restore">
-						<div className="space-y-6">
-							<div>
-								<Button
-									onClick={exportDatabase}
-									className="bg-primary text-white hover:bg-primary"
-								>
-									Export Database
-								</Button>
-							</div>
-							<div>
-								<Label className="block text-sm font-medium text-gray-700">
-									Import Database
-								</Label>
-								<Input
-									type="file"
-									accept=".json"
-									onChange={(e) => {
-										const file = e.target.files?.[0];
-										if (file) {
-											const reader = new FileReader();
-											reader.onload = (event) => {
-												const data = event.target?.result as string;
-												importDatabase(data);
-											};
-											reader.readAsText(file);
-										}
-									}}
-									className="mt-1 block w-full"
-								/>
-							</div>
-							<div className="pt-4 border-t space-y-6">
-								<div>
-									<Label className="block text-sm font-medium text-gray-900 mb-2">
-										Selective Data Cleanup
-									</Label>
-									<Button
-										onClick={() => setShowClearSelectiveDataDialog(true)}
-										variant="outline"
-										className="border-amber-500 text-amber-700 hover:bg-amber-50"
-									>
-										Clear Selective Data...
-									</Button>
-									<p className="text-xs text-gray-500 mt-2">
-										Selectively clear system logs, order transaction records, or reset stock quantities to 0 without deleting products or food items.
-									</p>
+					<div className="space-y-6">
+						<CloudSyncCard />
+
+						{isAdmin && (
+							<SectionCard title="Backup & Restore">
+								<div className="space-y-6">
+									<div>
+										<Button
+											onClick={exportDatabase}
+											className="bg-primary text-white hover:bg-primary"
+										>
+											Export Database
+										</Button>
+									</div>
+									<div>
+										<Label className="block text-sm font-medium text-gray-700">
+											Import Database
+										</Label>
+										<Input
+											type="file"
+											accept=".json"
+											onChange={(e) => {
+												const file = e.target.files?.[0];
+												if (file) {
+													const reader = new FileReader();
+													reader.onload = (event) => {
+														const data = event.target?.result as string;
+														importDatabase(data);
+													};
+													reader.readAsText(file);
+												}
+											}}
+											className="mt-1 block w-full"
+										/>
+									</div>
+									<div className="pt-4 border-t space-y-6">
+										<div>
+											<Label className="block text-sm font-medium text-gray-900 mb-2">
+												Selective Data Cleanup
+											</Label>
+											<Button
+												onClick={() => setShowClearSelectiveDataDialog(true)}
+												variant="outline"
+												className="border-amber-500 text-amber-700 hover:bg-amber-50"
+											>
+												Clear Selective Data...
+											</Button>
+											<p className="text-xs text-gray-500 mt-2">
+												Selectively clear system logs, order transaction records, or reset stock quantities to 0 without deleting products or food items.
+											</p>
+										</div>
+										<div className="pt-4 border-t">
+											<Label className="block text-sm font-medium text-red-700 mb-2">
+												Danger Zone
+											</Label>
+											<Button
+												onClick={() => setShowClearDataDialog(true)}
+												variant="destructive"
+												className="bg-red-600 hover:bg-red-700"
+											>
+												Clear All Data
+											</Button>
+											<p className="text-xs text-gray-500 mt-2">
+												This will permanently delete all orders, products, categories,
+												tables, logs, and settings. All users will be deleted except
+												the default admin user (username: admin).
+											</p>
+										</div>
+									</div>
 								</div>
-								<div className="pt-4 border-t">
-									<Label className="block text-sm font-medium text-red-700 mb-2">
-										Danger Zone
-									</Label>
-									<Button
-										onClick={() => setShowClearDataDialog(true)}
-										variant="destructive"
-										className="bg-red-600 hover:bg-red-700"
-									>
-										Clear All Data
-									</Button>
-									<p className="text-xs text-gray-500 mt-2">
-										This will permanently delete all orders, products, categories,
-										tables, logs, and settings. All users will be deleted except
-										the default admin user (username: admin).
-									</p>
-								</div>
-							</div>
-						</div>
-					</SectionCard>
+							</SectionCard>
+						)}
+					</div>
 				)}
 
 				<ClearSelectiveDataDialog

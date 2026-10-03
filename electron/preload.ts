@@ -111,4 +111,11 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.removeListener('sync-status-changed', listener);
     };
   },
+  onSyncProgress: (callback: (data: any) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('sync-progress', listener);
+    return () => {
+      ipcRenderer.removeListener('sync-progress', listener);
+    };
+  },
 });
