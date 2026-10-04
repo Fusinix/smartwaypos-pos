@@ -223,13 +223,6 @@ function notifySyncStatusChanged() {
 }
 function scheduleSyncAfterMutation() {
     notifySyncStatusChanged();
-    if (syncAfterMutationTimer) {
-        clearTimeout(syncAfterMutationTimer);
-    }
-    // Debounce — one order can create multiple rows (order, items, logs)
-    syncAfterMutationTimer = setTimeout(() => {
-        performSync().finally(() => notifySyncStatusChanged());
-    }, 2000);
 }
 let cachedBaseUrl = null;
 let lastCacheTime = 0;
@@ -300,72 +293,82 @@ async function performSyncInternal() {
     if (!databaseInstance) {
         return { status: "skipped", reason: "Database not initialised yet." };
     }
-    // Fetch unsynced records from SQLite where synced_at IS NULL (newest first)
-    const unsyncedOrders = await databaseInstance.all("SELECT * FROM orders WHERE synced_at IS NULL ORDER BY created_at DESC");
-    const unsyncedOrderItems = await databaseInstance.all(`
-		SELECT 
-			oi.*,
-			COALESCE(
-				CASE 
-					WHEN oi.item_type = 'food' THEN fi.name 
-					ELSE p.name 
-				END, 
-				'Unknown Product'
-			) as product_name,
-			COALESCE(
-				CASE 
-					WHEN oi.item_type = 'food' THEN fi.price 
-					ELSE p.price 
-				END, 
-				0.0
-			) as price
-		FROM order_items oi
-		LEFT JOIN products p ON oi.product_id = p.id
-		LEFT JOIN food_items fi ON oi.food_item_id = fi.id
-		WHERE oi.synced_at IS NULL
-		ORDER BY oi.id DESC
-	`);
-    // Exclude order placement stock logs ('sale') and sync explicit stock changes only
-    const unsyncedInventoryLogs = await databaseInstance.all(`
-		SELECT 
-			il.*,
-			COALESCE(p.name, 'Unknown Product') as product_name
-		FROM inventory_logs il
-		LEFT JOIN products p ON il.product_id = p.id
-		WHERE il.synced_at IS NULL AND (il.reason IS NULL OR il.reason != 'sale')
-		ORDER BY il.id DESC
-	`);
-    const unsyncedExpenses = await databaseInstance.all("SELECT * FROM expenses WHERE synced_at IS NULL ORDER BY created_at DESC");
-    if (unsyncedOrders.length === 0 &&
-        unsyncedOrderItems.length === 0 &&
-        unsyncedInventoryLogs.length === 0 &&
-        unsyncedExpenses.length === 0) {
+    // Calculate total pending counts using fast SQLite COUNT(*) queries
+    const countOrders = await databaseInstance.get("SELECT COUNT(*) as count FROM orders WHERE synced_at IS NULL");
+    const countItems = await databaseInstance.get("SELECT COUNT(*) as count FROM order_items WHERE synced_at IS NULL");
+    const countLogs = await databaseInstance.get("SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL AND (reason IS NULL OR reason != 'sale')");
+    const countExpenses = await databaseInstance.get("SELECT COUNT(*) as count FROM expenses WHERE synced_at IS NULL");
+    const totalPendingOrders = Number(countOrders?.count ?? 0);
+    const totalPendingItems = Number(countItems?.count ?? 0);
+    const totalPendingLogs = Number(countLogs?.count ?? 0);
+    const totalPendingExpenses = Number(countExpenses?.count ?? 0);
+    const totalPendingRecords = totalPendingOrders +
+        totalPendingItems +
+        totalPendingLogs +
+        totalPendingExpenses;
+    if (totalPendingRecords === 0) {
         console.log("[Sync] All records up to date. No pending records to sync.");
         return { status: "synced", orders: 0, orderItems: 0, inventoryLogs: 0, expenses: 0 };
     }
-    console.log(`[Sync] Found pending unsynced records: ${unsyncedOrders.length} orders, ${unsyncedOrderItems.length} items, ${unsyncedInventoryLogs.length} logs, ${unsyncedExpenses.length} expenses. Batching payload...`);
+    console.log(`[Sync] Total pending unsynced records: ${totalPendingOrders} orders, ${totalPendingItems} items, ${totalPendingLogs} logs, ${totalPendingExpenses} expenses. Stream batching...`);
     const baseUrl = await getBaseUrl();
     const BATCH_SIZE = 500;
+    const totalBatches = Math.max(1, Math.ceil(Math.max(totalPendingOrders, totalPendingItems, totalPendingLogs, totalPendingExpenses) / BATCH_SIZE));
     let totalSyncedOrders = 0;
     let totalSyncedItems = 0;
     let totalSyncedLogs = 0;
     let totalSyncedExpenses = 0;
-    const totalPendingRecords = unsyncedOrders.length +
-        unsyncedOrderItems.length +
-        unsyncedInventoryLogs.length +
-        unsyncedExpenses.length;
-    const totalBatches = Math.max(1, Math.ceil(Math.max(unsyncedOrders.length, unsyncedOrderItems.length, unsyncedInventoryLogs.length, unsyncedExpenses.length) / BATCH_SIZE));
     let currentBatch = 0;
-    // Loop through load in batches of up to 500 items per chunk
-    while (unsyncedOrders.length > 0 ||
-        unsyncedOrderItems.length > 0 ||
-        unsyncedInventoryLogs.length > 0 ||
-        unsyncedExpenses.length > 0) {
+    mainWindow?.webContents.send("sync-progress", {
+        status: "uploading",
+        currentBatch: 0,
+        totalBatches,
+        processedRecords: 0,
+        totalRecords: totalPendingRecords,
+        percentage: 0,
+        message: `Starting sync of ${totalPendingRecords} records...`,
+    });
+    while (true) {
+        // Fetch next batch of unsynced records up to BATCH_SIZE using SQL LIMIT
+        const orderBatch = await databaseInstance.all("SELECT * FROM orders WHERE synced_at IS NULL ORDER BY created_at DESC LIMIT ?", [BATCH_SIZE]);
+        const itemBatch = await databaseInstance.all(`SELECT 
+				oi.*,
+				COALESCE(
+					CASE 
+						WHEN oi.item_type = 'food' THEN fi.name 
+						ELSE p.name 
+					END, 
+					'Unknown Product'
+				) as product_name,
+				COALESCE(
+					CASE 
+						WHEN oi.item_type = 'food' THEN fi.price 
+						ELSE p.price 
+					END, 
+					0.0
+				) as price
+			FROM order_items oi
+			LEFT JOIN products p ON oi.product_id = p.id
+			LEFT JOIN food_items fi ON oi.food_item_id = fi.id
+			WHERE oi.synced_at IS NULL
+			ORDER BY oi.id DESC
+			LIMIT ?`, [BATCH_SIZE]);
+        const logBatch = await databaseInstance.all(`SELECT 
+				il.*,
+				COALESCE(p.name, 'Unknown Product') as product_name
+			FROM inventory_logs il
+			LEFT JOIN products p ON il.product_id = p.id
+			WHERE il.synced_at IS NULL AND (il.reason IS NULL OR il.reason != 'sale')
+			ORDER BY il.id DESC
+			LIMIT ?`, [BATCH_SIZE]);
+        const expenseBatch = await databaseInstance.all("SELECT * FROM expenses WHERE synced_at IS NULL ORDER BY created_at DESC LIMIT ?", [BATCH_SIZE]);
+        if (orderBatch.length === 0 &&
+            itemBatch.length === 0 &&
+            logBatch.length === 0 &&
+            expenseBatch.length === 0) {
+            break;
+        }
         currentBatch++;
-        const orderBatch = unsyncedOrders.splice(0, BATCH_SIZE);
-        const itemBatch = unsyncedOrderItems.splice(0, BATCH_SIZE);
-        const logBatch = unsyncedInventoryLogs.splice(0, BATCH_SIZE);
-        const expenseBatch = unsyncedExpenses.splice(0, BATCH_SIZE);
         console.log(`[Sync] Uploading batch ${currentBatch}/${totalBatches}: ${orderBatch.length} orders, ${itemBatch.length} items, ${logBatch.length} logs, ${expenseBatch.length} expenses...`);
         let response;
         try {
@@ -427,29 +430,38 @@ async function performSyncInternal() {
             return { status: "error", message: msg };
         }
         const timestamp = new Date().toISOString();
+        let batchSyncedCount = 0;
         // Update orders synced_at
         if (result.syncedOrders && result.syncedOrders.length > 0) {
             const placeholders = result.syncedOrders.map(() => "?").join(",");
             await databaseInstance.run(`UPDATE orders SET synced_at = ? WHERE id IN (${placeholders})`, [timestamp, ...result.syncedOrders]);
             totalSyncedOrders += result.syncedOrders.length;
+            batchSyncedCount += result.syncedOrders.length;
         }
         // Update order_items synced_at
         if (result.syncedOrderItems && result.syncedOrderItems.length > 0) {
             const placeholders = result.syncedOrderItems.map(() => "?").join(",");
             await databaseInstance.run(`UPDATE order_items SET synced_at = ? WHERE id IN (${placeholders})`, [timestamp, ...result.syncedOrderItems]);
             totalSyncedItems += result.syncedOrderItems.length;
+            batchSyncedCount += result.syncedOrderItems.length;
         }
         // Update inventory_logs synced_at
         if (result.syncedInventoryLogs && result.syncedInventoryLogs.length > 0) {
             const placeholders = result.syncedInventoryLogs.map(() => "?").join(",");
             await databaseInstance.run(`UPDATE inventory_logs SET synced_at = ? WHERE id IN (${placeholders})`, [timestamp, ...result.syncedInventoryLogs]);
             totalSyncedLogs += result.syncedInventoryLogs.length;
+            batchSyncedCount += result.syncedInventoryLogs.length;
         }
         // Update expenses synced_at
         if (result.syncedExpenses && result.syncedExpenses.length > 0) {
             const placeholders = result.syncedExpenses.map(() => "?").join(",");
             await databaseInstance.run(`UPDATE expenses SET synced_at = ? WHERE id IN (${placeholders})`, [timestamp, ...result.syncedExpenses]);
             totalSyncedExpenses += result.syncedExpenses.length;
+            batchSyncedCount += result.syncedExpenses.length;
+        }
+        if (batchSyncedCount === 0) {
+            console.warn("[Sync] Server reported 0 records synced for current batch. Stopping sync loop.");
+            break;
         }
         const processed = totalSyncedOrders +
             totalSyncedItems +
@@ -465,11 +477,13 @@ async function performSyncInternal() {
             percentage: pct,
             message: `Batch ${currentBatch} of ${totalBatches} complete (${processed}/${totalPendingRecords} records synced)`,
         });
+        // Yield briefly to main event loop to keep Electron UI responsive
+        await new Promise((resolve) => setTimeout(resolve, 20));
     }
     mainWindow?.webContents.send("sync-progress", {
         status: "completed",
-        currentBatch: totalBatches,
-        totalBatches,
+        currentBatch: Math.max(currentBatch, totalBatches),
+        totalBatches: Math.max(currentBatch, totalBatches),
         processedRecords: totalPendingRecords,
         totalRecords: totalPendingRecords,
         percentage: 100,
@@ -1009,6 +1023,18 @@ async function createWindow() {
         }
         catch (error) {
             // Column might already exist, ignore error
+        }
+        // Indexes for fast unsynced queries
+        try {
+            await db.exec(`
+				CREATE INDEX IF NOT EXISTS idx_orders_synced ON orders(synced_at);
+				CREATE INDEX IF NOT EXISTS idx_order_items_synced ON order_items(synced_at);
+				CREATE INDEX IF NOT EXISTS idx_inventory_logs_synced ON inventory_logs(synced_at);
+				CREATE INDEX IF NOT EXISTS idx_expenses_synced ON expenses(synced_at);
+			`);
+        }
+        catch (error) {
+            console.error("Error creating synced_at indexes:", error);
         }
         // Migration: Add timezone and business_date columns to orders, order_items, inventory_logs, and expenses if not exist
         for (const table of ["orders", "order_items", "inventory_logs", "expenses"]) {
@@ -4703,7 +4729,7 @@ electron_1.ipcMain.handle("get-sync-status", async () => {
             return { success: false, message: "Database not initialized" };
         const ordersCount = await databaseInstance.get("SELECT COUNT(*) as count FROM orders WHERE synced_at IS NULL");
         const itemsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM order_items WHERE synced_at IS NULL");
-        const logsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL");
+        const logsCount = await databaseInstance.get("SELECT COUNT(*) as count FROM inventory_logs WHERE synced_at IS NULL AND (reason IS NULL OR reason != 'sale')");
         const expensesCount = await databaseInstance.get("SELECT COUNT(*) as count FROM expenses WHERE synced_at IS NULL");
         const latestOrderSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM orders WHERE synced_at IS NOT NULL");
         const latestItemSync = await databaseInstance.get("SELECT MAX(synced_at) as last_sync FROM order_items WHERE synced_at IS NOT NULL");

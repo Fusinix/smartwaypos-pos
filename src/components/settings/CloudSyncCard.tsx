@@ -137,14 +137,16 @@ export const CloudSyncCard: React.FC = () => {
 		}
 	};
 
+	const isAllBackedUp = syncStatus !== null && totalPendingCount === 0;
+
 	return (
 		<SectionCard title="Cloud Server Backup & Sync">
 			<div className="space-y-4">
-				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 ">
 					<div className="space-y-1">
 						<div className="flex items-center gap-2">
 							<Clock className="size-4 text-slate-500" />
-							<span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+							<span className="text-xs font-semibold text-slate-500">
 								Last Successful Sync:
 							</span>
 							<span className="text-xs font-bold text-slate-900">
@@ -152,8 +154,7 @@ export const CloudSyncCard: React.FC = () => {
 							</span>
 						</div>
 						<div className="flex items-center gap-2 pt-1">
-							<Database className="size-4 text-slate-500" />
-							<span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+							<span className="text-xs font-semibold text-slate-500">
 								Status:
 							</span>
 							{totalPendingCount > 0 ?
@@ -173,18 +174,23 @@ export const CloudSyncCard: React.FC = () => {
 						</div>
 					</div>
 
-					<Button onClick={handleStartSync} disabled={isSyncing}>
-						{isSyncing ?
-							<>
-								<Loader2 className="size-4 animate-spin" />
-								Backing up...
-							</>
-						:	<>
-								<UploadCloud className="size-4" />
-								Back Up
-							</>
-						}
-					</Button>
+					{!isAllBackedUp && (
+						<Button
+							onClick={handleStartSync}
+							disabled={isSyncing || isAllBackedUp}
+						>
+							{isSyncing ?
+								<>
+									<Loader2 className="size-4 animate-spin" />
+									Backing up...
+								</>
+							:	<>
+									<UploadCloud className="size-4" />
+									Back Up
+								</>
+							}
+						</Button>
+					)}
 				</div>
 			</div>
 
