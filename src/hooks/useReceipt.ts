@@ -1,6 +1,7 @@
 /** @format */
 
 import type { Order } from "@/types";
+import { getOrderAuditInfo } from "@/lib/utils";
 
 export const useReceipt = () => {
 	const printReceipt = async (order: Order, openDrawer = false) => {
@@ -59,6 +60,8 @@ export const useReceipt = () => {
 			const n = parseFloat(val);
 			return isNaN(n) ? "0.00" : n.toFixed(2);
 		};
+
+		const audit = getOrderAuditInfo(order);
 
 		console.log("Preparing receipt HTML...");
 		await new Promise((r) => setTimeout(r, 100)); // Stability pause
@@ -179,7 +182,11 @@ export const useReceipt = () => {
 														}
                         </div>
                     `}
-    
+                    <div style="margin-top: 8px; border-top: 1pt dashed #585858ff; padding-top: 6px; font-size: 7pt; font-weight: 700; text-align: left;">
+                        <div>Created by: ${audit.creatorName} , ${audit.createdDateStr}</div>
+                        ${audit.shouldShowEditedBy ? `<div style="margin-top: 2px;">Edited by: ${audit.editorName} , ${audit.editedDateStr}</div>` : ""}
+                    </div>
+
                     <div style="text-align: center; margin-top: 8px; font-size: 7pt; border-top: 1pt dashed #000; padding-top: 6px;">
                         <p style="margin: 3px 0; font-weight: 700;">Thank you for choosing ${businessName}</p>
                         <p style="margin: 3px 0;">Please come again!</p>
@@ -259,6 +266,7 @@ export const useReceipt = () => {
 		};
 
 		// Get order details
+		const audit = getOrderAuditInfo(order);
 		const orderNum = order.order_number ?? order.id;
 		const tableNum = order.table_number || "";
 		const orderDate = order.created_at ? new Date(order.created_at) : new Date();
@@ -389,6 +397,11 @@ export const useReceipt = () => {
 													.join("")}
                     </div>
     
+                    <div style="border-top: 1pt solid #000; padding-top: 8px; margin-top: 16px; font-size: 10pt; font-weight: 800; text-align: left;">
+                        <div>Created by: ${audit.creatorName} , ${audit.createdDateStr}</div>
+                        ${audit.shouldShowEditedBy ? `<div style="margin-top: 4px;">Edited by: ${audit.editorName} , ${audit.editedDateStr}</div>` : ""}
+                    </div>
+
                     <div class="footer">
                         *** END OF TICKET ***
                     </div>

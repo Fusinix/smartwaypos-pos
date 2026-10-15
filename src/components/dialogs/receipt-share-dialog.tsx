@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import type { Order } from "@/types";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useSettings } from "@/hooks/useSettings";
+import { getOrderAuditInfo } from "@/lib/utils";
 
 interface ReceiptShareDialogProps {
 	order: Order | null;
@@ -115,6 +116,12 @@ export const ReceiptShareDialog: React.FC<ReceiptShareDialogProps> = ({
 
 		if (order.notes) {
 			receiptText += `\nNotes: ${order.notes}\n`;
+		}
+
+		const audit = getOrderAuditInfo(order);
+		receiptText += `\nCreated by: ${audit.creatorName} , ${audit.createdDateStr}\n`;
+		if (audit.shouldShowEditedBy) {
+			receiptText += `Edited by: ${audit.editorName} , ${audit.editedDateStr}\n`;
 		}
 
 		receiptText += `\nThank you for your business!`;

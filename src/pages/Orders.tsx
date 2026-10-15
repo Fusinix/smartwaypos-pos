@@ -29,7 +29,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { paymentModes, useOrders } from "@/hooks/useOrders";
 import { useReceipt } from "@/hooks/useReceipt";
 import { useSettings } from "@/hooks/useSettings";
-import { cn, parseJSONString } from "@/lib/utils";
+import { cn, parseJSONString, getOrderAuditInfo } from "@/lib/utils";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useOrderStore } from "@/stores/useOrderStore";
 import type { Order } from "@/types";
@@ -1987,6 +1987,35 @@ export const Orders: React.FC = () => {
 										</div>
 									:	null}
 								</div>
+
+								{/* Order Audit Details */}
+								{(() => {
+									const audit = getOrderAuditInfo(selectedOrder);
+									return (
+										<div className="pt-3 border-t text-xs text-muted-foreground space-y-1">
+											<div>
+												<span className="font-semibold text-foreground/80">
+													Created by:{" "}
+												</span>
+												<span className="font-medium text-foreground">
+													{audit.creatorName}
+												</span>
+												<span> , {audit.createdDateStr}</span>
+											</div>
+											{audit.shouldShowEditedBy && (
+												<div>
+													<span className="font-semibold text-foreground/80">
+														Edited by:{" "}
+													</span>
+													<span className="font-medium text-foreground">
+														{audit.editorName}
+													</span>
+													<span> , {audit.editedDateStr}</span>
+												</div>
+											)}
+										</div>
+									);
+								})()}
 							</div>
 						</div>
 					}

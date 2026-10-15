@@ -3094,7 +3094,7 @@ electron_1.ipcMain.handle("create-order", async (_event, order) => {
             amount_bt,
             orderData.status || "open",
             closedAt,
-            orderData.admin_id || null,
+            orderData.admin_id || orderData.author?.id || null,
             orderData.notes || null,
             DEFAULT_VENUE_TIMEZONE,
             bDate,
@@ -3483,7 +3483,7 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 amount_bt,
                 order.status,
                 closedAt,
-                order.admin_id,
+                order.admin_id ?? existingOrder?.admin_id ?? null,
                 editorId,
                 order.amount_tendered || 0,
                 order.notes || null,
@@ -3500,7 +3500,18 @@ electron_1.ipcMain.handle("update-order", async (_, order) => {
                 page: "orders",
                 context: { ...order, amount, amount_bt },
             });
-            return { ...order, amount, amount_bt };
+            // Fetch fresh updated order with creator_name and editor_name
+            const updatedOrder = await db.get(`
+				SELECT 
+					o.*,
+					u_creator.username AS creator_name,
+					u_editor.username AS editor_name
+				FROM orders o
+				LEFT JOIN users u_creator ON o.admin_id = u_creator.id
+				LEFT JOIN users u_editor ON o.edited_by = u_editor.id
+				WHERE o.id = ?
+			`, [order.id]);
+            return { ...order, ...updatedOrder, items: order.items || [] };
         });
         scheduleSyncAfterMutation();
         return result;
