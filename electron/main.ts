@@ -712,10 +712,32 @@ function getBusinessDateExpr(
 }
 
 /**
- * Computes logical Business Date string (YYYY-MM-DD) for a given JavaScript Date.
+ * Computes logical Business Date string (YYYY-MM-DD) for a given JavaScript Date or date string.
  */
-function toBusinessDateStr(date: Date, cutoffHour: number): string {
-	const shifted = new Date(date.getTime() - cutoffHour * 60 * 60 * 1000);
+function toBusinessDateStr(dateInput: Date | string, cutoffHour: number): string {
+	if (!dateInput) return "";
+	let d: Date;
+	if (typeof dateInput === "string") {
+		let str = dateInput.trim();
+		if (str.includes(" ") && !str.includes("T")) {
+			str = str.replace(" ", "T");
+		}
+		if (!str.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(str)) {
+			const parsedAsUtc = new Date(str + "Z");
+			if (!isNaN(parsedAsUtc.getTime())) {
+				d = parsedAsUtc;
+			} else {
+				d = new Date(str);
+			}
+		} else {
+			d = new Date(str);
+		}
+	} else {
+		d = dateInput;
+	}
+	if (isNaN(d.getTime())) return "";
+
+	const shifted = new Date(d.getTime() - cutoffHour * 60 * 60 * 1000);
 	const year = shifted.getFullYear();
 	const month = String(shifted.getMonth() + 1).padStart(2, "0");
 	const day = String(shifted.getDate()).padStart(2, "0");
@@ -4424,6 +4446,30 @@ ipcMain.handle(
 		try {
 			const result = await withRetry(async () => {
 				const db = await getDatabase();
+
+				// Validate order exists, is open, and was created on the current business day
+				const existingOrder = await db.get(
+					"SELECT id, created_at, status FROM orders WHERE id = ?",
+					[orderId],
+				);
+				if (!existingOrder) {
+					throw new Error("Order not found");
+				}
+				if (existingOrder.status !== "open") {
+					throw new Error("Only open orders can have their items edited");
+				}
+
+				const cutoffHour = await getBusinessDayCutoffHour(db);
+				const orderBizDate = toBusinessDateStr(
+					existingOrder.created_at,
+					cutoffHour,
+				);
+				const currentBizDate = toBusinessDateStr(new Date(), cutoffHour);
+				if (orderBizDate !== currentBizDate) {
+					throw new Error(
+						"Order items can only be edited on the same business day the order was created",
+					);
+				}
 
 				// Get current order items for stock adjustment
 				const currentItems = await db.all(

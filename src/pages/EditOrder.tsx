@@ -12,8 +12,9 @@ import { useFoodExtras } from "@/hooks/useFoodExtras";
 import { useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { useSettings } from "@/hooks/useSettings";
-import { cn, parseJSONString } from "@/lib/utils";
+import { cn, parseJSONString, canEditOrderItems, getCutoffHour } from "@/lib/utils";
 import type { Order, OrderItemDetail } from "@/types";
+import { toast } from "sonner";
 import {
 	Beer,
 	Eye,
@@ -56,12 +57,21 @@ export const EditOrder: React.FC = () => {
 	const [loading, setLoading] = useState(false);
 	const [dataFetched, setDataFetched] = useState(false);
 
-	// Redirect if no order is being edited
+	// Redirect if no order is being edited or order cannot be edited
 	useEffect(() => {
 		if (!editingOrder) {
 			navigate("/orders");
+			return;
 		}
-	}, [editingOrder, navigate]);
+
+		const cutoffHour = getCutoffHour(settings);
+		if (!canEditOrderItems(editingOrder, cutoffHour)) {
+			toast.error(
+				"Order items can only be edited on the same business day the order was created",
+			);
+			navigate("/orders");
+		}
+	}, [editingOrder, settings, navigate]);
 
 	const tax = parseJSONString(settings?.pos as any)?.defaultTaxRate ?? 10;
 

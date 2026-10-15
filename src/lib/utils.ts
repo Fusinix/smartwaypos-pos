@@ -181,3 +181,77 @@ export function getOrderAuditInfo(
 	};
 }
 
+/**
+ * Computes logical Business Date string (YYYY-MM-DD) for a given date,
+ * shifting by the cut-off hour (e.g. 4:00 AM closing time).
+ */
+export function toBusinessDateStr(
+	dateInput: Date | string | undefined | null,
+	cutoff: number = 4,
+): string {
+	if (!dateInput) return "";
+	let d: Date;
+	if (typeof dateInput === "string") {
+		let str = dateInput.trim();
+		if (str.includes(" ") && !str.includes("T")) {
+			str = str.replace(" ", "T");
+		}
+		if (!str.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(str)) {
+			const parsedAsUtc = new Date(str + "Z");
+			if (!isNaN(parsedAsUtc.getTime())) {
+				d = parsedAsUtc;
+			} else {
+				d = new Date(str);
+			}
+		} else {
+			d = new Date(str);
+		}
+	} else {
+		d = dateInput;
+	}
+	if (isNaN(d.getTime())) return "";
+
+	const busDate = new Date(d.getTime() - cutoff * 60 * 60 * 1000);
+	const year = busDate.getFullYear();
+	const month = String(busDate.getMonth() + 1).padStart(2, "0");
+	const day = String(busDate.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
+/**
+ * Safely extracts the businessDayCutoffHour from general settings.
+ */
+export function getCutoffHour(settings?: any): number {
+	if (settings?.general) {
+		const gen =
+			typeof settings.general === "string" ?
+				parseJSONString(settings.general)
+			:	settings.general;
+		if (
+			typeof gen?.businessDayCutoffHour === "number" &&
+			!isNaN(gen.businessDayCutoffHour)
+		) {
+			return gen.businessDayCutoffHour;
+		}
+	}
+	return 4;
+}
+
+/**
+ * Determines whether order items are editable based on:
+ * 1. Order status is 'open'.
+ * 2. Order created_at business date matches the current business date (respecting closing cut-off hour).
+ */
+export function canEditOrderItems(
+	order: { created_at?: string; status?: string } | null | undefined,
+	cutoffHour: number = 4,
+	currentDate: Date = new Date(),
+): boolean {
+	if (!order || order.status !== "open" || !order.created_at) {
+		return false;
+	}
+	const orderBusinessDate = toBusinessDateStr(order.created_at, cutoffHour);
+	const currentBusinessDate = toBusinessDateStr(currentDate, cutoffHour);
+	return Boolean(orderBusinessDate && orderBusinessDate === currentBusinessDate);
+}
+

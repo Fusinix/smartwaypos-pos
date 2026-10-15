@@ -29,7 +29,14 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { paymentModes, useOrders } from "@/hooks/useOrders";
 import { useReceipt } from "@/hooks/useReceipt";
 import { useSettings } from "@/hooks/useSettings";
-import { cn, parseJSONString, getOrderAuditInfo } from "@/lib/utils";
+import {
+	cn,
+	parseJSONString,
+	getOrderAuditInfo,
+	canEditOrderItems,
+	getCutoffHour,
+	toBusinessDateStr,
+} from "@/lib/utils";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useOrderStore } from "@/stores/useOrderStore";
 import type { Order } from "@/types";
@@ -258,20 +265,8 @@ export const Orders: React.FC = () => {
 	}, [orders]);
 
 	const cutoffHour = useMemo(() => {
-		if (settings?.general) {
-			const gen =
-				typeof settings.general === "string" ?
-					parseJSONString(settings.general)
-				:	settings.general;
-			if (
-				typeof gen?.businessDayCutoffHour === "number" &&
-				!isNaN(gen.businessDayCutoffHour)
-			) {
-				return gen.businessDayCutoffHour;
-			}
-		}
-		return 4;
-	}, [settings?.general]);
+		return getCutoffHour(settings);
+	}, [settings]);
 
 	const parseOrderDate = (val: string) => {
 		let str = String(val).trim();
@@ -279,39 +274,6 @@ export const Orders: React.FC = () => {
 			str = str.replace(" ", "T");
 		}
 		return new Date(str);
-	};
-
-	const toBusinessDateStr = (
-		dateInput: Date | string,
-		cutoff: number = 4,
-	): string => {
-		if (!dateInput) return "";
-		let d: Date;
-		if (typeof dateInput === "string") {
-			let str = dateInput.trim();
-			if (str.includes(" ") && !str.includes("T")) {
-				str = str.replace(" ", "T");
-			}
-			if (!str.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(str)) {
-				const parsedAsUtc = new Date(str + "Z");
-				if (!isNaN(parsedAsUtc.getTime())) {
-					d = parsedAsUtc;
-				} else {
-					d = new Date(str);
-				}
-			} else {
-				d = new Date(str);
-			}
-		} else {
-			d = dateInput;
-		}
-		if (isNaN(d.getTime())) return "";
-
-		const busDate = new Date(d.getTime() - cutoff * 60 * 60 * 1000);
-		const year = busDate.getFullYear();
-		const month = String(busDate.getMonth() + 1).padStart(2, "0");
-		const day = String(busDate.getDate()).padStart(2, "0");
-		return `${year}-${month}-${day}`;
 	};
 
 	const parseLocalDateString = (dateStr: string, isEnd = false): Date => {
@@ -629,6 +591,12 @@ export const Orders: React.FC = () => {
 
 	const handleEditItems = async () => {
 		if (selectedOrder) {
+			if (!canEditOrderItems(selectedOrder, cutoffHour)) {
+				toast.error(
+					"Order items can only be edited on the same business day the order was created",
+				);
+				return;
+			}
 			if (hasChanges) {
 				try {
 					const updated = await updateOrder(selectedOrder);
@@ -1929,7 +1897,7 @@ export const Orders: React.FC = () => {
 									)}
 								</div>
 
-								{selectedOrder?.status === "open" ?
+								{canEditOrderItems(selectedOrder, cutoffHour) ?
 									<Button
 										variant="outline"
 										onClick={handleEditItems}
