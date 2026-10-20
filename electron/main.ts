@@ -359,15 +359,27 @@ type SyncResult =
 	  }
 	| { status: "error"; message: string };
 
-async function performSync(): Promise<SyncResult> {
+interface SyncOptions {
+	isAuto?: boolean;
+}
+
+let isSyncInProgress = false;
+
+async function performSync(options: SyncOptions = {}): Promise<SyncResult> {
+	if (isSyncInProgress) {
+		console.log("[Sync] Sync operation is already running, skipping.");
+		return { status: "skipped", reason: "Sync already in progress." };
+	}
+	isSyncInProgress = true;
 	try {
-		return await performSyncInternal();
+		return await performSyncInternal(options);
 	} finally {
+		isSyncInProgress = false;
 		notifySyncStatusChanged();
 	}
 }
 
-async function performSyncInternal(): Promise<SyncResult> {
+async function performSyncInternal(options: SyncOptions = {}): Promise<SyncResult> {
 	if (!net.isOnline()) {
 		console.log("[Sync] Offline. Skipping cloud sync cycle.");
 		return { status: "skipped", reason: "Device is offline." };
@@ -446,6 +458,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 		processedRecords: 0,
 		totalRecords: totalPendingRecords,
 		percentage: 0,
+		isAuto: options.isAuto ?? false,
 		message: `Starting sync of ${totalPendingRecords} records...`,
 	});
 
@@ -528,6 +541,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 			console.error("[Sync]", msg);
 			mainWindow?.webContents.send("sync-progress", {
 				status: "error",
+				isAuto: options.isAuto ?? false,
 				message: msg,
 			});
 			return { status: "error", message: msg };
@@ -542,6 +556,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 			console.error("[Sync]", msg);
 			mainWindow?.webContents.send("sync-progress", {
 				status: "error",
+				isAuto: options.isAuto ?? false,
 				message: msg,
 			});
 			return { status: "error", message: msg };
@@ -555,6 +570,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 			console.error("[Sync]", msg);
 			mainWindow?.webContents.send("sync-progress", {
 				status: "error",
+				isAuto: options.isAuto ?? false,
 				message: msg,
 			});
 			return { status: "error", message: msg };
@@ -565,6 +581,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 			console.error("[Sync] Sync rejected by server:", msg);
 			mainWindow?.webContents.send("sync-progress", {
 				status: "error",
+				isAuto: options.isAuto ?? false,
 				message: msg,
 			});
 			return { status: "error", message: msg };
@@ -639,6 +656,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 			processedRecords: processed,
 			totalRecords: totalPendingRecords,
 			percentage: pct,
+			isAuto: options.isAuto ?? false,
 			message: `Batch ${currentBatch} of ${totalBatches} complete (${processed}/${totalPendingRecords} records synced)`,
 		});
 
@@ -653,6 +671,7 @@ async function performSyncInternal(): Promise<SyncResult> {
 		processedRecords: totalPendingRecords,
 		totalRecords: totalPendingRecords,
 		percentage: 100,
+		isAuto: options.isAuto ?? false,
 		message: "Cloud sync completed successfully!",
 	});
 
@@ -668,9 +687,128 @@ async function performSyncInternal(): Promise<SyncResult> {
 	};
 }
 
+async function getLastAutoBackupTime(): Promise<string | null> {
+	try {
+		const databaseInstance = getDatabase();
+		if (databaseInstance) {
+			const row = await databaseInstance.get(
+				"SELECT value FROM app_metadata WHERE key = 'last_auto_backup_time'",
+			);
+			if (row?.value) {
+				return row.value;
+			}
+		}
+	} catch (e) {
+		// Table might not exist yet
+	}
+
+	// Secondary check: userData file fallback
+	try {
+		const filePath = path.join(app.getPath("userData"), "last-auto-backup.json");
+		if (fs.existsSync(filePath)) {
+			const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+			return data.timestamp || null;
+		}
+	} catch {}
+
+	return null;
+}
+
+async function setLastAutoBackupTime(isoTimestamp: string): Promise<void> {
+	try {
+		const databaseInstance = getDatabase();
+		if (databaseInstance) {
+			await databaseInstance.run(
+				"INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('last_auto_backup_time', ?)",
+				[isoTimestamp],
+			);
+		}
+	} catch (e) {
+		console.error("[Auto-Backup] Failed to save last_auto_backup_time in database:", e);
+	}
+
+	try {
+		const filePath = path.join(app.getPath("userData"), "last-auto-backup.json");
+		fs.writeFileSync(filePath, JSON.stringify({ timestamp: isoTimestamp }), "utf8");
+	} catch (e) {
+		console.error("[Auto-Backup] Failed to save last-auto-backup.json:", e);
+	}
+}
+
+function isSameCalendarDay(date1: Date, date2: Date): boolean {
+	return (
+		date1.getFullYear() === date2.getFullYear() &&
+		date1.getMonth() === date2.getMonth() &&
+		date1.getDate() === date2.getDate()
+	);
+}
+
+async function checkAndTriggerDailyAutoBackup(): Promise<boolean> {
+	try {
+		// 1. Must be online
+		if (!net.isOnline()) {
+			console.log("[Auto-Backup] Device is currently offline. Skipping daily auto backup.");
+			return false;
+		}
+
+		// 2. Must have active license key
+		const licenseInfo = licensingManager.getLicenseInfo();
+		if (!licenseInfo || !licenseInfo.licenseKey) {
+			console.log("[Auto-Backup] No active license key found. Skipping daily auto backup.");
+			return false;
+		}
+
+		// 3. Prevent overlapping syncs
+		if (isSyncInProgress) {
+			console.log("[Auto-Backup] Sync is already running. Skipping daily auto backup check.");
+			return false;
+		}
+
+		// 4. Check if auto backup has already run today
+		const lastAutoBackup = await getLastAutoBackupTime();
+		const now = new Date();
+
+		if (lastAutoBackup) {
+			const lastDate = new Date(lastAutoBackup);
+			if (!isNaN(lastDate.getTime()) && isSameCalendarDay(lastDate, now)) {
+				console.log(
+					`[Auto-Backup] Daily backup already performed today at ${lastAutoBackup}. Next auto backup tomorrow.`,
+				);
+				return false;
+			}
+		}
+
+		console.log("[Auto-Backup] Internet connection confirmed and daily backup not yet run today. Starting auto backup...");
+		const syncResult = await performSync({ isAuto: true });
+
+		if (syncResult.status === "synced" || syncResult.status === "skipped") {
+			const timestamp = now.toISOString();
+			await setLastAutoBackupTime(timestamp);
+			console.log(`[Auto-Backup] Daily auto backup completed and recorded at ${timestamp}.`);
+			notifySyncStatusChanged();
+			return true;
+		} else {
+			console.warn("[Auto-Backup] Daily auto backup failed or encountered error:", syncResult);
+			return false;
+		}
+	} catch (error) {
+		console.error("[Auto-Backup] Error in checkAndTriggerDailyAutoBackup:", error);
+		return false;
+	}
+}
+
 function startSyncLoop() {
 	if (syncInterval) clearInterval(syncInterval);
-	// Auto sync loop disabled — sync is triggered manually via Cloud Sync button on Settings/Profile page.
+
+	// Delay initial check by 10 seconds after app startup
+	setTimeout(() => {
+		checkAndTriggerDailyAutoBackup();
+	}, 10000);
+
+	// Check every 15 minutes for internet connection and daily backup eligibility
+	syncInterval = setInterval(() => {
+		checkAndTriggerDailyAutoBackup();
+	}, 15 * 60 * 1000);
 }
 
 /**
@@ -1027,6 +1165,11 @@ async function createWindow() {
         status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS app_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
     `);
 
 		// Add amount columns to orders table if they don't exist (migration)
@@ -1309,6 +1452,18 @@ async function createWindow() {
 			await db.run("UPDATE expenses SET business_date = DATE(created_at) WHERE business_date IS NULL");
 			await db.run("UPDATE orders SET closed_at = COALESCE(updated_at, created_at) WHERE status = 'closed' AND closed_at IS NULL");
 		} catch {}
+
+		// Migration: Create app_metadata table if it doesn't exist
+		try {
+			await db.exec(`
+				CREATE TABLE IF NOT EXISTS app_metadata (
+					key TEXT PRIMARY KEY,
+					value TEXT
+				);
+			`);
+		} catch (error: any) {
+			console.error("Error creating app_metadata table in migration:", error);
+		}
 
 		// Create default admin user if not exists
 		const adminUser = await db.get(
@@ -5882,6 +6037,8 @@ ipcMain.handle("get-sync-status", async () => {
 				new Date(Math.max(...lastSyncDates)).toISOString()
 			:	null;
 
+		const lastAutoBackupAt = await getLastAutoBackupTime();
+
 		return {
 			success: true,
 			unsyncedOrders: Number(ordersCount?.count ?? 0),
@@ -5889,6 +6046,7 @@ ipcMain.handle("get-sync-status", async () => {
 			unsyncedInventoryLogs: Number(logsCount?.count ?? 0),
 			unsyncedExpenses: Number(expensesCount?.count ?? 0),
 			lastSyncedAt,
+			lastAutoBackupAt,
 		};
 	} catch (error: any) {
 		console.error("Error in get-sync-status handler:", error);
@@ -5897,7 +6055,7 @@ ipcMain.handle("get-sync-status", async () => {
 });
 
 ipcMain.handle("trigger-manual-sync", async () => {
-	const result = await performSync();
+	const result = await performSync({ isAuto: false });
 	if (result.status === "error") {
 		return { success: false, message: result.message };
 	}
@@ -5913,6 +6071,10 @@ ipcMain.handle("trigger-manual-sync", async () => {
 		orderItems: result.orderItems,
 		inventoryLogs: result.inventoryLogs,
 	};
+});
+
+ipcMain.handle("check-auto-backup", async () => {
+	return await checkAndTriggerDailyAutoBackup();
 });
 
 ipcMain.handle("check-app-version", async () => {

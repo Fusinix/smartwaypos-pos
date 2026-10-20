@@ -90,6 +90,7 @@ const validChannels = [
   'get-all-shifts',
   'get-sync-status',
   'trigger-manual-sync',
+  'check-auto-backup',
   'check-app-version',
 ];
 

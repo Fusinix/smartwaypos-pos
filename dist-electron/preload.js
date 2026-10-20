@@ -91,6 +91,7 @@ const validChannels = [
     'get-all-shifts',
     'get-sync-status',
     'trigger-manual-sync',
+    'check-auto-backup',
     'check-app-version',
 ];
 // Expose protected methods that allow the renderer process to use

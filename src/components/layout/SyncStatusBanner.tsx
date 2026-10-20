@@ -69,6 +69,7 @@ export const SyncStatusBanner: React.FC = () => {
 		const handleOnline = () => {
 			setIsOnline(true);
 			fetchSyncAndVersionStatus();
+			window.electron.invoke("check-auto-backup").catch(() => {});
 		};
 		const handleOffline = () => {
 			setIsOnline(false);

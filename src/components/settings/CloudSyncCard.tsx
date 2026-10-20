@@ -9,7 +9,6 @@ import {
 	CheckCircle2,
 	AlertCircle,
 	Loader2,
-	Database,
 	Clock,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +19,7 @@ interface SyncStatus {
 	unsyncedInventoryLogs: number;
 	unsyncedExpenses: number;
 	lastSyncedAt: string | null;
+	lastAutoBackupAt: string | null;
 }
 
 interface ProgressData {
@@ -30,6 +30,7 @@ interface ProgressData {
 	totalRecords?: number;
 	percentage?: number;
 	message?: string;
+	isAuto?: boolean;
 }
 
 export const CloudSyncCard: React.FC = () => {
@@ -58,21 +59,36 @@ export const CloudSyncCard: React.FC = () => {
 
 		const unsubProgress = window.electron.onSyncProgress?.(
 			(data: ProgressData) => {
-				setProgress(data);
+				if (!data.isAuto) {
+					setProgress(data);
+				}
 				if (data.status === "completed") {
 					setIsSyncing(false);
 					fetchSyncStatus();
-					toast.success("Cloud sync completed successfully!");
+					if (!data.isAuto) {
+						toast.success("Cloud sync completed successfully!");
+					}
 				} else if (data.status === "error") {
 					setIsSyncing(false);
-					toast.error(data.message || "Cloud sync failed.");
+					if (!data.isAuto) {
+						toast.error(data.message || "Cloud sync failed.");
+					}
 				}
 			},
 		);
 
+		const handleOnline = () => {
+			window.electron.invoke("check-auto-backup").catch((err) => {
+				console.error("Auto backup check on reconnect failed:", err);
+			});
+		};
+
+		window.addEventListener("online", handleOnline);
+
 		return () => {
 			unsubStatus?.();
 			unsubProgress?.();
+			window.removeEventListener("online", handleOnline);
 		};
 	}, []);
 
@@ -124,16 +140,16 @@ export const CloudSyncCard: React.FC = () => {
 		(syncStatus?.unsyncedExpenses || 0);
 
 	const formatLastSync = (isoStr: string | null | undefined) => {
-		if (!isoStr) return "Never synced";
+		if (!isoStr) return "Never";
 		try {
 			const d = new Date(isoStr);
-			if (isNaN(d.getTime())) return "Never synced";
+			if (isNaN(d.getTime())) return "Never";
 			return d.toLocaleString(undefined, {
 				dateStyle: "medium",
 				timeStyle: "short",
 			});
 		} catch {
-			return "Never synced";
+			return "Never";
 		}
 	};
 
@@ -142,18 +158,29 @@ export const CloudSyncCard: React.FC = () => {
 	return (
 		<SectionCard title="Cloud Server Backup & Sync">
 			<div className="space-y-4">
-				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 ">
-					<div className="space-y-1">
-						<div className="flex items-center gap-2">
-							<Clock className="size-4 text-slate-500" />
-							<span className="text-xs font-semibold text-slate-500">
-								Last Successful Sync:
-							</span>
-							<span className="text-xs font-bold text-slate-900">
-								{formatLastSync(syncStatus?.lastSyncedAt)}
-							</span>
+				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+					<div className="space-y-1.5">
+						<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+							<div className="flex items-center gap-1.5">
+								<Clock className="size-3.5 text-slate-500" />
+								<span className="font-semibold text-slate-500">
+									Last Sync:
+								</span>
+								<span className="font-bold text-slate-900">
+									{formatLastSync(syncStatus?.lastSyncedAt)}
+								</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<CheckCircle2 className="size-3.5 text-emerald-600" />
+								<span className="font-semibold text-slate-500">
+									Last Auto Backup:
+								</span>
+								<span className="font-bold text-slate-900">
+									{formatLastSync(syncStatus?.lastAutoBackupAt)}
+								</span>
+							</div>
 						</div>
-						<div className="flex items-center gap-2 pt-1">
+						<div className="flex items-center gap-2 pt-0.5">
 							<span className="text-xs font-semibold text-slate-500">
 								Status:
 							</span>
@@ -171,6 +198,12 @@ export const CloudSyncCard: React.FC = () => {
 									All data backed up to cloud
 								</Badge>
 							}
+							<Badge
+								variant="outline"
+								className="text-slate-600 border-slate-200 text-[10px] font-medium"
+							>
+								Auto-backup: 1x / day
+							</Badge>
 						</div>
 					</div>
 
